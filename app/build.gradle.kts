@@ -63,7 +63,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
-    implementation("com.github.naman14:TAndroidLame:1.1") // encoder MP3 (LAME) — ver docs/ARQUITETURA.md, 6.5
+    implementation("com.github.naman14:TAndroidLame:1.1") { // encoder MP3; AppCompat não é usado pelo encoder
+        exclude(group = "com.android.support")
+    }
     ksp("androidx.room:room-compiler:2.6.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 

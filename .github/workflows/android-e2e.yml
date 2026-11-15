@@ -20,6 +20,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Habilitar KVM no runner Linux
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - uses: android-actions/setup-android@v4.0.4
         with:
           packages: 'platform-tools'
@@ -33,6 +38,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_2
+          disable-linux-hw-accel: false
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest --stacktrace
       - name: Publicar relatórios E2E

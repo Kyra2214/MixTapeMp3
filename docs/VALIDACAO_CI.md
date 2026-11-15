@@ -21,3 +21,12 @@ Ambos os workflows executam em push para `main`, pull request e manualmente pela
 ## Resultados das execuções
 
 Os logs e a conclusão atualizados devem ser consultados na aba [GitHub Actions](https://github.com/Kyra2214/MixTapeMp3/actions). A validação final após as correções do manifest deve confirmar a criação do APK e a passagem do E2E.
+
+
+## Conflito de dependências do encoder
+
+Após resolver o manifesto, `checkDebugDuplicateClasses` detectou classes `android.support.v4.*` duplicadas entre `androidx.core:core:1.13.1` e a biblioteca antiga `com.android.support:support-compat:26.1.0`, trazida pelo POM do `TAndroidLame`. O wrapper do encoder usa somente `AndroidLame`/`LameBuilder`, sem AppCompat. A dependência agora exclui `com.android.support`; `./gradlew :app:dependencies --configuration debugRuntimeClasspath` confirmou que a árvore antiga não é mais resolvida.
+
+## Inicialização do emulador E2E
+
+O log do runner mostrou que `/dev/kvm` não estava acessível e que o emulador estava sendo lançado com aceleração Linux desativada; ele nunca alcançou `sys.boot_completed`. O workflow agora aplica a regra udev recomendada pelo GitHub/Android Emulator Runner para permitir KVM e configura `disable-linux-hw-accel: false`. O novo run precisa validar o boot real e o teste Compose.
