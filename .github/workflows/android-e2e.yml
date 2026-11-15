@@ -20,11 +20,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@v4.0.4
+        with:
+          packages: 'platform-tools'
       - name: Instalar Android SDK 36
-        run: |
-          set +o pipefail
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
       - name: Executar teste Compose em emulador API 35
         uses: reactivecircus/android-emulator-runner@v2

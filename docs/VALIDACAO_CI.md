@@ -17,3 +17,8 @@ Ambos os workflows iniciam em push para `main`, pull request e manualmente pela 
 ## Resultados
 
 Os resultados de cada execução devem ser lidos na aba **Actions** do GitHub. O workflow de CI publica `MixTapeMp3-debug-apk` (retenção de 14 dias); o workflow E2E publica `MixTapeMp3-e2e-results`. O teste em emulador valida inicialização e navegação inicial, não substitui o roteiro manual para importação de arquivos, codificação MP3, reprodução e exportação.
+
+
+## Setup do SDK nos runners
+
+Na primeira execução das Actions, a configuração falhou antes do build porque `android-actions/setup-android@v3` solicitava o pacote `tools`, que deixou de ser distribuído pelo Android SDK. Os workflows agora usam `android-actions/setup-android@v4.0.4` e pedem apenas `platform-tools`; a action atual instala os command-line tools e aceita as licenças. A API 36 e os Build Tools são instalados com `sdkmanager` antes do build. Referência: [README da action setup-android](https://github.com/android-actions/setup-android) e [notas de versão](https://github.com/android-actions/setup-android/releases).
