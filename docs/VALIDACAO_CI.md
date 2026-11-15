@@ -30,3 +30,7 @@ Após resolver o manifesto, `checkDebugDuplicateClasses` detectou classes `andro
 ## Inicialização do emulador E2E
 
 O log do runner mostrou que `/dev/kvm` não estava acessível e que o emulador estava sendo lançado com aceleração Linux desativada; ele nunca alcançou `sys.boot_completed`. O workflow agora aplica a regra udev recomendada pelo GitHub/Android Emulator Runner para permitir KVM e configura `disable-linux-hw-accel: false`. O novo run precisa validar o boot real e o teste Compose.
+
+## Teste instrumentado e artefato CI
+
+No run `43754664898`, o workflow Android CI concluiu com sucesso e publicou o APK debug. No E2E, a regra KVM permitiu iniciar o emulador; a compilação instrumentada então apontou que `assertExists` não está disponível na versão Compose UI Test usada. O teste foi ajustado para `assertIsDisplayed()` e será reexecutado para validar a navegação até a Home.

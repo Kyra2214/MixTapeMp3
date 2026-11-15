@@ -1,6 +1,6 @@
 package com.cdvirtual.app
 
-import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -17,6 +17,6 @@ class WelcomeFlowTest {
     @Test
     fun welcomeTapOpensHomeScreen() {
         composeRule.onNodeWithText("Toque para começar").performClick()
-        composeRule.onNodeWithText("Escolher pasta de saída").assertExists()
+        composeRule.onNodeWithText("Escolher pasta de saída").assertIsDisplayed()
     }
 }
