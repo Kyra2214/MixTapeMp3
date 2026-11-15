@@ -174,3 +174,8 @@
 
 ## ASSUMINDO (T-801)
 - Nome "MixTape MP3" escolhido pelo usuário, sem checagem de disponibilidade na Play. Tela de boas-vindas com tempo fixo de 2,5 s (toque pula). Ícone desenhado em vetor, não visto em aparelho.
+
+## ASSUMINDO (11.1)
+- Transporte escolhido: Innertube direto (zero dependência nova, sem GPL). `YouTubeApi.kt` é o ponto de troca; Cobalt e NewPipe Extractor ficam como alternativas sem mexer no conector.
+- Sem resolução do parâmetro `n`: velocidade de download pode ser limitada. Sem suporte a playlist, canal e transmissão ao vivo.
+- E2E de emulador não cobre YouTube (rede instável); a validação é manual, em `docs/CHECKLIST_VALIDACAO.md`.

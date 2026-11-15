@@ -376,3 +376,10 @@ Total: **26 tarefas** (24 originais + T-205, criada por P-030, + T-801, pedido d
 | P-018…P-024, P-026…P-029, P-033, P-034 | — | **não reconstruídos** (sem `data.py`) |
 
 Fonte do requisito da Play: [Google Play Console Help — target API level](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en-419).
+
+### T-802 — Importação por link do YouTube (pedido do usuário, 15/11/2026)
+- **Arquivos:** `media/connectors/{YouTubeConnector,YouTubeApi,Platform,ConnectorRegistry,RestrictedPlatformConnector,ImportErrors}.kt`
+- **Status:** IMPLEMENTADA (aguardando validação)
+- **Decisão:** Innertube direto, sem dependência nova e sem GPL; `YouTubeApi` isola o transporte.
+- **Fora de escopo:** playlist, canal, transmissão ao vivo, resolução do parâmetro `n`.
+- **Critério:** [ ] checklist de YouTube em `docs/CHECKLIST_VALIDACAO.md` executado pelo usuário.

@@ -324,3 +324,8 @@
 
 ## [extra] T-801 — IMPLEMENTADA (aguardando validação)
 - Pedido do usuário (fora do Roadmap original): app renomeado para "MixTape MP3"; ícone adaptativo de fita cassete (com camada monocromática); tela de boas-vindas (`feature/welcome/WelcomeScreen`) como destino inicial, seguindo para o Início sem voltar pelo botão Voltar. Textos "CD Virtual" visíveis ao usuário trocados. `applicationId` mantido. Não compilado.
+
+## 1.1.0 — importação por link do YouTube
+- `YouTubeConnector` e `YouTubeApi` (novos); `PlatformDetector.videoIdOf`; YouTube fora de `RestrictedPlatformConnector`; `YouTubeFailure`/`YouTubeUnavailableException` em `ImportErrors`.
+- Seleção entre as faixas de áudio disponíveis, ordenadas por bitrate; download via `DirectDownloader` (progresso, cancelamento, `.part`, verificação de download incompleto).
+- IMPLEMENTADA (aguardando validação): nada compilado nem executado em aparelho.
