@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Somente os MP3/CUE gerados (filesDir/exports) podem ser compartilhados com outros apps. -->
+<paths>
+    <files-path name="exports" path="exports/" />
+</paths>

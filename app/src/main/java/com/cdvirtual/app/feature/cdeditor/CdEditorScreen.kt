@@ -1,0 +1,211 @@
+package com.cdvirtual.app.feature.cdeditor
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.cdvirtual.app.media.service.ExportService
+import com.cdvirtual.app.media.service.ExportState
+import com.cdvirtual.app.media.service.ExportStatus
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cdvirtual.app.core.common.formatDuration
+import com.cdvirtual.app.core.common.rememberNotificationGate
+import com.cdvirtual.app.core.common.formatSize
+import com.cdvirtual.app.core.database.CdEntity
+import com.cdvirtual.app.feature.library.CoverImage
+import com.cdvirtual.app.media.metadata.CueSettings
+
+private const val FAT32_MAX_BYTES = 4L * 1024 * 1024 * 1024 - 1
+
+@Composable
+fun CdEditorScreen(vm: CdEditorViewModel = viewModel()) {
+    val cds by vm.cds.collectAsStateWithLifecycle()
+    val selectedId by vm.selectedId.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
+    val selected = cds.firstOrNull { it.id == selectedId }
+    // T-501: uma única lista rolável (antes, Column fixa + LazyColumn: com CD longo os botões e a lista de CDs ficavam inacessíveis).
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
+        item {
+        Text("Editor de CD", style = MaterialTheme.typography.headlineSmall)
+        Button(onClick = vm::createCd, Modifier.padding(vertical = 8.dp)) { Text("Novo CD") }
+        if (selected != null) CdDetails(selected, vm)
+        message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        if (cds.isEmpty()) Text("Nenhum CD ainda. Toque em \"Novo CD\" para começar.")
+        }
+            items(cds, key = { it.id }) { cd ->
+                val isSel = cd.id == selectedId
+                Card(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { vm.select(cd.id) },
+                    colors = if (isSel) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    else CardDefaults.cardColors()
+                ) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CoverImage(cd.coverPath, Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)))
+                        Column(Modifier.padding(start = 12.dp)) {
+                            Text(cd.name, style = MaterialTheme.typography.bodyLarge)
+                            Text((if (isSel) "CD atual · " else "") + "atualizado em " + formatDate(cd.updatedAt), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+    }
+}
+
+@Composable
+private fun CdDetails(cd: CdEntity, vm: CdEditorViewModel) {
+    var name by remember(cd.id, cd.name) { mutableStateOf(cd.name) }
+    var artist by remember(cd.id, cd.artist) { mutableStateOf(cd.artist.orEmpty()) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.setCover(cd.id, uri)
+    }
+    Card(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CoverImage(cd.coverPath, Modifier.size(96.dp).clip(RoundedCornerShape(12.dp)))
+                Column(Modifier.padding(start = 12.dp)) {
+                    OutlinedButton(onClick = { picker.launch(arrayOf("image/*")) }) { Text("Escolher capa") }
+                    if (cd.coverPath != null) {
+                        OutlinedButton(onClick = { vm.removeCover(cd.id) }, Modifier.padding(top = 4.dp)) { Text("Remover capa") }
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = name, onValueChange = { name = it.take(CdRepository.MAX_NAME) }, label = { Text("Nome do CD") },
+                singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+            Button(onClick = { vm.rename(cd.id, name) }, Modifier.padding(top = 4.dp), enabled = name.trim() != cd.name) {
+                Text("Salvar nome")
+            }
+            OutlinedTextField(
+                value = artist, onValueChange = { artist = it.take(CdRepository.MAX_NAME) }, label = { Text("Artista (opcional)") },
+                singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+            Button(onClick = { vm.setArtist(cd.id, artist) }, Modifier.padding(top = 4.dp), enabled = artist.trim() != cd.artist.orEmpty()) {
+                Text("Salvar artista")
+            }
+            val cdTracks by vm.cdTracks.collectAsStateWithLifecycle()
+            val export by ExportState.status.collectAsStateWithLifecycle()
+            val context = LocalContext.current
+            val withNotifications = rememberNotificationGate() // T-503: gera mesmo se a notificação for negada
+            var picking by remember { mutableStateOf(false) }
+            Text("Músicas (${cdTracks.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+            if (cdTracks.isEmpty()) Text("Este CD ainda não tem músicas.", style = MaterialTheme.typography.bodySmall)
+            else Text("Duração total: ${formatDuration(CdStats.totalDurationMs(cdTracks))} · " +
+                "MP3 estimado (${CdStats.MP3_KBPS} kbps): ${formatSize(CdStats.estimatedSizeBytes(CdStats.totalDurationMs(cdTracks)))}",
+                style = MaterialTheme.typography.bodySmall)
+            if (CdStats.estimatedSizeBytes(CdStats.totalDurationMs(cdTracks)) > FAT32_MAX_BYTES) {
+                // 10.3: aviso antecipado; o app gera o arquivo normalmente, mas cartões FAT32 não aceitam >= 4 GiB.
+                Text("Este CD passa de 4 GB: ao exportar, a pasta de destino não pode ser FAT32 (alguns cartões SD).",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            cdTracks.forEachIndexed { i, t ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${i + 1}. ${t.title} (${formatDuration(t.durationMs)})", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { vm.moveTrack(cd.id, t.id, -1) }, enabled = i > 0) { Text("↑") }
+                    TextButton(onClick = { vm.moveTrack(cd.id, t.id, 1) }, enabled = i < cdTracks.lastIndex) { Text("↓") }
+                    TextButton(onClick = { vm.removeTrack(cd.id, t.id) }) { Text("✕") }
+                }
+            }
+            Row(Modifier.padding(top = 4.dp)) {
+                OutlinedButton(onClick = { picking = true }) { Text("Adicionar músicas") }
+                Button(onClick = { vm.saveProject(cd.id) }, Modifier.padding(start = 8.dp)) { Text("Salvar projeto") }
+            }
+            var confirmDelete by remember(cd.id) { mutableStateOf(false) }
+            OutlinedButton(onClick = { confirmDelete = true }, Modifier.padding(top = 4.dp)) { Text("Excluir CD") }
+            if (confirmDelete) AlertDialog(
+                onDismissRequest = { confirmDelete = false },
+                title = { Text("Excluir \"${cd.name}\"?") },
+                text = { Text("Remove só este projeto de CD. As músicas da biblioteca, os arquivos originais e MP3 já gerados não são apagados.") },
+                confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteCd(cd.id) }) { Text("Excluir") } },
+                dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } }
+            )
+            val busy = export is ExportStatus.Running
+            Button(
+                onClick = { withNotifications { ExportService.start(context, cd.id) } },
+                enabled = cdTracks.isNotEmpty() && !busy, modifier = Modifier.padding(top = 8.dp)
+            ) { Text("Gerar MP3") }
+            var writeCue by remember { mutableStateOf(CueSettings.isEnabled(context)) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = writeCue, onCheckedChange = { writeCue = it; CueSettings.setEnabled(context, it) })
+                Text("Gerar também arquivo CUE (opcional)", style = MaterialTheme.typography.bodySmall)
+            }
+            if (busy) OutlinedButton(onClick = { ExportService.cancel(context) }, Modifier.padding(start = 8.dp)) { Text("Cancelar") }
+            when (val e = export) {
+                is ExportStatus.Running -> Text("${e.phase} (${e.cdName}): ${(e.progress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
+                is ExportStatus.Done -> Text("MP3 pronto (${e.cdName}): ${formatSize(e.sizeBytes)} · ${formatDuration(e.durationMs)}", style = MaterialTheme.typography.bodySmall)
+                is ExportStatus.Failed -> Text("Falha (${e.cdName}): ${e.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                is ExportStatus.Cancelled -> Text("Geração cancelada (${e.cdName}). Nenhum arquivo parcial foi mantido.", style = MaterialTheme.typography.bodySmall)
+                ExportStatus.Idle -> {}
+            }
+            if (picking) TrackPickerDialog(cdTracks.map { it.id }.toSet(), vm, onDismiss = { picking = false }) { vm.addTracks(cd.id, it); picking = false }
+        }
+    }
+}
+
+@Composable
+private fun TrackPickerDialog(inCd: Set<Long>, vm: CdEditorViewModel, onDismiss: () -> Unit, onConfirm: (List<Long>) -> Unit) {
+    val library by vm.library.collectAsStateWithLifecycle()
+    val available = library.filter { it.id !in inCd }
+    var chosen by remember { mutableStateOf(setOf<Long>()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Selecionar músicas") },
+        text = {
+            if (available.isEmpty()) Text("Não há músicas disponíveis na biblioteca.")
+            else LazyColumn {
+                items(available, key = { it.id }) { t ->
+                    Row(Modifier.fillMaxWidth().clickable { chosen = if (t.id in chosen) chosen - t.id else chosen + t.id },
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = t.id in chosen, onCheckedChange = { chosen = if (it) chosen + t.id else chosen - t.id })
+                        Column {
+                            Text(t.title, style = MaterialTheme.typography.bodyMedium)
+                            t.artist?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(available.filter { it.id in chosen }.map { it.id }) }, enabled = chosen.isNotEmpty()) {
+                Text("Adicionar (${chosen.size})")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+    )
+}
+
+private fun formatDate(millis: Long): String =
+    java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(millis))
