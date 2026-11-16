@@ -115,6 +115,11 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
                 )
                 Text("${formatDuration(position.toLong())} / ${formatDuration(player.durationMs)}",
                     style = MaterialTheme.typography.bodySmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🔈", style = MaterialTheme.typography.bodyMedium)
+                    Slider(value = player.volume, onValueChange = Mp3Player::setVolume, valueRange = 0f..1f, modifier = Modifier.weight(1f))
+                    Text("${(player.volume * 100).toInt()}%", style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
         LazyColumn {
