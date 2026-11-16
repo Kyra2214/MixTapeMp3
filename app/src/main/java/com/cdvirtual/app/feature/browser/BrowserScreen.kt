@@ -46,6 +46,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 private const val PREFS = "mixtape_browser"
 private const val FORMAT_KEY = "preferred_audio_format"
+private const val FORMAT_CONFIGURED_KEY = "audio_format_configured"
 private val formatChoices = listOf(
     "BEST" to "Melhor qualidade disponível",
     "webm" to "WebM / Opus",
@@ -59,6 +60,7 @@ fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
     val preferences = remember { context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE) }
     var preferredFormat by remember { mutableStateOf(preferences.getString(FORMAT_KEY, "BEST") ?: "BEST") }
     var showFormatDialog by remember { mutableStateOf(false) }
+    var formatConfigured by remember { mutableStateOf(preferences.getBoolean(FORMAT_CONFIGURED_KEY, false)) }
     var address by remember { mutableStateOf("https://www.youtube.com/") }
     var currentUrl by remember { mutableStateOf("https://www.youtube.com/") }
     var progress by remember { mutableFloatStateOf(0f) }
@@ -166,28 +168,28 @@ fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
             }
         }
         if (progress < 1f) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-        Card(
-            Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("PRONTO PARA SUA MIXTAPE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Qualidade do áudio", style = MaterialTheme.typography.titleSmall)
-                        Text(formatChoices.firstOrNull { it.first == preferredFormat }?.second ?: "Melhor qualidade",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!formatConfigured) {
+            Card(
+                Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("CONFIGURAÇÃO INICIAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
+                    Text("Escolha a qualidade padrão dos seus áudios", style = MaterialTheme.typography.titleSmall)
+                    Text(formatChoices.firstOrNull { it.first == preferredFormat }?.second ?: "Melhor qualidade",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(onClick = { showFormatDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Escolher qualidade")
                     }
-                    TextButton(onClick = { showFormatDialog = true }) { Text("Alterar") }
                 }
-                Button(
-                    onClick = { onSendToDownloads(currentUrl, preferredFormat) },
-                    enabled = currentUrl.startsWith("http"),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("↓  Enviar para downloads") }
             }
         }
+        Button(
+            onClick = { onSendToDownloads(currentUrl, preferredFormat) },
+            enabled = currentUrl.startsWith("http"),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("↓  Enviar para downloads") }
         AndroidView(factory = { webView }, modifier = Modifier.fillMaxWidth().weight(1f))
     }
 
@@ -200,7 +202,8 @@ fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
                     formatChoices.forEach { (value, label) ->
                         TextButton(onClick = {
                             preferredFormat = value
-                            preferences.edit().putString(FORMAT_KEY, value).apply()
+                            preferences.edit().putString(FORMAT_KEY, value).putBoolean(FORMAT_CONFIGURED_KEY, true).apply()
+                            formatConfigured = true
                             showFormatDialog = false
                         }, modifier = Modifier.fillMaxWidth()) {
                             Text(if (preferredFormat == value) "✓  $label" else label)
