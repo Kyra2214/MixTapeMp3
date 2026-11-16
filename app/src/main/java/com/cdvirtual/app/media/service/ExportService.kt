@@ -18,6 +18,7 @@ import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.common.formatSize
 import com.cdvirtual.app.core.database.TrackEntity
 import com.cdvirtual.app.media.encoder.Mp3Spec
+import com.cdvirtual.app.media.equalization.CdAudioSettingsStore
 import com.cdvirtual.app.media.engine.DecodeException
 import com.cdvirtual.app.media.engine.Mp3Exporter
 import com.cdvirtual.app.media.metadata.CdMetadata
@@ -26,6 +27,7 @@ import com.cdvirtual.app.media.metadata.CueSheet
 import com.cdvirtual.app.media.metadata.CueTrack
 import com.cdvirtual.app.media.normalization.LoudnessAnalyzer
 import com.cdvirtual.app.media.normalization.NormalizationSettingsStore
+import com.cdvirtual.app.media.normalization.NormalizationSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -92,11 +94,12 @@ class ExportService : Service() {
                 update(cdId, name, "Analisando volume", (i + 1f) / pending.size)
             }
             if (pending.isNotEmpty()) tracks = app.cdRepository.tracksOf(cdId).first()
-            val settings = NormalizationSettingsStore(this).load()
+            val audio = CdAudioSettingsStore(this).load(cdId)
+            val settings = NormalizationSettingsStore(this).load().copy(enabled = audio.normalize)
             val target = ExportNaming.targetFor(this, cdId, name) // T-401: nunca sobrescreve o MP3 de outro CD
             checkFreeSpace(tracks, target)
             var lastPct = -1
-            val result = Mp3Exporter.export(this, tracks, settings, target, cancelCheck = { job?.ensureActive() }, metadata = CdMetadata(title = name, artist = cd.artist, coverJpeg = readCover(cd.coverPath)), onProgress = { p ->
+            val result = Mp3Exporter.export(this, tracks, settings, target, cancelCheck = { job?.ensureActive() }, metadata = CdMetadata(title = name, artist = cd.artist, coverJpeg = readCover(cd.coverPath)), audioSettings = audio, onProgress = { p ->
                 val pct = (p * 100).toInt()
                 if (pct != lastPct) { lastPct = pct; update(cdId, name, "Gerando MP3", p) }
             })
