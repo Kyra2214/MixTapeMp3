@@ -4,7 +4,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.coroutines.coroutineContext
 
@@ -14,9 +16,8 @@ object DirectDownloader {
     private const val READ_TIMEOUT_MS = 45_000
 
     /**
-     * Baixa para .part. Se a conexão cair, tenta continuar com HTTP Range
-     * quando o servidor/CDN aceitar. Só publica o arquivo depois de validar
-     * o tamanho total conhecido.
+     * Baixa para .part e tenta retomar com HTTP Range quando o servidor aceita.
+     * O arquivo só é publicado depois que o tamanho real conhecido é validado.
      */
     suspend fun download(
         option: MediaOption,
@@ -34,7 +35,7 @@ object DirectDownloader {
                 val requestHeaders = headers.toMutableMap()
                 if (offset > 0L) requestHeaders["Range"] = "bytes=$offset-"
 
-                var conn: java.net.HttpURLConnection? = null
+                var conn: HttpURLConnection? = null
                 try {
                     conn = Http.open(
                         URL(option.url),
@@ -45,72 +46,62 @@ object DirectDownloader {
                     )
 
                     val code = conn.responseCode
-                    if (code !in 200..299 && code != 416) throw HttpStatusException(code)
-
                     if (code == 416) {
-                        val expected = option.sizeBytes
-                        if (expected > 0 && offset == expected) {
+                        val exactSize = conn.getHeaderField("Content-Range")
+                            ?.substringAfter("*/")
+                            ?.toLongOrNull()
+                        if (exactSize != null && offset == exactSize) {
                             if (!tmp.renameTo(target)) throw IOException("Não foi possível salvar o arquivo")
-                            onProgress(expected, expected)
+                            onProgress(exactSize, exactSize)
                             return@withContext
                         }
                         throw IOException("O servidor recusou a retomada do download (HTTP 416). Analise o vídeo novamente.")
                     }
+                    if (code !in 200..299) throw HttpStatusException(code)
 
-                    val partialResponse = code == 206
-                    val rangeStart = conn.getHeaderField("Content-Range")
+                    val partialResponse = code == HttpURLConnection.HTTP_PARTIAL
+                    val contentRange = conn.getHeaderField("Content-Range")
+                    val rangeStart = contentRange
                         ?.substringAfter("bytes ", "")
                         ?.substringBefore('-')
                         ?.toLongOrNull()
 
-                    // Se o servidor ignorar Range e devolver 200, reinicia do zero
-                    // para não concatenar duas cópias do arquivo.
-                    val append = offset > 0L && partialResponse && rangeStart == offset
-                    if (offset > 0L && !append) {
-                        tmp.delete()
+                    if (offset > 0L && partialResponse && rangeStart != offset) {
+                        throw IOException("O servidor retornou um intervalo diferente do solicitado.")
                     }
 
-                    val responseLength = conn.contentLengthLong.takeIf { it > 0L }
-                    val rangeTotal = conn.getHeaderField("Content-Range")
-                        ?.substringAfter('/')
-                        ?.toLongOrNull()
-                    val total = rangeTotal
-                        ?: option.sizeBytes.takeIf { it > 0L }
-                        ?: if (append && responseLength != null) offset + responseLength else responseLength ?: 0L
+                    // Um 200 significa que o servidor ignorou Range: reinicia sem concatenar bytes.
+                    val append = offset > 0L && partialResponse && rangeStart == offset
+                    if (offset > 0L && !append) tmp.delete()
 
+                    val responseLength = conn.contentLengthLong.takeIf { it > 0L }
+                    val rangeTotal = contentRange?.substringAfter('/')?.toLongOrNull()
+                    val exactTotal = rangeTotal ?: if (!append) responseLength else null
+                    // sizeBytes pode ser estimado no YouTube, portanto serve só para exibir progresso.
+                    val progressTotal = exactTotal ?: option.sizeBytes.takeIf { it > 0L } ?: 0L
                     var done = if (append) offset else 0L
-                    onProgress(done, total)
+                    onProgress(done, progressTotal)
 
                     conn.inputStream.use { input ->
-                        tmp.outputStream().let { raw ->
-                            (if (append) raw.apply { /* append handled below */ } else raw).use { out ->
-                                // File.outputStream() truncates; append mode is required only for valid 206.
-                                val stream = if (append) {
-                                    tmp.appendOutputStream()
-                                } else out
-                                if (append) out.close()
-                                stream.use { destination ->
-                                    val buffer = ByteArray(64 * 1024)
-                                    while (true) {
-                                        coroutineContext.ensureActive()
-                                        val count = input.read(buffer)
-                                        if (count < 0) break
-                                        destination.write(buffer, 0, count)
-                                        done += count
-                                        onProgress(done, total)
-                                    }
-                                }
+                        FileOutputStream(tmp, append).use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                coroutineContext.ensureActive()
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                output.write(buffer, 0, count)
+                                done += count
+                                onProgress(done, progressTotal)
                             }
                         }
                     }
 
-                    val finalExpected = rangeTotal ?: option.sizeBytes.takeIf { it > 0L }
-                    if (finalExpected != null && done != finalExpected) {
-                        throw IOException("Download incompleto: $done de $finalExpected bytes. Tentativa $attempt/$MAX_ATTEMPTS.")
+                    if (exactTotal != null && done != exactTotal) {
+                        throw IOException("Download incompleto: $done de $exactTotal bytes. Tentativa $attempt/$MAX_ATTEMPTS.")
                     }
 
                     if (!tmp.renameTo(target)) throw IOException("Não foi possível salvar o arquivo")
-                    onProgress(done, if (finalExpected != null) finalExpected else total)
+                    onProgress(done, exactTotal ?: progressTotal)
                     return@withContext
                 } catch (e: IOException) {
                     lastError = e
@@ -128,6 +119,4 @@ object DirectDownloader {
             throw t
         }
     }
-
-    private fun File.appendOutputStream() = java.io.FileOutputStream(this, true)
 }
