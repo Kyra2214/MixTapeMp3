@@ -42,7 +42,6 @@ import com.cdvirtual.app.core.common.formatSize
 import com.cdvirtual.app.core.database.TrackEntity
 import com.cdvirtual.app.core.storage.StorageAccess
 
-@Composable
 private const val LIBRARY_PREFS = "mixtape_browser"
 private const val LIBRARY_FORMAT_KEY = "preferred_audio_format"
 private const val LIBRARY_FORMAT_CONFIGURED_KEY = "audio_format_configured"
