@@ -62,12 +62,12 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
     var preferredFormat by remember { mutableStateOf(preferences.getString(FORMAT_KEY, "BEST") ?: "BEST") }
     var showFormatDialog by remember { mutableStateOf(false) }
     var formatConfigured by remember { mutableStateOf(preferences.getBoolean(FORMAT_CONFIGURED_KEY, false)) }
-    var address by remember { mutableStateOf("https://www.youtube.com/") }
-    var currentUrl by remember { mutableStateOf("https://www.youtube.com/") }
-    var progress by remember { mutableFloatStateOf(0f) }
-    var pageTitle by remember { mutableStateOf("Navegador") }
-    var canGoBack by remember { mutableStateOf(false) }
-    var canGoForward by remember { mutableStateOf(false) }
+    var address by remember(webView) { mutableStateOf(webView.url ?: "https://www.youtube.com/") }
+    var currentUrl by remember(webView) { mutableStateOf(webView.url ?: "https://www.youtube.com/") }
+    var progress by remember(webView) { mutableFloatStateOf(if (webView.progress == 100) 1f else 0f) }
+    var pageTitle by remember(webView) { mutableStateOf(webView.title?.takeIf { it.isNotBlank() } ?: "Navegador") }
+    var canGoBack by remember(webView) { mutableStateOf(webView.canGoBack()) }
+    var canGoForward by remember(webView) { mutableStateOf(webView.canGoForward()) }
 
     DisposableEffect(webView) {
         webView.settings.javaScriptEnabled = true
