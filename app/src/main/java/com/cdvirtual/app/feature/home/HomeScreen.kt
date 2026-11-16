@@ -58,6 +58,7 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
     val actions = listOf(
         HomeAction(Destination.Browser, "◎", "Encontre áudio na web", Color(0xFF58D8D0)),
         HomeAction(Destination.Importer, "↓", "Adicione à sua coleção", Color(0xFFFFA36C)),
+        HomeAction(Destination.Downloads, "⇩", "Acompanhe sua fila", Color(0xFF69C6FF)),
         HomeAction(Destination.Library, "♫", "Ouça e organize", Color(0xFFB49AFF)),
         HomeAction(Destination.CdEditor, "▣", "Monte sua playlist", Color(0xFF78B7FF)),
         HomeAction(Destination.Equalizer, "≋", "Ajuste o som", Color(0xFFFF8B9A)),
