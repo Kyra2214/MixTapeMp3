@@ -2,6 +2,11 @@ package com.cdvirtual.app.navigation
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import android.webkit.WebView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cdvirtual.app.feature.importer.ImporterViewModel
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
@@ -20,6 +25,10 @@ import com.cdvirtual.app.feature.welcome.WelcomeScreen
 @Composable
 fun AppNavHost() {
     val nav = rememberNavController()
+    val context = LocalContext.current
+    val browserWebView = remember { WebView(context) }
+    // Escopo da Activity: a fila não morre quando a tela Importar sai da navegação.
+    val importerVm: ImporterViewModel = viewModel()
     NavHost(navController = nav, startDestination = Destination.Welcome.route) {
         composable(Destination.Welcome.route) {
             WelcomeScreen(onFinished = {
@@ -37,13 +46,21 @@ fun AppNavHost() {
         ) { entry ->
             ImporterScreen(
                 initialUrl = entry.arguments?.getString("url"),
-                preferredFormat = entry.arguments?.getString("format") ?: "BEST"
+                preferredFormat = entry.arguments?.getString("format") ?: "BEST",
+                vm = importerVm
             )
         }
         composable(Destination.Browser.route) {
-            BrowserScreen { url, format ->
-                nav.navigate("importer?url=${Uri.encode(url)}&format=${Uri.encode(format)}")
-            }
+            BrowserScreen(
+                webView = browserWebView,
+                vm = importerVm,
+                onHome = {
+                    nav.navigate(Destination.Home.route) {
+                        popUpTo(Destination.Home.route) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
         composable(Destination.CdEditor.route) { CdEditorScreen() }
         composable(Destination.Equalizer.route) { EqualizerScreen() }
