@@ -212,15 +212,18 @@ object YouTubeApi {
                 .takeIf { it > 0 }
                 ?: stream.bitrate.takeIf { it > 0 }
 
-            val size = 0L
+            // Estimativa: bitrate médio × duração. O CDN nem sempre informa Content-Length.
+            val size = bitrate?.let {
+                it.toLong() * 1000L * info.duration.coerceAtLeast(0L) / 8L
+            } ?: 0L
             val formatName = extension.uppercase()
-            val bitrateText = bitrate?.let { " · ${it / 1000} kbps" } ?: ""
+            val bitrateText = bitrate?.let { " · ${it} kbps" } ?: ""
 
             MediaOption(
                 id = stream.itag.takeIf { it > 0 }?.toString()
                     ?: stream.formatId.toString(),
                 label = "$formatName$bitrateText" +
-                    if (size > 0) " · ${formatSize(size)}" else "",
+                    if (size > 0) " · ~${formatSize(size)}" else "",
                 format = extension,
                 mimeType = mime,
                 sizeBytes = size,
