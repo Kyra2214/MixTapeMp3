@@ -2,22 +2,21 @@ package com.cdvirtual.app.feature.importer
 
 import android.app.Application
 import android.net.Uri
-import com.cdvirtual.app.CDVirtualApp
-import com.cdvirtual.app.feature.library.ImportOutcome
-import com.cdvirtual.app.media.connectors.ConnectorRegistry
-import com.cdvirtual.app.media.connectors.SourceConnector
-import com.cdvirtual.app.media.connectors.toUserMessage
-import java.io.File
-import java.net.URL
-import java.util.UUID
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.common.AppResult
 import com.cdvirtual.app.core.common.NetworkStatus
+import com.cdvirtual.app.feature.library.ImportOutcome
+import com.cdvirtual.app.media.connectors.ConnectorRegistry
 import com.cdvirtual.app.media.connectors.LinkInfo
 import com.cdvirtual.app.media.connectors.MediaOption
 import com.cdvirtual.app.media.connectors.Platform
 import com.cdvirtual.app.media.connectors.PlatformDetector
+import com.cdvirtual.app.media.connectors.SourceConnector
+import com.cdvirtual.app.media.connectors.toUserMessage
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,7 +61,10 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<ImporterUiState> = _state.asStateFlow()
     private var analysisJob: Job? = null
     private var queueWorker: Job? = null
+    private var activeItemJob: Job? = null
+    private var activeItemId: String? = null
     private val pending = ArrayDeque<PendingImport>()
+    private val queueItems = mutableMapOf<String, PendingImport>()
     private val app = app as CDVirtualApp
 
     fun onInput(value: String) {
@@ -72,6 +74,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cancel() {
         analysisJob?.cancel()
+        activeItemJob?.cancel()
         queueWorker?.cancel()
     }
 
@@ -129,8 +132,9 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
         }
         val id = UUID.randomUUID().toString()
         val title = current.info?.fileName
-        val pendingImport = PendingImport(id, connector, option, title)
-        pending.addLast(pendingImport)
+        val item = PendingImport(id, connector, option, title)
+        queueItems[id] = item
+        pending.addLast(item)
         val displayTitle = title?.takeIf { it.isNotBlank() } ?: "Áudio ${id.take(8)}"
         _state.update {
             it.copy(
@@ -151,54 +155,98 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
         startQueueWorker()
     }
 
+    /** Tenta novamente um item que falhou ou foi cancelado, mantendo a opção escolhida. */
+    fun retryDownload(id: String) {
+        val entry = _state.value.queue.firstOrNull { it.id == id } ?: return
+        if (entry.status != "Falhou" && entry.status != "Cancelado") return
+        val item = queueItems[id] ?: return
+        if (pending.any { it.id == id } || activeItemId == id) return
+        pending.addLast(item)
+        updateQueue(id, status = "Na fila", progress = 0f, detail = null)
+        _state.update { it.copy(importing = true, notice = "Download reenfileirado para nova tentativa") }
+        startQueueWorker()
+    }
+
+    /** Remove apenas o registro da fila. Se estiver ativo, cancela o trabalho antes de removê-lo. */
+    fun removeDownload(id: String) {
+        pending.removeAll { it.id == id }
+        if (activeItemId == id) activeItemJob?.cancel()
+        queueItems.remove(id)
+        _state.update { state ->
+            state.copy(
+                queue = state.queue.filterNot { it.id == id },
+                importing = pending.isNotEmpty() || (activeItemId != null && activeItemId != id)
+            )
+        }
+        if (pending.isEmpty() && activeItemJob == null) {
+            _state.update { it.copy(importing = false) }
+        }
+    }
+
+    /** Limpa o histórico visual, sem apagar arquivos já importados na Biblioteca. */
+    fun clearQueue() {
+        pending.clear()
+        queueItems.clear()
+        activeItemJob?.cancel()
+        _state.update { it.copy(queue = emptyList(), importing = activeItemJob?.isActive == true, progress = 0f, notice = "Lista limpa. As músicas da Biblioteca foram preservadas.") }
+    }
+
     private fun startQueueWorker() {
         if (queueWorker?.isActive == true) return
         queueWorker = viewModelScope.launch {
             while (pending.isNotEmpty()) {
                 val item = pending.removeFirst()
-                updateQueue(item.id, status = "Baixando", progress = 0f, detail = null)
-                _state.update { it.copy(importing = true, progress = 0f) }
-                val safeName = (item.title ?: "audio-${item.id.take(8)}")
-                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
-                    .trim()
-                    .take(90)
-                    .ifBlank { "audio-${item.id.take(8)}" }
-                val dir = File(app.filesDir, "imports").apply { mkdirs() }
-                val target = File(dir, "${safeName}-${item.id.take(8)}.${item.option.format.lowercase()}")
-                try {
-                    item.connector.download(item.option, target) { done, total ->
-                        val fraction = if (total > 0L) (done.toFloat() / total).coerceIn(0f, 0.99f) else 0f
-                        _state.update { it.copy(progress = fraction) }
-                        updateQueue(item.id, progress = fraction)
-                    }
-                    _state.update { it.copy(progress = 1f) }
-                    updateQueue(item.id, status = "Importando", progress = 1f)
-                    when (val outcome = app.trackImporter.import(Uri.fromFile(target), item.title)) {
-                        is ImportOutcome.Added -> {
-                            updateQueue(item.id, status = "Concluído", progress = 1f)
-                            _state.update { it.copy(result = "${item.title ?: "Áudio"} importado para a biblioteca") }
-                        }
-                        ImportOutcome.Duplicate -> {
-                            target.delete()
-                            updateQueue(item.id, status = "Duplicado", progress = 1f, detail = "Já está na biblioteca")
-                        }
-                        is ImportOutcome.Failed -> {
-                            target.delete()
-                            updateQueue(item.id, status = "Falhou", detail = outcome.reason)
-                        }
-                    }
-                } catch (ce: CancellationException) {
-                    target.delete()
-                    updateQueue(item.id, status = "Cancelado")
-                    throw ce
-                } catch (t: Throwable) {
-                    target.delete()
-                    updateQueue(item.id, status = "Falhou", detail = t.toUserMessage())
-                } finally {
-                    _state.update { it.copy(importing = pending.isNotEmpty(), progress = 0f) }
-                }
+                activeItemId = item.id
+                activeItemJob = launch { processItem(item) }
+                activeItemJob?.join()
+                activeItemJob = null
+                activeItemId = null
+                _state.update { it.copy(importing = pending.isNotEmpty(), progress = 0f) }
             }
             _state.update { it.copy(importing = false) }
+        }
+    }
+
+    private suspend fun processItem(item: PendingImport) {
+        updateQueue(item.id, status = "Baixando", progress = 0f, detail = null)
+        _state.update { it.copy(importing = true, progress = 0f) }
+        val safeName = (item.title ?: "audio-${item.id.take(8)}")
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .trim()
+            .take(90)
+            .ifBlank { "audio-${item.id.take(8)}" }
+        val dir = File(app.filesDir, "imports").apply { mkdirs() }
+        val target = File(dir, "${safeName}-${item.id.take(8)}.${item.option.format.lowercase()}")
+        try {
+            item.connector.download(item.option, target) { done, total ->
+                val fraction = if (total > 0L) (done.toFloat() / total).coerceIn(0f, 0.99f) else 0f
+                _state.update { it.copy(progress = fraction) }
+                updateQueue(item.id, progress = fraction)
+            }
+            _state.update { it.copy(progress = 1f) }
+            updateQueue(item.id, status = "Importando", progress = 1f)
+            when (val outcome = app.trackImporter.import(Uri.fromFile(target), item.title)) {
+                is ImportOutcome.Added -> {
+                    updateQueue(item.id, status = "Concluído", progress = 1f)
+                    _state.update { it.copy(result = "${item.title ?: "Áudio"} importado para a biblioteca") }
+                }
+                ImportOutcome.Duplicate -> {
+                    target.delete()
+                    updateQueue(item.id, status = "Duplicado", progress = 1f, detail = "Já está na biblioteca")
+                }
+                is ImportOutcome.Failed -> {
+                    target.delete()
+                    updateQueue(item.id, status = "Falhou", detail = outcome.reason)
+                }
+            }
+        } catch (ce: CancellationException) {
+            target.delete()
+            updateQueue(item.id, status = "Cancelado", detail = "Download cancelado")
+        } catch (t: Throwable) {
+            target.delete()
+            updateQueue(item.id, status = "Falhou", detail = t.toUserMessage())
+        } finally {
+            _state.update { it.copy(progress = 0f) }
         }
     }
 
