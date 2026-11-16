@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
 
 data class DownloadQueueEntry(
     val id: String,
@@ -61,8 +63,8 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<ImporterUiState> = _state.asStateFlow()
     private var analysisJob: Job? = null
     private var queueWorker: Job? = null
-    private var activeItemJob: Job? = null
-    private var activeItemId: String? = null
+    private val activeItemJobs = mutableMapOf<String, Job>()
+    private val queueLock = Any()
     private val pending = ArrayDeque<PendingImport>()
     private val queueItems = mutableMapOf<String, PendingImport>()
     private val autoAnalysisJobs = mutableMapOf<String, Job>()
@@ -75,7 +77,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cancel() {
         analysisJob?.cancel()
-        activeItemJob?.cancel()
+        activeItemJobs.values.toList().forEach { it.cancel() }
         queueWorker?.cancel()
     }
 
@@ -234,7 +236,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     val item = PendingImport(id, connector, selected, info.fileName)
                     queueItems[id] = item
-                    pending.addLast(item)
+                    synchronized(queueLock) { pending.addLast(item) }
                     updateQueue(
                         id,
                         status = "Na fila",
@@ -270,7 +272,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
         val title = current.info?.fileName
         val item = PendingImport(id, connector, option, title)
         queueItems[id] = item
-        pending.addLast(item)
+        synchronized(queueLock) { pending.addLast(item) }
         val displayTitle = title?.takeIf { it.isNotBlank() } ?: "Áudio ${id.take(8)}"
         _state.update {
             it.copy(
@@ -296,8 +298,8 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
         val entry = _state.value.queue.firstOrNull { it.id == id } ?: return
         if (entry.status != "Falhou" && entry.status != "Cancelado") return
         val item = queueItems[id] ?: return
-        if (pending.any { it.id == id } || activeItemId == id) return
-        pending.addLast(item)
+        if (synchronized(queueLock) { pending.any { it.id == id } } || activeItemJobs.containsKey(id)) return
+        synchronized(queueLock) { pending.addLast(item) }
         updateQueue(id, status = "Na fila", progress = 0f, detail = null)
         _state.update { it.copy(importing = true, notice = "Download reenfileirado para nova tentativa") }
         startQueueWorker()
@@ -306,16 +308,16 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
     /** Remove apenas o registro da fila. Se estiver ativo, cancela o trabalho antes de removê-lo. */
     fun removeDownload(id: String) {
         autoAnalysisJobs.remove(id)?.cancel()
-        pending.removeAll { it.id == id }
-        if (activeItemId == id) activeItemJob?.cancel()
+        synchronized(queueLock) { pending.removeAll { it.id == id } }
+        activeItemJobs[id]?.cancel()
         queueItems.remove(id)
         _state.update { state ->
             state.copy(
                 queue = state.queue.filterNot { it.id == id },
-                importing = pending.isNotEmpty() || (activeItemId != null && activeItemId != id)
+                importing = pending.isNotEmpty() || activeItemJobs.keys.any { it != id }
             )
         }
-        if (pending.isEmpty() && activeItemJob == null) {
+        if (pending.isEmpty() && activeItemJobs.isEmpty()) {
             _state.update { it.copy(importing = false) }
         }
     }
@@ -324,28 +326,47 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
     fun clearQueue() {
         autoAnalysisJobs.values.toList().forEach { it.cancel() }
         autoAnalysisJobs.clear()
-        pending.clear()
+        synchronized(queueLock) { pending.clear() }
         queueItems.clear()
-        activeItemJob?.cancel()
-        _state.update { it.copy(queue = emptyList(), importing = activeItemJob?.isActive == true, progress = 0f, notice = "Lista limpa. As músicas da Biblioteca foram preservadas.") }
+        activeItemJobs.values.toList().forEach { it.cancel() }
+        _state.update { it.copy(queue = emptyList(), importing = activeItemJobs.isNotEmpty(), progress = 0f, notice = "Lista limpa. As músicas da Biblioteca foram preservadas.") }
     }
 
     private fun startQueueWorker() {
         if (queueWorker?.isActive == true) return
         com.cdvirtual.app.media.service.DownloadService.start(app)
         queueWorker = app.downloadScope.launch {
-            while (pending.isNotEmpty()) {
-                val item = pending.removeFirst()
-                activeItemId = item.id
-                activeItemJob = launch { processItem(item) }
-                activeItemJob?.join()
-                activeItemJob = null
-                activeItemId = null
-                _state.update { it.copy(importing = pending.isNotEmpty(), progress = 0f) }
+            coroutineScope {
+                while (true) {
+                    val batch = mutableListOf<Job>()
+                    synchronized(queueLock) {
+                        repeat(MAX_PARALLEL_DOWNLOADS) {
+                            if (pending.isNotEmpty()) {
+                                val item = pending.removeFirst()
+                                batch += launch {
+                                    val task = coroutineContext[Job]
+                                    if (task != null) synchronized(activeItemJobs) { activeItemJobs[item.id] = task }
+                                    try {
+                                        processItem(item)
+                                    } finally {
+                                        synchronized(activeItemJobs) { activeItemJobs.remove(item.id) }
+                                        _state.update { it.copy(importing = pending.isNotEmpty() || activeItemJobs.isNotEmpty(), progress = 0f) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (batch.isEmpty()) break
+                    batch.joinAll()
+                }
             }
             _state.update { it.copy(importing = false) }
             com.cdvirtual.app.media.service.DownloadService.finish(app)
         }
+    }
+
+    companion object {
+        const val MAX_PARALLEL_DOWNLOADS = 5
     }
 
     private suspend fun processItem(item: PendingImport) {
