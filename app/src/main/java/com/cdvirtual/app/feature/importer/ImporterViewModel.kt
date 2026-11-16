@@ -119,6 +119,66 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
         activeConnector = connector
     }
 
+    /**
+     * Analisa um link recebido do navegador, escolhe o áudio conforme a preferência global
+     * e inicia o download sem exigir uma segunda confirmação.
+     */
+    fun importUrlAutomatically(rawUrl: String, preferredFormat: String) {
+        onInput(rawUrl)
+        val url = when (val parsed = UrlInput.parse(rawUrl)) {
+            is AppResult.Success -> parsed.value
+            is AppResult.Failure -> {
+                _state.update { it.copy(error = parsed.message) }
+                return
+            }
+        }
+        val platform = PlatformDetector.detect(url)
+        val connector = ConnectorRegistry.default.forPlatform(platform)
+        if (connector == null) {
+            _state.update { it.copy(platform = platform, error = "Conector para ${platform.label} ainda não disponível.") }
+            return
+        }
+        if (!NetworkStatus.isOnline(app)) {
+            _state.update { it.copy(error = NetworkStatus.OFFLINE_MESSAGE) }
+            return
+        }
+        analysisJob?.cancel()
+        activeConnector = connector
+        analysisJob = viewModelScope.launch {
+            _state.update { it.copy(analyzing = true, error = null, validUrl = url.toString(), platform = platform, notice = "Analisando opções de áudio…") }
+            try {
+                val info = connector.analyze(url)
+                val best = info.options.maxWithOrNull(
+                    compareBy<MediaOption> { it.bitrateKbps ?: 0 }
+                        .thenBy { it.sizeBytes }
+                )
+                val preferred = when (preferredFormat.lowercase()) {
+                    "webm", "opus" -> info.options.firstOrNull {
+                        it.format.equals("webm", true) || it.mimeType?.contains("opus", true) == true
+                    }
+                    "m4a", "aac" -> info.options.firstOrNull {
+                        it.format.equals("m4a", true) || it.format.equals("aac", true) ||
+                            it.mimeType?.contains("mp4", true) == true || it.mimeType?.contains("aac", true) == true
+                    }
+                    else -> best
+                }
+                val selected = preferred ?: best
+                if (selected == null) {
+                    _state.update { it.copy(error = "Nenhuma opção de áudio compatível foi encontrada.", info = info) }
+                } else {
+                    _state.update { it.copy(info = info, selected = selected, notice = "Selecionado automaticamente: ${selected.label}") }
+                    importSelected()
+                }
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (t: Throwable) {
+                _state.update { it.copy(error = t.toUserMessage()) }
+            } finally {
+                _state.update { it.copy(analyzing = false) }
+            }
+        }
+    }
+
     private var activeConnector: SourceConnector? = null
 
     /** Adiciona o formato escolhido à fila e libera imediatamente a busca para o próximo link. */
