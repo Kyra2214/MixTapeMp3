@@ -137,7 +137,7 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
             }
         }
 
-        AnimatedVisibility(visible = true) {
+        AnimatedVisibility(visible = folder !is OutputFolderState.Ready) {
             Surface(
                 Modifier.fillMaxWidth().padding(top = 8.dp),
                 shape = MaterialTheme.shapes.large,
