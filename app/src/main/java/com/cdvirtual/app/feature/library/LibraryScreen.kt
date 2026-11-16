@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cdvirtual.app.core.common.formatDuration
+import com.cdvirtual.app.core.common.formatSize
 import com.cdvirtual.app.core.database.TrackEntity
 import com.cdvirtual.app.core.storage.StorageAccess
 
@@ -56,7 +57,7 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
                     Column(Modifier.padding(start = 12.dp).weight(1f)) {
                         Text(t.title, style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            listOfNotNull(t.artist, t.album, formatDuration(t.durationMs), t.format).joinToString(" · "),
+                            listOfNotNull(t.artist, t.album, formatDuration(t.durationMs), t.format, t.sizeBytes.takeIf { it > 0L }?.let { formatSize(it) }).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall
                         )
                         val failure = failures[t.id]
