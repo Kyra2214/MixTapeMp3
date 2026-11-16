@@ -17,11 +17,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -44,6 +49,14 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
     val context = LocalContext.current
     val withNotifications = rememberNotificationGate()
     val player by Mp3Player.state.collectAsStateWithLifecycle()
+    var position by remember(player.trackId) { mutableFloatStateOf(0f) }
+    var dragging by remember(player.trackId) { mutableStateOf(false) }
+    LaunchedEffect(player.trackId, player.playing) {
+        while (player.trackId != null) {
+            if (!dragging) position = Mp3Player.positionMs().toFloat()
+            kotlinx.coroutines.delay(400)
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.import(it) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
@@ -75,6 +88,16 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
                 TextButton(onClick = { Mp3Player.previousTrack() }) { Text("⏮") }
                 Button(onClick = { Mp3Player.togglePlayPause() }) { Text(if (player.playing) "Ⅱ" else "▶") }
                 TextButton(onClick = { Mp3Player.nextTrack() }) { Text("⏭") }
+            }
+            if (player.durationMs > 0L) {
+                Slider(
+                    value = position.coerceIn(0f, player.durationMs.toFloat()),
+                    onValueChange = { position = it; dragging = true },
+                    onValueChangeFinished = { Mp3Player.seekTo(position.toLong()); dragging = false },
+                    valueRange = 0f..player.durationMs.toFloat()
+                )
+                Text("${formatDuration(position.toLong())} / ${formatDuration(player.durationMs)}",
+                    style = MaterialTheme.typography.bodySmall)
             }
         }
         LazyColumn {
