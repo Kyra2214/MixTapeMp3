@@ -90,8 +90,8 @@ fun ExportScreen() {
             }
         }
 
-        Text("CDs gerados (${cds.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-        if (cds.isEmpty()) Text("Nenhum MP3 gerado ainda.", style = MaterialTheme.typography.bodyMedium)
+        Text("Playlists exportadas (${cds.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+        if (cds.isEmpty()) Text("Nenhuma playlist exportada ainda.", style = MaterialTheme.typography.bodyMedium)
         else Text("Ocupam ${formatSize(GeneratedCds.totalBytes(cds))} neste aparelho", style = MaterialTheme.typography.bodySmall)
         val canExport = busy == null && state is OutputFolderState.Ready
 
