@@ -24,7 +24,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +33,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cdvirtual.app.feature.importer.ImporterViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,7 +56,7 @@ private val formatChoices = listOf(
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
+fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE) }
     var preferredFormat by remember { mutableStateOf(preferences.getString(FORMAT_KEY, "BEST") ?: "BEST") }
@@ -68,64 +69,52 @@ fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
 
-    val webView = remember {
-        WebView(context).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.loadsImagesAutomatically = true
-            settings.javaScriptCanOpenWindowsAutomatically = false
-            settings.setSupportMultipleWindows(false)
-            settings.allowFileAccess = false
-            settings.allowContentAccess = false
-            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            webViewClient = object : WebViewClient() {
-                private fun syncAddress(view: WebView, url: String?) {
-                    if (!url.isNullOrBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
-                        currentUrl = url
-                        address = url
-                    }
-                    canGoBack = view.canGoBack()
-                    canGoForward = view.canGoForward()
+    DisposableEffect(webView) {
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+        webView.settings.loadsImagesAutomatically = true
+        webView.settings.javaScriptCanOpenWindowsAutomatically = false
+        webView.settings.setSupportMultipleWindows(false)
+        webView.settings.allowFileAccess = false
+        webView.settings.allowContentAccess = false
+        webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        webView.webViewClient = object : WebViewClient() {
+            private fun syncAddress(view: WebView, url: String?) {
+                if (!url.isNullOrBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
+                    currentUrl = url
+                    address = url
                 }
-
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
-
-                override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
-                    syncAddress(view, url)
-                    progress = 0f
-                }
-
-                override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                    super.doUpdateVisitedHistory(view, url, isReload)
-                    // YouTube navega como SPA: troca a URL via History API sem recarregar a página.
-                    syncAddress(view, url)
-                }
-
-                override fun onPageFinished(view: WebView, url: String) {
-                    syncAddress(view, url)
-                    pageTitle = view.title?.takeIf { it.isNotBlank() } ?: "Navegador"
-                    progress = 1f
-                }
+                canGoBack = view.canGoBack()
+                canGoForward = view.canGoForward()
             }
-            webChromeClient = object : WebChromeClient() {
-                override fun onProgressChanged(view: WebView, newProgress: Int) {
-                    progress = newProgress / 100f
-                    canGoBack = view.canGoBack()
-                    canGoForward = view.canGoForward()
-                }
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                syncAddress(view, url)
+                progress = 0f
             }
-            loadUrl("https://www.youtube.com/")
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                syncAddress(view, url)
+            }
+            override fun onPageFinished(view: WebView, url: String) {
+                syncAddress(view, url)
+                pageTitle = view.title?.takeIf { it.isNotBlank() } ?: "Navegador"
+                progress = 1f
+            }
         }
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView, newProgress: Int) {
+                progress = newProgress / 100f
+                canGoBack = view.canGoBack()
+                canGoForward = view.canGoForward()
+            }
+        }
+        if (webView.url.isNullOrBlank()) webView.loadUrl("https://www.youtube.com/")
+        onDispose { /* A sessão é mantida no AppNavHost. */ }
     }
     BackHandler(enabled = canGoBack) { webView.goBack() }
-    DisposableEffect(webView) {
-        onDispose {
-            webView.stopLoading()
-            webView.webChromeClient = null
-            webView.webViewClient = WebViewClient()
-            webView.destroy()
-        }
-    }
+    val queue by vm.state.collectAsStateWithLifecycle()
+    var sendMessage by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -138,9 +127,7 @@ fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
                 Text("Explorar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(pageTitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                Text("WEB", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelSmall)
-            }
+            OutlinedButton(onClick = onHome) { Text("⌂ Início") }
         }
 
         Card(
@@ -186,10 +173,29 @@ fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
             }
         }
         Button(
-            onClick = { onSendToDownloads(currentUrl, preferredFormat) },
+            onClick = {
+                vm.enqueueUrlAutomatically(currentUrl, preferredFormat)
+                sendMessage = "Link enviado para a fila. Você pode continuar navegando."
+            },
             enabled = currentUrl.startsWith("http"),
             modifier = Modifier.fillMaxWidth()
         ) { Text("↓  Enviar para downloads") }
+        sendMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
+        val activeCount = queue.queue.count { it.status == "Analisando" || it.status == "Na fila" || it.status == "Baixando" || it.status == "Importando" }
+        if (activeCount > 0 || queue.queue.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Downloads · $activeCount em andamento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    queue.queue.takeLast(3).forEach { entry ->
+                        Text("${entry.title} · ${entry.status}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        if (entry.status == "Baixando" || entry.status == "Importando") {
+                            LinearProgressIndicator(progress = { entry.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            }
+        }
         AndroidView(factory = { webView }, modifier = Modifier.fillMaxWidth().weight(1f))
     }
 
