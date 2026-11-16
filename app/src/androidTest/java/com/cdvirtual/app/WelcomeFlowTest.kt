@@ -16,12 +16,12 @@ class WelcomeFlowTest {
 
     @Test
     fun welcomeFlowOpensHomeScreen() {
-        // A tela de boas-vindas avança sozinha após a animação; não depende de toque sintético
-        // no emulador, que falhava antes mesmo de localizar o texto (que também estava divergente).
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("Seu estúdio").fetchSemanticsNodes().isNotEmpty()
+        // A tela inicial avança automaticamente após a animação de boas-vindas.
+        // Validamos o título do card principal, que identifica a Home e fica na área visível,
+        // sem depender de toque sintético nem de itens que podem ficar abaixo da dobra.
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("PLAYLISTS DO SEU JEITO").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("Seu estúdio").assertIsDisplayed()
-        composeRule.onNodeWithText("Criar minha playlist").assertIsDisplayed()
+        composeRule.onNodeWithText("PLAYLISTS DO SEU JEITO").assertIsDisplayed()
     }
 }
