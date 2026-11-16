@@ -173,7 +173,7 @@ fun ExportScreen() {
         val copies = ExportCopies.docs(context, target.file.name)
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Excluir CD gerado?") },
+            title = { Text("Excluir playlist exportada?") },
             text = {
                 Column {
                     Text("\"${target.title}\" (${formatSize(target.sizeBytes)}) será apagado deste aparelho. As músicas originais e a biblioteca não são afetadas.")
@@ -200,8 +200,8 @@ fun ExportScreen() {
                         if (ok) ExportCopies.clear(context, target.file.name) // o arquivo some; o registro não pode valer para um futuro MP3 de mesmo nome
                         message = when {
                             !ok -> "Não foi possível excluir ${target.file.name}"
-                            failed > 0 -> "CD excluído; $failed cópia(s) na pasta de destino não puderam ser apagadas"
-                            else -> "CD excluído"
+                            failed > 0 -> "Playlist excluída; $failed cópia(s) na pasta de destino não puderam ser apagadas"
+                            else -> "Playlist excluída"
                         }
                     }
                 }) { Text("Excluir") }
@@ -214,7 +214,7 @@ fun ExportScreen() {
         var name by remember(target) { mutableStateOf(target.file.nameWithoutExtension) }
         AlertDialog(
             onDismissRequest = { renaming = null },
-            title = { Text("Renomear CD gerado") },
+            title = { Text("Renomear playlist exportada") },
             text = {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(80) }, singleLine = true, label = { Text("Nome do arquivo") })
             },
