@@ -42,7 +42,8 @@ class TrackImporter(
                 TrackEntity(
                     uri = uri.toString(), title = info.title, artist = info.artist, album = info.album,
                     durationMs = info.durationMs, format = info.format, sizeBytes = info.sizeBytes,
-                    coverPath = info.cover?.let { covers.save(it) }, contentHash = hash
+                    coverPath = info.cover?.let { covers.save(it) }, contentHash = hash,
+                    genre = Genres.normalize(info.genre).orEmpty()
                 )
             )
             onAdded()

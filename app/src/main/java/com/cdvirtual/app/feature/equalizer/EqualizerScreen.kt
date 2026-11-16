@@ -1,5 +1,6 @@
 package com.cdvirtual.app.feature.equalizer
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,11 +25,19 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cdvirtual.app.core.database.TrackEntity
+import com.cdvirtual.app.core.ui.ButtonFlow
+import com.cdvirtual.app.core.ui.ScreenScaffold
+import androidx.compose.ui.text.style.TextOverflow
 import com.cdvirtual.app.media.normalization.GainPlanner
 import com.cdvirtual.app.media.normalization.NormalizationSettings
 
 @Composable
-fun EqualizerScreen(vm: EqualizerViewModel = viewModel()) {
+fun EqualizerScreen(onBack: () -> Unit, vm: EqualizerViewModel = viewModel()) {
+    ScreenScaffold("Volume e equalização", onBack) { EqualizerContent(vm) }
+}
+
+@Composable
+private fun EqualizerContent(vm: EqualizerViewModel) {
     val tracks by vm.tracks.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val preview by vm.preview.collectAsStateWithLifecycle()
@@ -37,9 +46,11 @@ fun EqualizerScreen(vm: EqualizerViewModel = viewModel()) {
     val cds by vm.cds.collectAsStateWithLifecycle()
     val scopeId by vm.scopeCdId.collectAsStateWithLifecycle()
     val scopeName = cds.firstOrNull { it.id == scopeId }?.name
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Volume e equalização", style = MaterialTheme.typography.headlineSmall)
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+    // Uma única lista rolável: antes o cabeçalho fixo ocupava boa parte da tela e sobrava pouco espaço para as músicas.
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+        Column(modifier = Modifier.padding(top = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = settings.enabled, onCheckedChange = vm::setEnabled)
             Text("Normalizar volume", Modifier.padding(start = 8.dp))
         }
@@ -74,27 +85,26 @@ fun EqualizerScreen(vm: EqualizerViewModel = viewModel()) {
                 if (row.size == 1) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
             }
         }
-        Row(Modifier.padding(top = 4.dp)) {
+        ButtonFlow(Modifier.padding(top = 4.dp)) {
             OutlinedButton(onClick = vm::autoEqualize, enabled = tracks.any { it.bandBassDb != null }) { Text("EQ automática do CD") }
-            OutlinedButton(onClick = vm::resetEq, Modifier.padding(start = 8.dp)) { Text("Zerar EQ") }
-        }
-        Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = vm::resetEq) { Text("Zerar EQ") }
             OutlinedButton(onClick = vm::verifyOriginals, enabled = tracks.isNotEmpty()) { Text("Verificar originais") }
-            Text(originals ?: "Ajustes não alteram os arquivos originais", Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodySmall)
         }
+        Text(originals ?: "Ajustes não alteram os arquivos originais", Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodySmall)
         if (tracks.isEmpty()) Text("Importe músicas na Biblioteca para ajustar o volume.", Modifier.padding(top = 16.dp))
         previewError?.let { Text("Pré-visualização: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        LazyColumn(Modifier.padding(top = 8.dp)) {
-            items(tracks, key = { it.id }) { t -> TrackCard(t, settings, vm, preview?.takeIf { it.first == t.id }?.second) }
         }
+        }
+        items(tracks, key = { it.id }) { t -> TrackCard(t, settings, vm, preview?.takeIf { it.first == t.id }?.second) }
+        item { androidx.compose.foundation.layout.Spacer(Modifier.padding(bottom = 8.dp)) }
     }
 }
 
 @Composable
 private fun TrackCard(t: TrackEntity, settings: NormalizationSettings, vm: EqualizerViewModel, previewing: Boolean?) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
-            Text(t.title, style = MaterialTheme.typography.bodyLarge)
+            Text(t.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val plan = GainPlanner.forTrack(t, settings)
             Text(
                 if (t.lufs == null) "Analisando…" else "%.1f LUFS · ganho total %+.1f dB".format(t.lufs, plan?.gainDb ?: 0f),
@@ -107,10 +117,10 @@ private fun TrackCard(t: TrackEntity, settings: NormalizationSettings, vm: Equal
             GainSlider("Graves", t.bassDb, -12f..12f, 23) { vm.setEq(t.id, it, t.midDb, t.trebleDb) }
             GainSlider("Médios", t.midDb, -12f..12f, 23) { vm.setEq(t.id, t.bassDb, it, t.trebleDb) }
             GainSlider("Agudos", t.trebleDb, -12f..12f, 23) { vm.setEq(t.id, t.bassDb, t.midDb, it) }
-            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            ButtonFlow(Modifier.padding(top = 4.dp)) {
                 OutlinedButton(onClick = { vm.preview(t, false) }, enabled = previewing != false) { Text("Original") }
-                OutlinedButton(onClick = { vm.preview(t, true) }, Modifier.padding(start = 8.dp), enabled = previewing != true) { Text("Processado") }
-                if (previewing != null) OutlinedButton(onClick = vm::stopPreview, Modifier.padding(start = 8.dp)) { Text("Parar") }
+                OutlinedButton(onClick = { vm.preview(t, true) }, enabled = previewing != true) { Text("Processado") }
+                if (previewing != null) OutlinedButton(onClick = vm::stopPreview) { Text("Parar") }
             }
             Text("Pré-visualização de 15 s do meio da faixa", style = MaterialTheme.typography.bodySmall)
         }

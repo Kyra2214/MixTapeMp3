@@ -50,3 +50,12 @@ Marque cada item no aparelho. Nada foi compilado nem executado no ambiente de de
 - [ ] Vídeo privado, com restrição de idade e de região devolvem a mensagem certa.
 - [ ] Modo avião: aviso imediato, sem esperar timeout.
 - [ ] Faixa importada gera CD em 320 kbps CBR normalmente (o `MediaCodec` decodifica opus/aac).
+
+## Integração (Configurações, gêneros, cópia automática)
+- [ ] Atualizar da v10 para a v11 mantém a biblioteca; músicas antigas ganham gênero ao abrir o app.
+- [ ] Biblioteca: aba Músicas agrupa por gênero, "Gênero" edita, busca acha por gênero; aba Playlists lista as geradas e abre no ponto da música tocada.
+- [ ] Gerar playlist com pasta escolhida: MP3 (e CUE, se ligado) aparece na pasta; regerar substitui a cópia.
+- [ ] Gerar com "Apagar os originais": só apaga depois do MP3 pronto/copiado; falha na cópia mantém os originais.
+- [ ] "← Voltar" funciona em todas as telas internas; navegador, Downloads (fila de até 5, retomar/reiniciar) e notificação do serviço continuam como antes.
+- [ ] Player: volume do aparelho e do player; botões físicos controlam a mídia.
+

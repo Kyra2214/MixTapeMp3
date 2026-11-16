@@ -25,14 +25,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cdvirtual.app.core.common.formatSize
+import com.cdvirtual.app.core.ui.ScreenScaffold
 import com.cdvirtual.app.media.connectors.LinkKind
 
 @Composable
 fun ImporterScreen(
+    onBack: () -> Unit,
     initialUrl: String? = null,
     preferredFormat: String = "BEST",
     vm: ImporterViewModel = viewModel()
 ) {
+    ScreenScaffold("Importar", onBack) { ImporterContent(initialUrl, preferredFormat, vm) }
+}
+
+@Composable
+private fun ImporterContent(initialUrl: String?, preferredFormat: String, vm: ImporterViewModel) {
     LaunchedEffect(initialUrl, preferredFormat) {
         if (!initialUrl.isNullOrBlank()) vm.importUrlAutomatically(initialUrl, preferredFormat)
     }

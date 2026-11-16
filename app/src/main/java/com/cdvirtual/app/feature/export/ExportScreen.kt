@@ -37,6 +37,9 @@ import com.cdvirtual.app.core.storage.FolderExporter
 import com.cdvirtual.app.core.storage.OutputFolder
 import com.cdvirtual.app.core.storage.OutputFolderState
 import com.cdvirtual.app.core.storage.ShareFiles
+import com.cdvirtual.app.core.ui.ButtonFlow
+import com.cdvirtual.app.core.ui.ScreenScaffold
+import androidx.compose.ui.text.style.TextOverflow
 import com.cdvirtual.app.media.metadata.CueSheet
 import com.cdvirtual.app.media.playback.Mp3Player
 import com.cdvirtual.app.media.service.ExportState
@@ -48,7 +51,12 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun ExportScreen() {
+fun ExportScreen(onBack: () -> Unit) {
+    ScreenScaffold("Exportar", onBack) { ExportContent() }
+}
+
+@Composable
+private fun ExportContent() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val withNotifications = rememberNotificationGate() // T-503
@@ -71,27 +79,26 @@ fun ExportScreen() {
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Text("Exportar", style = MaterialTheme.typography.titleLarge)
-        Text("Pasta de destino", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+        Text("Pasta de destino", style = MaterialTheme.typography.titleSmall)
         when (val s = state) {
-            OutputFolderState.NotSet -> Text("Nenhuma pasta escolhida. Escolha onde salvar os MP3 exportados.", style = MaterialTheme.typography.bodyMedium)
+            OutputFolderState.NotSet -> Text("Nenhuma pasta escolhida. Escolha onde salvar as playlists exportadas.", style = MaterialTheme.typography.bodyMedium)
             is OutputFolderState.Ready -> Text("Pasta: ${s.name}", style = MaterialTheme.typography.bodyMedium)
             is OutputFolderState.Unavailable -> Text(
                 "A pasta escolhida não está mais acessível. Escolha novamente.",
                 color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium
             )
         }
-        Row(Modifier.padding(top = 8.dp)) {
+        ButtonFlow(Modifier.padding(top = 8.dp)) {
             Button(onClick = { picker.launch(null) }) {
                 Text(if (state is OutputFolderState.NotSet) "Escolher pasta" else "Trocar pasta")
             }
             if (state !is OutputFolderState.NotSet) {
-                OutlinedButton(onClick = { folder.clear(); state = folder.state() }, Modifier.padding(start = 8.dp)) { Text("Esquecer") }
+                OutlinedButton(onClick = { folder.clear(); state = folder.state() }) { Text("Esquecer") }
             }
         }
 
         Text("Playlists exportadas (${cds.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-        if (cds.isEmpty()) Text("Nenhuma playlist exportada ainda.", style = MaterialTheme.typography.bodyMedium)
+        if (cds.isEmpty()) Text("Nenhuma playlist gerada ainda. Monte uma em \"Montar playlist\".", style = MaterialTheme.typography.bodyMedium)
         else Text("Ocupam ${formatSize(GeneratedCds.totalBytes(cds))} neste aparelho", style = MaterialTheme.typography.bodySmall)
         val canExport = busy == null && state is OutputFolderState.Ready
 
@@ -99,7 +106,7 @@ fun ExportScreen() {
             val f = cd.file
             Card(Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(cd.title, style = MaterialTheme.typography.titleMedium)
+                    Text(cd.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
                         listOfNotNull(
                             cd.artist,
@@ -114,7 +121,7 @@ fun ExportScreen() {
                         "${f.name} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(cd.modifiedAt))}",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ButtonFlow {
                         Button(enabled = canExport, onClick = {
                             val ready = state as? OutputFolderState.Ready ?: return@Button
                             busy = f.name; progress = 0f; message = null
@@ -146,19 +153,19 @@ fun ExportScreen() {
                             }
                         }) { Text("CUE") }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ButtonFlow {
                         OutlinedButton(onClick = {
                             try { context.startActivity(ShareFiles.chooser(context, f)) }
                             catch (e: Throwable) { message = "Não foi possível compartilhar: ${e.message}" }
                         }) { Text("Compartilhar") }
                         OutlinedButton(onClick = { withNotifications { Mp3Player.play(context, f) } }) { Text("Ouvir") }
                         OutlinedButton(onClick = { renaming = cd }) { Text("Renomear") }
+                        OutlinedButton(onClick = {
+                            try { context.startActivity(ShareFiles.openWith(context, f)) }
+                            catch (e: Throwable) { message = "Nenhum player disponível para abrir o MP3: ${e.message}" }
+                        }) { Text("Abrir em outro player") }
                         OutlinedButton(onClick = { alsoDeleteCopies = false; deleting = cd }) { Text("Excluir") }
                     }
-                    OutlinedButton(onClick = {
-                        try { context.startActivity(ShareFiles.openWith(context, f)) }
-                        catch (e: Throwable) { message = "Nenhum player disponível para abrir o MP3: ${e.message}" }
-                    }) { Text("Abrir em outro player") }
                 }
             }
         }
@@ -173,14 +180,14 @@ fun ExportScreen() {
         val copies = ExportCopies.docs(context, target.file.name)
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Excluir playlist exportada?") },
+            title = { Text("Excluir playlist?") },
             text = {
                 Column {
-                    Text("\"${target.title}\" (${formatSize(target.sizeBytes)}) será apagado deste aparelho. As músicas originais e a biblioteca não são afetadas.")
+                    Text("\"${target.title}\" (${formatSize(target.sizeBytes)}) será apagada do app. As músicas originais e a biblioteca não são afetadas.")
                     if (copies.isNotEmpty()) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                             androidx.compose.material3.Checkbox(checked = alsoDeleteCopies, onCheckedChange = { alsoDeleteCopies = it })
-                            Text("Excluir também ${copies.size} arquivo(s) exportado(s) na pasta de destino")
+                            Text("Excluir também ${copies.size} arquivo(s) salvo(s) na pasta de destino", modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -214,7 +221,7 @@ fun ExportScreen() {
         var name by remember(target) { mutableStateOf(target.file.nameWithoutExtension) }
         AlertDialog(
             onDismissRequest = { renaming = null },
-            title = { Text("Renomear playlist exportada") },
+            title = { Text("Renomear playlist") },
             text = {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(80) }, singleLine = true, label = { Text("Nome do arquivo") })
             },

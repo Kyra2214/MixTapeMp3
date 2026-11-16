@@ -179,3 +179,10 @@
 - Transporte escolhido: Innertube direto (zero dependência nova, sem GPL). `YouTubeApi.kt` é o ponto de troca; Cobalt e NewPipe Extractor ficam como alternativas sem mexer no conector.
 - Sem resolução do parâmetro `n`: velocidade de download pode ser limitada. Sem suporte a playlist, canal e transmissão ao vivo.
 - E2E de emulador não cobre YouTube (rede instável); a validação é manual, em `docs/CHECKLIST_VALIDACAO.md`.
+
+## ASSUMINDO (integração 2026-11-16)
+- Base = `feat/youtube-connector`; do snapshot anterior entram só Configurações, gênero/abas da Biblioteca, cópia automática, apagar originais, ScreenScaffold/ButtonFlow, botão Voltar e controle de volume do aparelho. Tema, ícone, boas-vindas, Início em grade, CI, `settings.gradle.kts` e todo o código de downloads/navegador/YouTube ficam como na base.
+- A opção global "Normalizar volume" da tela Configurações vale para a tela Volume e equalização; no MP3 final vale a opção por playlist (`CdAudioSettings.normalize`), como já era na base.
+- Room v11: `11.json` ainda não existe (é gerado pelo KSP no primeiro build e deve ser versionado).
+- Nada compilado: sem Android SDK, Gradle nem rede neste ambiente.
+

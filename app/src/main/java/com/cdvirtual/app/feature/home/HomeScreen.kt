@@ -63,7 +63,8 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         HomeAction(Destination.CdEditor, "▣", "Monte sua playlist", Color(0xFF78B7FF)),
         HomeAction(Destination.Equalizer, "≋", "Ajuste o som", Color(0xFFFF8B9A)),
         HomeAction(Destination.Player, "▶", "Seus mixes offline", Color(0xFF72D6A2)),
-        HomeAction(Destination.Export, "↗", "Gere e compartilhe", Color(0xFFE2C477))
+        HomeAction(Destination.Export, "↗", "Gere e compartilhe", Color(0xFFE2C477)),
+        HomeAction(Destination.Settings, "⚙", "Pasta, volume e opções", Color(0xFFB0BEC5))
     )
 
     Column(
@@ -110,7 +111,7 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Seu estúdio", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            Text("7 ferramentas", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${actions.size} ferramentas", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),

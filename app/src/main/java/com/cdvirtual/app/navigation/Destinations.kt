@@ -10,5 +10,6 @@ enum class Destination(val route: String, val label: String) {
     CdEditor("cdeditor", "Playlists"),
     Equalizer("equalizer", "Equalizador"),
     Player("player", "Player"),
-    Export("export", "Exportar")
+    Export("export", "Exportar"),
+    Settings("settings", "Configurações")
 }

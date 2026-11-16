@@ -15,7 +15,13 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.cdvirtual.app.CDVirtualApp
+import com.cdvirtual.app.core.common.AppSettings
 import com.cdvirtual.app.core.common.formatSize
+import com.cdvirtual.app.core.storage.ExportCopies
+import com.cdvirtual.app.core.storage.FolderExporter
+import com.cdvirtual.app.core.storage.OriginalsCleaner
+import com.cdvirtual.app.core.storage.OutputFolder
+import com.cdvirtual.app.core.storage.OutputFolderState
 import com.cdvirtual.app.core.database.TrackEntity
 import com.cdvirtual.app.media.encoder.Mp3Spec
 import com.cdvirtual.app.media.equalization.CdAudioSettingsStore
@@ -61,7 +67,8 @@ class ExportService : Service() {
         if (job?.isActive == true) return START_NOT_STICKY // já existe uma geração em andamento (notificação mantida)
         acquireWakeLock()
         ExportRecovery.markStarted(this, cdId, "CD")
-        job = scope.launch { run(cdId) }
+        val deleteOriginals = intent?.getBooleanExtra(EXTRA_DELETE_ORIGINALS, false) == true
+        job = scope.launch { run(cdId, deleteOriginals) }
         return START_NOT_STICKY
     }
 
@@ -73,7 +80,7 @@ class ExportService : Service() {
 
     private fun leaveForeground() { stopForeground(STOP_FOREGROUND_REMOVE) }
 
-    private suspend fun run(cdId: Long) {
+    private suspend fun run(cdId: Long, deleteOriginals: Boolean) {
         val app = application as CDVirtualApp
         var name = "CD"
         try {
@@ -114,8 +121,62 @@ class ExportService : Service() {
                         result.concat.spans.map { CueTrack(titles[it.trackId].orEmpty(), it.startMs) })
                 } catch (_: Throwable) { }
             }
-            ExportState.set(ExportStatus.Done(cdId, name, result.file.absolutePath, result.file.length(), result.concat.totalMs))
-            notifyFinal("MP3 pronto", name)
+            // Cópia automática para a pasta de destino escolhida (opção "Salvar automaticamente ao gerar", padrão ligada).
+            var savedTo: String? = null
+            var saveNote: String? = null
+            var copyFailed = false
+            if (AppSettings.autoSaveToFolder(this)) {
+                val folder = OutputFolder(this).state()
+                if (folder is OutputFolderState.Ready) {
+                    try {
+                        // regerar a mesma playlist substitui a cópia anterior em vez de acumular "nome (1).mp3"
+                        ExportCopies.docs(this, result.file.name).forEach { FolderExporter.delete(this, it) }
+                        ExportCopies.clear(this, result.file.name)
+                        var lastCopyPct = -1
+                        val copy = FolderExporter.copy(this, result.file, folder.uri, "audio/mpeg") { p ->
+                            val pct = (p * 100).toInt()
+                            if (pct != lastCopyPct) { lastCopyPct = pct; update(cdId, name, "Salvando na pasta", p) }
+                        }
+                        ExportCopies.addCopy(this, result.file.name, copy.displayName, copy.documentUri)
+                        if (CueSettings.isEnabled(this)) {
+                            try {
+                                CueSheet.fromMp3(result.file, copy.displayName)?.let { text ->
+                                    val cueName = copy.displayName.substringBeforeLast('.') + ".cue"
+                                    val cue = FolderExporter.writeBytes(this, folder.uri, cueName, "application/x-cue", CueSheet.encode(text))
+                                    ExportCopies.addCopy(this, result.file.name, null, cue.documentUri)
+                                }
+                            } catch (_: Throwable) { }
+                        }
+                        savedTo = folder.name
+                    } catch (ce: kotlinx.coroutines.CancellationException) {
+                        throw ce
+                    } catch (e: Throwable) {
+                        copyFailed = true
+                        saveNote = "Não foi possível salvar na pasta \"${folder.name}\": ${e.message ?: "erro desconhecido"}. A playlist está no app; use Exportar para tentar de novo."
+                    }
+                } else {
+                    saveNote = if (folder is OutputFolderState.Unavailable)
+                        "A pasta de destino não está mais acessível. Escolha a pasta de novo em Configurações; a playlist ficou no app."
+                    else "Nenhuma pasta de destino escolhida; a playlist ficou no app. Escolha uma em Configurações."
+                }
+            }
+            // Opção "manter só a playlist unificada": só apaga os originais com o MP3 pronto e, havendo pasta, já copiado.
+            var deleted = 0
+            var failedDeletes = 0
+            if (deleteOriginals && !copyFailed) {
+                update(cdId, name, "Apagando originais", 1f)
+                val r = OriginalsCleaner.deleteOriginals(this, app.trackRepository, tracks)
+                deleted = r.deleted; failedDeletes = r.failed
+            } else if (deleteOriginals) {
+                saveNote = (saveNote ?: "") + " Os arquivos originais NÃO foram apagados."
+            }
+            ExportState.set(
+                ExportStatus.Done(
+                    cdId, name, result.file.absolutePath, result.file.length(), result.concat.totalMs,
+                    savedTo = savedTo, saveNote = saveNote, deletedOriginals = deleted, failedDeletes = failedDeletes
+                )
+            )
+            notifyFinal("Playlist pronta", if (savedTo != null) "$name · salva em $savedTo" else name)
         } catch (ce: kotlinx.coroutines.CancellationException) {
             ExportState.set(ExportStatus.Cancelled(cdId, name)) // o parcial ".part" já foi removido pelo Mp3Exporter
             throw ce
@@ -219,16 +280,17 @@ class ExportService : Service() {
         private const val ACTION_START = "com.cdvirtual.app.action.EXPORT_START"
         private const val ACTION_CANCEL = "com.cdvirtual.app.action.EXPORT_CANCEL"
         private const val EXTRA_CD_ID = "cdId"
+        private const val EXTRA_DELETE_ORIGINALS = "deleteOriginals"
         private const val CHANNEL_ID = "export"
         private const val NOTIF_ID = 1001
         private const val WAKE_LOCK_MAX_MS = 3L * 60 * 60 * 1000
         private const val SPACE_MARGIN_BYTES = 64L * 1024 * 1024
 
-        fun start(context: Context, cdId: Long) {
+        fun start(context: Context, cdId: Long, deleteOriginals: Boolean = false) {
             if (ExportState.isRunning) return
             // 10.1: marca "em andamento" já no pedido, fechando a janela entre o toque e a primeira atualização do serviço.
             ExportState.set(ExportStatus.Running(cdId, "CD", "Preparando", 0f))
-            val i = Intent(context, ExportService::class.java).setAction(ACTION_START).putExtra(EXTRA_CD_ID, cdId)
+            val i = Intent(context, ExportService::class.java).setAction(ACTION_START).putExtra(EXTRA_CD_ID, cdId).putExtra(EXTRA_DELETE_ORIGINALS, deleteOriginals)
             try {
                 ContextCompat.startForegroundService(context, i)
             } catch (e: Throwable) {

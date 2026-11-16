@@ -329,3 +329,16 @@
 - `YouTubeConnector` e `YouTubeApi` (novos); `PlatformDetector.videoIdOf`; YouTube fora de `RestrictedPlatformConnector`; `YouTubeFailure`/`YouTubeUnavailableException` em `ImportErrors`.
 - Seleção entre as faixas de áudio disponíveis, ordenadas por bitrate; download via `DirectDownloader` (progresso, cancelamento, `.part`, verificação de download incompleto).
 - IMPLEMENTADA (aguardando validação): nada compilado nem executado em aparelho.
+
+## [dev] Integração das melhorias de uso sobre a branch feat/youtube-connector (2026-11-16)
+Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até 5 downloads, tela Downloads, `DownloadService`, conector do YouTube, personalização de áudio por playlist, biblioteca com player). Foram trazidas do snapshot anterior apenas as melhorias abaixo; nada da base foi removido.
+- Configurações (`feature/settings/SettingsScreen`, acessível pelo Início): pasta de destino, "Salvar automaticamente ao gerar" (`core/common/AppSettings`), arquivo CUE, alvo de volume e sobre.
+- Playlist gerada é copiada sozinha para a pasta de destino (substitui a cópia anterior ao regerar; CUE junto, se ligado); `ExportStatus.Done` ganhou `savedTo`, `saveNote`, `deletedOriginals`, `failedDeletes`.
+- Diálogo "Gerar playlist" com a opção de apagar os originais (`core/storage/OriginalsCleaner`): só roda com o MP3 pronto e, havendo cópia automática, copiado sem erro. A personalização de áudio por playlist (`CdAudioSettings`) continua valendo na geração.
+- Biblioteca: abas Músicas (agrupadas por gênero, recolhíveis, gênero editável, busca também por gênero) e Playlists (músicas lidas dos capítulos do MP3; toque em uma música abre a playlist naquele ponto, `Mp3Player.play(context, file, startMs)`). Mantidos: reproduzir tudo, aleatório, mini player com busca/volume, qualidade padrão dos downloads, ▶ por música.
+- Room v11 (coluna `genre`, `Migration` 10→11, preenchimento das músicas antigas ao abrir, `GenreBackfill`). Exige gerar `app/schemas/.../11.json` no primeiro build.
+- Moldura padrão `core/ui/ScreenScaffold` com "← Voltar" em Biblioteca, Importar, Downloads, Playlists, Volume e equalização, Player, Exportar e Configurações (Navegador mantém o botão Início); `ButtonFlow` (botões quebram linha); correção de itens de `LazyColumn` com vários elementos sem `Column` (sobreposição no editor de playlists e no equalizador).
+- Exportar: botão "Abrir em outro player" junto dos demais. Player: controle do volume do aparelho (além do volume do player) e `volumeControlStream` = música na `MainActivity`.
+- Home: acesso a Configurações; contador de ferramentas deixou de ser fixo.
+- Não compilado nem executado em aparelho (sem SDK/rede no ambiente de integração).
+

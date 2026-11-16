@@ -61,6 +61,7 @@ object Mp3Player {
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var libraryQueue: List<TrackEntity> = emptyList()
     private var libraryIndex: Int = -1
+    private var pendingStartMs = 0L
     private var appContext: Context? = null
     private var focusRequest: AudioFocusRequest? = null
     private var resumeOnFocusGain = false
@@ -103,8 +104,9 @@ object Mp3Player {
      * Falhas (arquivo ausente/corrompido) vão para [PlayerState.error].
      */
     @Synchronized
-    fun play(context: Context, file: File) {
+    fun play(context: Context, file: File, startMs: Long = 0L) {
         libraryQueue = emptyList(); libraryIndex = -1
+        pendingStartMs = startMs.coerceAtLeast(0L)
         stopCurrent() // sem emitir "vazio": o serviço em segundo plano não deve parar ao trocar de arquivo
         if (!file.isFile || file.length() == 0L) {
             _state.value = PlayerState(error = "Arquivo não encontrado: ${file.name}")
@@ -151,6 +153,7 @@ object Mp3Player {
     @Synchronized
     private fun loadLibraryTrack(context: Context, track: TrackEntity) {
         stopCurrent()
+        pendingStartMs = 0L
         appContext = context.applicationContext
         val player = MediaPlayer()
         try {
@@ -250,6 +253,8 @@ object Mp3Player {
         if (mp !== player) return
         requestFocus() // ligação em curso etc.: o início segue como antes; perdas posteriores chegam ao focusListener
         try {
+            if (pendingStartMs > 0) player.seekTo(pendingStartMs.toInt())
+            pendingStartMs = 0L
             player.start()
         } catch (e: Throwable) {
             fail(e.message ?: "Não foi possível reproduzir ${file.name}")

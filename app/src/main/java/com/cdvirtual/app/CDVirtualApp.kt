@@ -9,6 +9,7 @@ import com.cdvirtual.app.core.database.AppDatabase
 import com.cdvirtual.app.feature.cdeditor.CdRepository
 import com.cdvirtual.app.feature.library.AnalysisRunner
 import com.cdvirtual.app.feature.library.CoverStore
+import com.cdvirtual.app.feature.library.GenreBackfill
 import com.cdvirtual.app.feature.library.TrackImporter
 import com.cdvirtual.app.feature.library.TrackRepository
 import com.cdvirtual.app.media.connectors.ImportRecovery
@@ -26,7 +27,10 @@ class CDVirtualApp : Application() {
         super.onCreate()
         ExportRecovery.recoverOnLaunch(this)
         ImportRecovery.cleanPartials(this)
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { ImportRecovery.cleanOrphans(this@CDVirtualApp) { trackRepository.findByUri(it) != null } }
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            ImportRecovery.cleanOrphans(this@CDVirtualApp) { trackRepository.findByUri(it) != null }
+            GenreBackfill.run(this@CDVirtualApp, trackRepository) // músicas anteriores à coluna de gênero
+        }
         analysisRunner.kick()
     }
 }

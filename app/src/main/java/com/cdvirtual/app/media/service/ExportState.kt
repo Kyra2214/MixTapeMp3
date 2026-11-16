@@ -7,7 +7,15 @@ import kotlinx.coroutines.flow.asStateFlow
 sealed interface ExportStatus {
     data object Idle : ExportStatus
     data class Running(val cdId: Long, val cdName: String, val phase: String, val progress: Float) : ExportStatus
-    data class Done(val cdId: Long, val cdName: String, val path: String, val sizeBytes: Long, val durationMs: Long) : ExportStatus
+    data class Done(
+        val cdId: Long, val cdName: String, val path: String, val sizeBytes: Long, val durationMs: Long,
+        /** Nome da pasta de destino onde o MP3 foi salvo automaticamente (null se não houve cópia). */
+        val savedTo: String? = null,
+        /** Motivo de a cópia automática não ter sido feita ou ter falhado (null se deu certo ou estava desligada). */
+        val saveNote: String? = null,
+        val deletedOriginals: Int = 0,
+        val failedDeletes: Int = 0
+    ) : ExportStatus
     data class Cancelled(val cdId: Long, val cdName: String) : ExportStatus
     data class Failed(val cdId: Long, val cdName: String, val message: String) : ExportStatus
 }

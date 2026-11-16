@@ -13,7 +13,8 @@ class AudioInfo(
     val durationMs: Long,
     val format: String?,
     val sizeBytes: Long,
-    val cover: ByteArray?
+    val cover: ByteArray?,
+    val genre: String? = null
 )
 
 object AudioMetadataReader {
@@ -36,8 +37,20 @@ object AudioMetadataReader {
                 durationMs = duration,
                 format = formatOf(file.displayName, mime),
                 sizeBytes = actualSize,
-                cover = r.embeddedPicture
+                cover = r.embeddedPicture,
+                genre = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
             )
+        } finally {
+            r.release()
+        }
+    }
+
+    /** Só o gênero (usado para preencher músicas antigas da biblioteca); null se não houver. */
+    fun readGenre(context: Context, uri: Uri): String? {
+        val r = MediaMetadataRetriever()
+        return try {
+            r.setDataSource(context, uri)
+            r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
         } finally {
             r.release()
         }
