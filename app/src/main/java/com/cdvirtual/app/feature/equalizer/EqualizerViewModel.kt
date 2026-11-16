@@ -70,6 +70,15 @@ class EqualizerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Aplica um preset uniforme às faixas do escopo atual (CD selecionado ou biblioteca inteira). */
+    fun applyPreset(bass: Float, mid: Float, treble: Float) {
+        viewModelScope.launch {
+            scopeTracks().forEach { t ->
+                repo.edit(t.id) { it.copy(bassDb = bass, midDb = mid, trebleDb = treble) }
+            }
+        }
+    }
+
     fun resetEq() {
         viewModelScope.launch {
             scopeTracks().forEach { t -> repo.edit(t.id) { it.copy(bassDb = 0f, midDb = 0f, trebleDb = 0f) } }

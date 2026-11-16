@@ -5,6 +5,12 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.media.audiofx.Equalizer
+import android.media.audiofx.LoudnessEnhancer
+import com.cdvirtual.app.media.normalization.GainPlanner
+import com.cdvirtual.app.media.normalization.NormalizationSettingsStore
+import android.net.Uri
+import com.cdvirtual.app.core.database.TrackEntity
 import android.os.PowerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +34,12 @@ data class PlayerState(
     /** Faixas do CD (capítulos ID3) do arquivo atual, ordenadas; vazia se o arquivo não as tiver. */
     val chapters: List<Id3Chapter> = emptyList(),
     /** Verdadeiro enquanto o arquivo está sendo preparado (T-504). */
-    val loading: Boolean = false
+    val loading: Boolean = false,
+    val trackId: Long? = null,
+    val trackTitle: String? = null,
+    val trackArtist: String? = null,
+    val trackCoverPath: String? = null,
+    val volume: Float = 1f
 ) {
     /** Faixa que contém [positionMs] (a última cujo início já passou), ou null sem capítulos. */
     fun chapterIndexAt(positionMs: Long): Int = chapters.indexOfLast { it.startMs <= positionMs }.coerceAtLeast(0)
@@ -46,6 +57,11 @@ object Mp3Player {
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private var mp: MediaPlayer? = null
+    private var outputEqualizer: Equalizer? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
+    private var libraryQueue: List<TrackEntity> = emptyList()
+    private var libraryIndex: Int = -1
+    private var pendingStartMs = 0L
     private var appContext: Context? = null
     private var focusRequest: AudioFocusRequest? = null
     private var resumeOnFocusGain = false
@@ -88,7 +104,9 @@ object Mp3Player {
      * Falhas (arquivo ausente/corrompido) vão para [PlayerState.error].
      */
     @Synchronized
-    fun play(context: Context, file: File) {
+    fun play(context: Context, file: File, startMs: Long = 0L) {
+        libraryQueue = emptyList(); libraryIndex = -1
+        pendingStartMs = startMs.coerceAtLeast(0L)
         stopCurrent() // sem emitir "vazio": o serviço em segundo plano não deve parar ao trocar de arquivo
         if (!file.isFile || file.length() == 0L) {
             _state.value = PlayerState(error = "Arquivo não encontrado: ${file.name}")
@@ -122,12 +140,121 @@ object Mp3Player {
         }
     }
 
+    /** Reproduz uma faixa da biblioteca dentro de uma fila; embaralha a fila quando solicitado. */
+    @Synchronized
+    fun playLibrary(context: Context, tracks: List<TrackEntity>, startIndex: Int = 0, shuffle: Boolean = false) {
+        if (tracks.isEmpty()) return
+        val ordered = if (shuffle) tracks.shuffled() else tracks
+        libraryQueue = ordered
+        libraryIndex = if (shuffle) 0 else startIndex.coerceIn(0, ordered.lastIndex)
+        loadLibraryTrack(context, ordered[libraryIndex])
+    }
+
+    @Synchronized
+    private fun loadLibraryTrack(context: Context, track: TrackEntity) {
+        stopCurrent()
+        pendingStartMs = 0L
+        appContext = context.applicationContext
+        val player = MediaPlayer()
+        try {
+            player.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            player.setWakeMode(context.applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
+            player.setDataSource(context.applicationContext, Uri.parse(track.uri))
+            player.setOnCompletionListener { onCompleted() }
+            player.setOnErrorListener { _, what, extra -> fail("Erro ao reproduzir (código $what/$extra)"); true }
+            player.setOnPreparedListener { onPreparedLibrary(context.applicationContext, player, track) }
+            mp = player
+            _state.value = PlayerState(loading = true, trackId = track.id, trackTitle = track.title,
+                trackArtist = track.artist, trackCoverPath = track.coverPath)
+            player.prepareAsync()
+        } catch (e: Throwable) {
+            try { player.release() } catch (_: Throwable) { }
+            mp = null
+            _state.value = PlayerState(error = e.message ?: "Não foi possível reproduzir ${track.title}")
+        }
+    }
+
+    @Synchronized
+    private fun onPreparedLibrary(app: Context, player: MediaPlayer, track: TrackEntity) {
+        if (mp !== player) return
+        requestFocus()
+        applyTrackEqualizer(player, track)
+        applyTrackNormalization(player, track, app)
+        try { player.start() } catch (e: Throwable) { fail(e.message ?: "Não foi possível reproduzir ${track.title}"); return }
+        PlaybackService.start(app)
+        _state.value = PlayerState(playing = true, durationMs = player.duration.toLong().coerceAtLeast(0),
+            trackId = track.id, trackTitle = track.title, trackArtist = track.artist, trackCoverPath = track.coverPath)
+    }
+
+    /** Aplica o EQ salvo na faixa usando o equalizador de saída do Android, quando suportado pelo aparelho. */
+    @Synchronized
+    private fun applyTrackEqualizer(player: MediaPlayer, track: TrackEntity) {
+        try {
+            outputEqualizer?.release()
+            val eq = Equalizer(0, player.audioSessionId)
+            val range = eq.bandLevelRange
+            for (band in 0 until eq.numberOfBands.toInt()) {
+                val freq = eq.getCenterFreq(band.toShort()).toInt()
+                val db = when {
+                    freq < 250_000 -> track.bassDb
+                    freq < 4_000_000 -> track.midDb
+                    else -> track.trebleDb
+                }
+                val level = (db * 100).toInt().coerceIn(range[0].toInt(), range[1].toInt())
+                eq.setBandLevel(band.toShort(), level.toShort())
+            }
+            eq.enabled = true
+            outputEqualizer = eq
+        } catch (_: Throwable) {
+            outputEqualizer?.let { try { it.release() } catch (_: Throwable) { } }
+            outputEqualizer = null
+        }
+    }
+
+    /** Aplica ganho automático por loudness e true peak na reprodução da biblioteca, se habilitado. */
+    @Synchronized
+    private fun applyTrackNormalization(player: MediaPlayer, track: TrackEntity, context: Context) {
+        try {
+            val settings = NormalizationSettingsStore(context).load()
+            if (!settings.enabled) return
+            val gainDb = GainPlanner.forTrack(track, settings)?.gainDb ?: return
+            val enhancer = LoudnessEnhancer(player.audioSessionId)
+            enhancer.setTargetGain((gainDb * 100).toInt())
+            enhancer.enabled = true
+            loudnessEnhancer = enhancer
+        } catch (_: Throwable) {
+            loudnessEnhancer?.let { try { it.release() } catch (_: Throwable) { } }
+            loudnessEnhancer = null
+        }
+    }
+
+    /** Próxima faixa da fila da biblioteca; volta ao início ao chegar ao fim. */
+    @Synchronized
+    fun nextTrack(): Boolean {
+        if (libraryQueue.isEmpty()) return false
+        libraryIndex = (libraryIndex + 1) % libraryQueue.size
+        loadLibraryTrack(appContext ?: return false, libraryQueue[libraryIndex])
+        return true
+    }
+
+    /** Faixa anterior da fila da biblioteca; no início volta para a última. */
+    @Synchronized
+    fun previousTrack(): Boolean {
+        if (libraryQueue.isEmpty()) return false
+        libraryIndex = if (libraryIndex <= 0) libraryQueue.lastIndex else libraryIndex - 1
+        loadLibraryTrack(appContext ?: return false, libraryQueue[libraryIndex])
+        return true
+    }
+
     /** Chamado na thread principal quando a preparação termina; ignora players já substituídos. */
     @Synchronized
     private fun onPrepared(app: Context, player: MediaPlayer, file: File) {
         if (mp !== player) return
         requestFocus() // ligação em curso etc.: o início segue como antes; perdas posteriores chegam ao focusListener
         try {
+            if (pendingStartMs > 0) player.seekTo(pendingStartMs.toInt())
+            pendingStartMs = 0L
             player.start()
         } catch (e: Throwable) {
             fail(e.message ?: "Não foi possível reproduzir ${file.name}")
@@ -209,7 +336,11 @@ object Mp3Player {
 
     /** Volume relativo do player (0..1), usado para "ducking" por outros apps. */
     @Synchronized
-    fun setVolume(v: Float) { try { mp?.setVolume(v, v) } catch (_: Throwable) { } }
+    fun setVolume(v: Float) {
+        val level = v.coerceIn(0f, 1f)
+        try { mp?.setVolume(level, level) } catch (_: Throwable) { }
+        _state.update { it.copy(volume = level) }
+    }
 
     fun togglePlayPause() { if (_state.value.playing) pause() else resume() }
 
@@ -217,11 +348,16 @@ object Mp3Player {
     @Synchronized
     fun release() {
         stopCurrent()
+        libraryQueue = emptyList(); libraryIndex = -1
         abandonFocus()
         _state.value = PlayerState()
     }
 
     private fun stopCurrent() {
+        loudnessEnhancer?.let { try { it.release() } catch (_: Throwable) { } }
+        loudnessEnhancer = null
+        outputEqualizer?.let { try { it.release() } catch (_: Throwable) { } }
+        outputEqualizer = null
         mp?.let { try { it.stop() } catch (_: Throwable) { }; try { it.release() } catch (_: Throwable) { } }
         mp = null
     }
@@ -229,6 +365,7 @@ object Mp3Player {
     @Synchronized
     private fun onCompleted() {
         abandonFocus()
+        if (libraryQueue.isNotEmpty() && libraryIndex < libraryQueue.lastIndex) { nextTrack(); return }
         _state.value = _state.value.copy(playing = false)
     }
 

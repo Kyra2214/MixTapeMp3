@@ -38,7 +38,7 @@ class PlaybackService : Service() {
     private var session: MediaSession? = null
     private var receiverRegistered = false
     private var observing = false
-    private var coverFile: java.io.File? = null
+    private var coverKey: String? = null
     private var coverBitmap: Bitmap? = null
 
     /** Fones/Bluetooth desconectados: pausa em vez de tocar no alto-falante. */
@@ -55,8 +55,8 @@ class PlaybackService : Service() {
             override fun onSeekTo(pos: Long) { Mp3Player.seekTo(pos) }
             override fun onFastForward() { Mp3Player.seekBy(SKIP_MS) }
             override fun onRewind() { Mp3Player.seekBy(-SKIP_MS) }
-            override fun onSkipToNext() { if (!Mp3Player.nextChapter()) Mp3Player.seekBy(SKIP_MS) }
-            override fun onSkipToPrevious() { if (!Mp3Player.previousChapter()) Mp3Player.seekBy(-SKIP_MS) }
+            override fun onSkipToNext() { if (!Mp3Player.nextChapter()) Mp3Player.nextTrack() }
+            override fun onSkipToPrevious() { if (!Mp3Player.previousChapter()) Mp3Player.previousTrack() }
         })
         s.isActive = true
         session = s
@@ -75,14 +75,20 @@ class PlaybackService : Service() {
                 .setState(if (s.playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED, pos, if (s.playing) 1f else 0f)
                 .build()
         )
-        if (coverFile != s.file) {
-            coverFile = s.file
-            coverBitmap = s.file?.let { loadCover(it) }
+        val newCoverKey = s.file?.absolutePath ?: s.trackCoverPath
+        if (coverKey != newCoverKey) {
+            coverKey = newCoverKey
+            coverBitmap = when {
+                s.file != null -> loadCover(s.file)
+                s.trackCoverPath != null -> loadCoverPath(s.trackCoverPath)
+                else -> null
+            }
         }
         ms.setMetadata(
             MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, s.chapterAt(pos)?.title?.ifBlank { null } ?: s.file?.nameWithoutExtension ?: "MixTape MP3")
-                .putString(MediaMetadata.METADATA_KEY_ALBUM, s.file?.nameWithoutExtension ?: "")
+                .putString(MediaMetadata.METADATA_KEY_TITLE, s.chapterAt(pos)?.title?.ifBlank { null } ?: s.trackTitle ?: s.file?.nameWithoutExtension ?: "MixTape MP3")
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, s.trackArtist ?: "")
+                .putString(MediaMetadata.METADATA_KEY_ALBUM, s.file?.nameWithoutExtension ?: s.trackArtist ?: "")
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, s.durationMs)
                 .apply { coverBitmap?.let { putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, it) } }
                 .build()
@@ -95,6 +101,12 @@ class PlaybackService : Service() {
             CoverDecoder.fromBytes(bytes, 512)
         } catch (_: Throwable) { null }
     }
+
+    private fun loadCoverPath(path: String): Bitmap? = try {
+        val file = java.io.File(path)
+        if (!file.isFile || file.length() !in 1..(8L * 1024 * 1024)) null
+        else CoverDecoder.fromBytes(file.readBytes(), 512)
+    } catch (_: Throwable) { null }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -114,7 +126,7 @@ class PlaybackService : Service() {
             observing = true
             scope.launch {
                 Mp3Player.state.collect { s ->
-                    if (s.file == null) {
+                    if (s.file == null && s.trackId == null) {
                         stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
                     } else {
@@ -128,7 +140,7 @@ class PlaybackService : Service() {
                 while (true) {
                     kotlinx.coroutines.delay(2000)
                     val s = Mp3Player.state.value
-                    if (s.file != null && s.playing) {
+                    if ((s.file != null || s.trackId != null) && s.playing) {
                         updateSession(s)
                         getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(s))
                     }
@@ -157,8 +169,8 @@ class PlaybackService : Service() {
 
     /** Notificação de mídia (framework Notification.MediaStyle): retroceder 15 s, pausar/continuar, avançar 15 s, parar. */
     private fun buildNotification(s: PlayerState): Notification {
-        val name = s.chapterAt(Mp3Player.positionMs())?.title?.ifBlank { null } ?: s.file?.nameWithoutExtension ?: "MixTape MP3"
-        val album = s.file?.nameWithoutExtension ?: "MixTape MP3"
+        val name = s.chapterAt(Mp3Player.positionMs())?.title?.ifBlank { null } ?: s.trackTitle ?: s.file?.nameWithoutExtension ?: "MixTape MP3"
+        val album = s.file?.nameWithoutExtension ?: s.trackArtist ?: "MixTape MP3"
         val openApp = PendingIntent.getActivity(
             this, 10, Intent(this, com.cdvirtual.app.MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT

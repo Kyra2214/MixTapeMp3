@@ -20,6 +20,10 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.CDVirtual">
         <service
+            android:name=".media.service.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name=".media.service.ExportService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

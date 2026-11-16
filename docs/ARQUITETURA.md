@@ -102,3 +102,16 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - `core/storage/ExportCopies` persiste as cópias exportadas; `OutputFolder` é a única lógica de pasta de destino (Home e Exportar).
 - Room: v10 é a linha de base da 1.0; toda mudança de schema pós-1.0 exige `Migration` e incremento de versão (nunca `fallbackToDestructiveMigration()` sem versões).
 - `feature/welcome/WelcomeScreen`: destino inicial; `popUpTo` remove a tela da pilha ao entrar no Início.
+
+## [dev] 11.1 — Importação por link do YouTube
+- `media/connectors/YouTubeConnector` + `YouTubeApi`: o conector só extrai o ID (`PlatformDetector.videoIdOf`) e delega; `YouTubeApi` é o único ponto que fala com o YouTube (Innertube, cliente ANDROID, JSON via `org.json`, sem dependência nova). O download reusa `DirectDownloader`.
+- YouTube saiu de `RestrictedPlatformConnector`; Facebook e Instagram continuam lá. A "regra técnica 8" (só meios permitidos) vale agora apenas para essas duas: baixar do YouTube contraria os ToS, e a documentação assume isso.
+- Falhas de vídeo (privado, região, ao vivo, idade, sem áudio, mudança do player) viram `YouTubeUnavailableException` + `YouTubeFailure` em `ImportErrors.kt`.
+- Risco conhecido: o parâmetro `n` de throttling não é resolvido (exigiria JS), então o download pode vir limitado em velocidade. Trocar de transporte = reescrever só `YouTubeApi.kt`.
+
+## [dev] Integração: Configurações, gêneros e cópia automática
+- `core/ui/ScreenScaffold` (barra com Voltar + título) e `ButtonFlow` são a moldura comum das telas internas; `AppNavHost` passa `onBack` (pop só se houver tela anterior).
+- `feature/settings/SettingsScreen` usa `OutputFolder`, `AppSettings`, `CueSettings` e `NormalizationSettingsStore`; não duplica lógica de pasta.
+- `ExportService.run` depois de gerar: cópia para a pasta (`FolderExporter` + `ExportCopies`) se `AppSettings.autoSaveToFolder`, depois `OriginalsCleaner` se pedido na geração. Falha na cópia nunca apaga originais.
+- `feature/library/Genres` normaliza a tag (ID3v1 numérico e "(n)texto"); coluna `tracks.genre` (null = ainda não lido, "" = sem gênero); Room v11 com `MIGRATION_10_11`.
+

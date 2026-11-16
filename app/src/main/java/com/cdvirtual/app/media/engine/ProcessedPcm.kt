@@ -2,6 +2,7 @@ package com.cdvirtual.app.media.engine
 
 import android.content.Context
 import com.cdvirtual.app.core.database.TrackEntity
+import com.cdvirtual.app.media.equalization.CdAudioSettings
 import com.cdvirtual.app.media.equalization.ThreeBandEqualizer
 import com.cdvirtual.app.media.normalization.GainPlanner
 import com.cdvirtual.app.media.normalization.NormalizationSettings
@@ -24,10 +25,11 @@ object ProcessedPcm {
         settings: NormalizationSettings,
         cancelCheck: () -> Unit = {},
         onProgress: (Float) -> Unit = {},
+        audioSettings: CdAudioSettings? = null,
         sink: (samples: FloatArray, count: Int) -> Unit
     ): Long {
         val gain = 10.0.pow(gainDb(track, settings) / 20.0).toFloat()
-        val eq = ThreeBandEqualizer(AudioStandardizer.DST_RATE, AudioStandardizer.DST_CHANNELS, track.bassDb, track.midDb, track.trebleDb)
+        val eq = ThreeBandEqualizer(AudioStandardizer.DST_RATE, AudioStandardizer.DST_CHANNELS, audioSettings?.bassDb ?: track.bassDb, audioSettings?.midDb ?: track.midDb, audioSettings?.trebleDb ?: track.trebleDb)
         return StandardPcm.decode(context, track, cancelCheck, onProgress) { buf, n ->
             eq.process(buf, n)
             for (i in 0 until n) buf[i] = (buf[i] * gain).coerceIn(-1f, 1f) // rede de segurança contra clipping

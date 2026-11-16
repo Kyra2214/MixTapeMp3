@@ -27,5 +27,7 @@ data class TrackEntity(
     val bassDb: Float = 0f,
     val midDb: Float = 0f,
     val trebleDb: Float = 0f,
-    val addedAt: Long = System.currentTimeMillis()
+    val addedAt: Long = System.currentTimeMillis(),
+    /** Gênero da tag. null = ainda não lido; "" = lido e sem gênero. */
+    val genre: String? = null
 )

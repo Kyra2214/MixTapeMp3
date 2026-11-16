@@ -4,6 +4,7 @@ import android.content.Context
 import com.cdvirtual.app.core.database.TrackEntity
 import com.cdvirtual.app.media.encoder.LameMp3Encoder
 import com.cdvirtual.app.media.encoder.Mp3Encoder
+import com.cdvirtual.app.media.equalization.CdAudioSettings
 import com.cdvirtual.app.media.metadata.CdMetadata
 import com.cdvirtual.app.media.metadata.Id3Chapter
 import com.cdvirtual.app.media.metadata.Id3Writer
@@ -37,6 +38,7 @@ object Mp3Exporter {
         cancelCheck: () -> Unit = {},
         onProgress: (Float) -> Unit = {},
         metadata: CdMetadata? = null,
+        audioSettings: CdAudioSettings? = null,
         encoderFactory: () -> Mp3Encoder = { LameMp3Encoder() }
     ): Mp3Result {
         target.absoluteFile.parentFile?.mkdirs()
@@ -50,7 +52,7 @@ object Mp3Exporter {
                     var left = ShortArray(0)
                     var right = ShortArray(0)
                     val quantizer = Pcm16Quantizer() // 10.4: dither TPDF na conversão para 16 bits
-                    concat = CdConcatenator.concat(context, tracks, settings, cancelCheck, onProgress) { buf, n ->
+                    concat = CdConcatenator.concat(context, tracks, settings, cancelCheck, audioSettings, onProgress) { buf, n ->
                         val frames = n / 2
                         if (left.size < frames) { left = ShortArray(frames); right = ShortArray(frames) }
                         for (i in 0 until frames) {

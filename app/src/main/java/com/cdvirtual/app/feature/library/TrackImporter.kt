@@ -23,8 +23,8 @@ class TrackImporter(
     private val storage = StorageAccess(context)
     private val covers = CoverStore(context)
 
-    /** T-204: SHA-256 e leitura de metadados são bloqueantes; sempre fora da thread principal. */
-    suspend fun import(uri: Uri): ImportOutcome = withContext(Dispatchers.IO) {
+    /** SHA-256 e leitura de metadados são bloqueantes; sempre fora da thread principal. */
+    suspend fun import(uri: Uri, fallbackTitle: String? = null): ImportOutcome = withContext(Dispatchers.IO) {
         var persisted = false
         try {
             if (repo.findByUri(uri.toString()) != null) return@withContext ImportOutcome.Duplicate
@@ -36,21 +36,21 @@ class TrackImporter(
                     "Limite de arquivos com acesso permanente do Android atingido (${storage.persistedCount()} de ${StorageAccess.persistLimit()}). Remova músicas da biblioteca e tente de novo."
                 )
             }
-            val info = AudioMetadataReader.read(context, uri)
-            // T-201: a permissão só é tomada depois que o arquivo provou ser um áudio legível.
+            val info = AudioMetadataReader.read(context, uri, fallbackTitle)
             if (isContent) { storage.persistRead(uri); persisted = true }
             val id = repo.add(
                 TrackEntity(
                     uri = uri.toString(), title = info.title, artist = info.artist, album = info.album,
                     durationMs = info.durationMs, format = info.format, sizeBytes = info.sizeBytes,
-                    coverPath = info.cover?.let { covers.save(it) }, contentHash = hash
+                    coverPath = info.cover?.let { covers.save(it) }, contentHash = hash,
+                    genre = Genres.normalize(info.genre).orEmpty()
                 )
             )
             onAdded()
             ImportOutcome.Added(id)
         } catch (ce: kotlinx.coroutines.CancellationException) {
             if (persisted) storage.release(uri)
-            throw ce // 10.1: cancelar não é "arquivo inválido"
+            throw ce
         } catch (se: SecurityException) {
             if (persisted) storage.release(uri)
             ImportOutcome.Failed("Sem permissão para guardar o acesso a este arquivo (limite de permissões do Android?). Remova músicas da biblioteca e tente de novo.")

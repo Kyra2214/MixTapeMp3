@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/youtube-connector]
   pull_request:
   workflow_dispatch:
 
@@ -25,8 +25,8 @@ jobs:
       - name: Instalar Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Executar testes unitários e compilar APK debug
-        run: ./gradlew testDebugUnitTest assembleDebug --stacktrace
+      - name: Compilar APK debug
+        run: ./gradlew assembleDebug --stacktrace
       - name: Publicar APK debug como artefato
         uses: actions/upload-artifact@v4
         with:
@@ -34,3 +34,5 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Executar testes unitários
+        run: ./gradlew testDebugUnitTest --stacktrace

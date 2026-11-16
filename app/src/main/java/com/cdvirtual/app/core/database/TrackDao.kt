@@ -23,12 +23,15 @@ interface TrackDao {
 
     @Query(
         "SELECT * FROM tracks WHERE title LIKE '%' || :q || '%' OR artist LIKE '%' || :q || '%' " +
-            "OR album LIKE '%' || :q || '%' ORDER BY title COLLATE NOCASE"
+            "OR album LIKE '%' || :q || '%' OR genre LIKE '%' || :q || '%' ORDER BY title COLLATE NOCASE"
     )
     fun search(q: String): Flow<List<TrackEntity>>
 
     @Query("SELECT COUNT(*) FROM tracks WHERE coverPath = :path")
     suspend fun countByCover(path: String): Int
+
+    @Query("SELECT * FROM tracks WHERE genre IS NULL")
+    suspend fun pendingGenre(): List<TrackEntity>
 
     @Query("SELECT * FROM tracks WHERE lufs IS NULL OR bandBassDb IS NULL")
     suspend fun pendingAnalysis(): List<TrackEntity>

@@ -12,6 +12,8 @@ class TrackRepository(private val dao: TrackDao) {
 
     suspend fun pendingAnalysis(): List<TrackEntity> = dao.pendingAnalysis()
 
+    suspend fun pendingGenre(): List<TrackEntity> = dao.pendingGenre()
+
     /** Atualiza o registro lendo a versão mais recente antes de gravar. */
     suspend fun edit(id: Long, change: (TrackEntity) -> TrackEntity) {
         dao.getById(id)?.let { dao.update(change(it)) }

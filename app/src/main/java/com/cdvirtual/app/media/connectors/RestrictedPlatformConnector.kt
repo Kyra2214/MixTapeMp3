@@ -4,13 +4,15 @@ import java.io.File
 import java.net.URL
 
 /**
- * YouTube, Facebook e Instagram não oferecem download de mídia por meio oficial para apps de terceiros,
+ * Facebook e Instagram não oferecem download de mídia por meio oficial para apps de terceiros,
  * e seus termos proíbem extrair o conteúdo. Este conector reconhece o link, explica a restrição e
- * orienta o usuário, sem contornar proteções (regra técnica 8).
+ * orienta o usuário.
+ *
+ * YouTube saiu daqui: passou a ser atendido por [YouTubeConnector].
  */
 class RestrictedPlatformConnector : SourceConnector {
     override val id = "restricted"
-    private val restricted = setOf(Platform.YouTube, Platform.Facebook, Platform.Instagram)
+    private val restricted = setOf(Platform.Facebook, Platform.Instagram)
 
     override fun supports(platform: Platform) = platform in restricted
 

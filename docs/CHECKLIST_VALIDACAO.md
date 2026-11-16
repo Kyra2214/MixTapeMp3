@@ -40,3 +40,22 @@ Marque cada item no aparelho. Nada foi compilado nem executado no ambiente de de
 
 ## 7. Offline
 - [ ] Modo avião: tudo funciona, exceto o importador por link, que avisa com clareza.
+
+## Importação por link do YouTube
+- [ ] Link `watch?v=`, `youtu.be/`, `/shorts/` e `/live/` reconhecido; playlist e canal recusados com mensagem clara.
+- [ ] Lista de faixas de áudio aparece ordenada por bitrate, com tamanho.
+- [ ] Download conclui, a música entra na biblioteca e o arquivo tem a extensão correta (`m4a`/`webm`).
+- [ ] Cancelar no meio não deixa `.part` nem faixa quebrada; reabrir o app limpa resíduo.
+- [ ] Excluir a faixa apaga o arquivo de `filesDir/imports`.
+- [ ] Vídeo privado, com restrição de idade e de região devolvem a mensagem certa.
+- [ ] Modo avião: aviso imediato, sem esperar timeout.
+- [ ] Faixa importada gera CD em 320 kbps CBR normalmente (o `MediaCodec` decodifica opus/aac).
+
+## Integração (Configurações, gêneros, cópia automática)
+- [ ] Atualizar da v10 para a v11 mantém a biblioteca; músicas antigas ganham gênero ao abrir o app.
+- [ ] Biblioteca: aba Músicas agrupa por gênero, "Gênero" edita, busca acha por gênero; aba Playlists lista as geradas e abre no ponto da música tocada.
+- [ ] Gerar playlist com pasta escolhida: MP3 (e CUE, se ligado) aparece na pasta; regerar substitui a cópia.
+- [ ] Gerar com "Apagar os originais": só apaga depois do MP3 pronto/copiado; falha na cópia mantém os originais.
+- [ ] "← Voltar" funciona em todas as telas internas; navegador, Downloads (fila de até 5, retomar/reiniciar) e notificação do serviço continuam como antes.
+- [ ] Player: volume do aparelho e do player; botões físicos controlam a mídia.
+

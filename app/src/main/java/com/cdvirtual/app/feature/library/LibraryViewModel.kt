@@ -49,6 +49,15 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Define o gênero de uma música (texto vazio = sem gênero). Só altera o registro do app, nunca o arquivo. */
+    fun setGenre(track: TrackEntity, text: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val genre = Genres.normalize(text).orEmpty()
+            repo.edit(track.id) { it.copy(genre = genre) }
+            message.value = if (genre.isEmpty()) "\"${track.title}\": gênero removido" else "\"${track.title}\": gênero $genre"
+        }
+    }
+
     /** Remove apenas o registro e a capa extraída; o arquivo de áudio original nunca é apagado. */
     fun remove(track: TrackEntity) {
         viewModelScope.launch(Dispatchers.IO) {

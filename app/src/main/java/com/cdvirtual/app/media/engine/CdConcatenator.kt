@@ -2,6 +2,7 @@ package com.cdvirtual.app.media.engine
 
 import android.content.Context
 import com.cdvirtual.app.core.database.TrackEntity
+import com.cdvirtual.app.media.equalization.CdAudioSettings
 import com.cdvirtual.app.media.normalization.NormalizationSettings
 
 /** Posição de uma faixa no fluxo contínuo do CD, em quadros a 44,1 kHz. */
@@ -26,6 +27,7 @@ object CdConcatenator {
         tracks: List<TrackEntity>,
         settings: NormalizationSettings,
         cancelCheck: () -> Unit = {},
+        audioSettings: CdAudioSettings? = null,
         onProgress: (Float) -> Unit = {},
         sink: (samples: FloatArray, count: Int) -> Unit
     ): ConcatResult {
@@ -39,6 +41,7 @@ object CdConcatenator {
             val w = t.durationMs.coerceAtLeast(1)
             val frames = ProcessedPcm.decode(
                 context, t, settings, cancelCheck,
+                audioSettings = audioSettings,
                 onProgress = { f -> onProgress(((done + w * f) / totalWeight).toFloat().coerceIn(0f, 1f)) },
                 sink = sink
             )
