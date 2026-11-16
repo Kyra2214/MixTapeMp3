@@ -214,7 +214,7 @@ object YouTubeApi {
 
             // Estimativa: bitrate médio × duração. O CDN nem sempre informa Content-Length.
             val size = bitrate?.let {
-                it.toLong() * 1000L * info.duration.coerceAtLeast(0L) / 8L
+                it.toLong() * info.duration.coerceAtLeast(0L) / 8L
             } ?: 0L
             val formatName = extension.uppercase()
             val bitrateText = bitrate?.let { " · ${it} kbps" } ?: ""
