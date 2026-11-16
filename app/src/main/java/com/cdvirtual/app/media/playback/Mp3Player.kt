@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.media.audiofx.Equalizer
 import android.net.Uri
 import com.cdvirtual.app.core.database.TrackEntity
 import android.os.PowerManager
@@ -52,6 +53,7 @@ object Mp3Player {
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private var mp: MediaPlayer? = null
+    private var outputEqualizer: Equalizer? = null
     private var libraryQueue: List<TrackEntity> = emptyList()
     private var libraryIndex: Int = -1
     private var appContext: Context? = null
@@ -169,10 +171,36 @@ object Mp3Player {
     private fun onPreparedLibrary(app: Context, player: MediaPlayer, track: TrackEntity) {
         if (mp !== player) return
         requestFocus()
+        applyTrackEqualizer(player, track)
         try { player.start() } catch (e: Throwable) { fail(e.message ?: "Não foi possível reproduzir ${track.title}"); return }
         PlaybackService.start(app)
         _state.value = PlayerState(playing = true, durationMs = player.duration.toLong().coerceAtLeast(0),
             trackId = track.id, trackTitle = track.title, trackArtist = track.artist, trackCoverPath = track.coverPath)
+    }
+
+    /** Aplica o EQ salvo na faixa usando o equalizador de saída do Android, quando suportado pelo aparelho. */
+    @Synchronized
+    private fun applyTrackEqualizer(player: MediaPlayer, track: TrackEntity) {
+        try {
+            outputEqualizer?.release()
+            val eq = Equalizer(0, player.audioSessionId)
+            val range = eq.bandLevelRange
+            for (band in 0 until eq.numberOfBands.toInt()) {
+                val freq = eq.getCenterFreq(band.toShort()).toInt()
+                val db = when {
+                    freq < 250_000 -> track.bassDb
+                    freq < 4_000_000 -> track.midDb
+                    else -> track.trebleDb
+                }
+                val level = (db * 100).toInt().coerceIn(range[0].toInt(), range[1].toInt())
+                eq.setBandLevel(band.toShort(), level.toShort())
+            }
+            eq.enabled = true
+            outputEqualizer = eq
+        } catch (_: Throwable) {
+            outputEqualizer?.let { try { it.release() } catch (_: Throwable) { } }
+            outputEqualizer = null
+        }
     }
 
     /** Próxima faixa da fila da biblioteca; volta ao início ao chegar ao fim. */
@@ -294,6 +322,8 @@ object Mp3Player {
     }
 
     private fun stopCurrent() {
+        outputEqualizer?.let { try { it.release() } catch (_: Throwable) { } }
+        outputEqualizer = null
         mp?.let { try { it.stop() } catch (_: Throwable) { }; try { it.release() } catch (_: Throwable) { } }
         mp = null
     }
