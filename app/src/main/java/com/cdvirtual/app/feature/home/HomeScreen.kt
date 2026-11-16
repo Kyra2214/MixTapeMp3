@@ -59,7 +59,7 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         HomeAction(Destination.Browser, "◎", "Encontre áudio na web", Color(0xFF58D8D0)),
         HomeAction(Destination.Importer, "↓", "Adicione à sua coleção", Color(0xFFFFA36C)),
         HomeAction(Destination.Library, "♫", "Ouça e organize", Color(0xFFB49AFF)),
-        HomeAction(Destination.CdEditor, "▣", "Monte seu CD", Color(0xFF78B7FF)),
+        HomeAction(Destination.CdEditor, "▣", "Monte sua playlist", Color(0xFF78B7FF)),
         HomeAction(Destination.Equalizer, "≋", "Ajuste o som", Color(0xFFFF8B9A)),
         HomeAction(Destination.Player, "▶", "Seus mixes offline", Color(0xFF72D6A2)),
         HomeAction(Destination.Export, "↗", "Gere e compartilhe", Color(0xFFE2C477))
@@ -95,12 +95,12 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
                     .padding(22.dp)
             ) {
                 Column {
-                    Text("DO PLAYLIST AO CD", color = Color(0xFF8DE9DE), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text("PLAYLISTS DO SEU JEITO", color = Color(0xFF8DE9DE), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     Text("Sua coleção,\ncom identidade.", Modifier.padding(top = 8.dp), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text("Crie mixes, personalize o áudio e leve sua música com você.",
                         Modifier.padding(top = 8.dp), color = Color(0xFFD7DCEC), style = MaterialTheme.typography.bodyMedium)
                     Button(onClick = { onNavigate(Destination.CdEditor) }, Modifier.padding(top = 16.dp)) {
-                        Text("Criar meu CD  →")
+                        Text("Criar minha playlist  →")
                     }
                 }
             }
@@ -147,7 +147,7 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
                     Column(Modifier.weight(1f)) {
                         Text("Pasta de saída", style = MaterialTheme.typography.labelLarge)
                         Text(
-                            if (folder is OutputFolderState.Ready) "Pronta para exportar" else "Defina onde salvar seus CDs",
+                            if (folder is OutputFolderState.Ready) "Pronta para exportar" else "Defina onde salvar seus arquivos",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
