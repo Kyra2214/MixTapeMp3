@@ -54,6 +54,26 @@ fun EqualizerScreen(vm: EqualizerViewModel = viewModel()) {
             Text("EQ automática e zerar valem para: ${scopeName ?: "biblioteca inteira"}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = vm::cycleScope, enabled = cds.isNotEmpty()) { Text("Trocar") }
         }
+        Text("Presets para o escopo selecionado", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall)
+        listOf(
+            Triple("Acústico", 0f, 2f) to 1.5f,
+            Triple("Grave", 6f, 0f) to 0f,
+            Triple("Agudo", 0f, 0f) to 5f,
+            Triple("Funk", 6f, 1f) to 2f,
+            Triple("Pagode", 1f, 3f) to 2f,
+            Triple("Blues", 2f, 3f) to 1f,
+            Triple("Rock", 4f, 2f) to 3f
+        ).chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth()) {
+                row.forEach { (base, treble) ->
+                    OutlinedButton(
+                        onClick = { vm.applyPreset(base.second, base.third, treble) },
+                        modifier = Modifier.weight(1f).padding(end = 4.dp)
+                    ) { Text(base.first) }
+                }
+                if (row.size == 1) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            }
+        }
         Row(Modifier.padding(top = 4.dp)) {
             OutlinedButton(onClick = vm::autoEqualize, enabled = tracks.any { it.bandBassDb != null }) { Text("EQ automática do CD") }
             OutlinedButton(onClick = vm::resetEq, Modifier.padding(start = 8.dp)) { Text("Zerar EQ") }
