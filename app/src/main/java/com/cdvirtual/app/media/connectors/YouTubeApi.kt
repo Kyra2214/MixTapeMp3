@@ -1,6 +1,5 @@
 package com.cdvirtual.app.media.connectors
 
-import com.cdvirtual.app.core.common.formatSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.NewPipe
