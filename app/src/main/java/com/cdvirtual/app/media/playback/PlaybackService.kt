@@ -55,8 +55,8 @@ class PlaybackService : Service() {
             override fun onSeekTo(pos: Long) { Mp3Player.seekTo(pos) }
             override fun onFastForward() { Mp3Player.seekBy(SKIP_MS) }
             override fun onRewind() { Mp3Player.seekBy(-SKIP_MS) }
-            override fun onSkipToNext() { if (!Mp3Player.nextChapter()) Mp3Player.seekBy(SKIP_MS) }
-            override fun onSkipToPrevious() { if (!Mp3Player.previousChapter()) Mp3Player.seekBy(-SKIP_MS) }
+            override fun onSkipToNext() { if (!Mp3Player.nextChapter()) Mp3Player.nextTrack() }
+            override fun onSkipToPrevious() { if (!Mp3Player.previousChapter()) Mp3Player.previousTrack() }
         })
         s.isActive = true
         session = s
