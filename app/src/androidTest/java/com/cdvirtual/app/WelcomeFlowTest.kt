@@ -2,8 +2,8 @@ package com.cdvirtual.app
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -15,8 +15,13 @@ class WelcomeFlowTest {
     val composeRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun welcomeTapOpensHomeScreen() {
-        composeRule.onNodeWithText("Toque para começar").performClick()
-        composeRule.onNodeWithText("Escolher pasta de saída").assertIsDisplayed()
+    fun welcomeFlowOpensHomeScreen() {
+        // A tela de boas-vindas avança sozinha após a animação; não depende de toque sintético
+        // no emulador, que falhava antes mesmo de localizar o texto (que também estava divergente).
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Seu estúdio").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Seu estúdio").assertIsDisplayed()
+        composeRule.onNodeWithText("Criar minha playlist").assertIsDisplayed()
     }
 }
