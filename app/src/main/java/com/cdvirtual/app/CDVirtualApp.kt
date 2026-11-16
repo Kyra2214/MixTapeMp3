@@ -15,6 +15,7 @@ import com.cdvirtual.app.media.connectors.ImportRecovery
 import com.cdvirtual.app.media.service.ExportRecovery
 
 class CDVirtualApp : Application() {
+    val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val database: AppDatabase by lazy { AppDatabase.get(this) }
     val trackRepository: TrackRepository by lazy { TrackRepository(database.trackDao()) }
     val cdRepository: CdRepository by lazy { CdRepository(database.cdDao(), trackRepository, CoverStore(this)) }
