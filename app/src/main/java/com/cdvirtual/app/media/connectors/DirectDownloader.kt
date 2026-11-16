@@ -9,10 +9,14 @@ import java.net.URL
 
 object DirectDownloader {
     /** Baixa para um arquivo .part e só renomeia ao concluir; cancelável (ensureActive a cada bloco). */
-    suspend fun download(option: MediaOption, target: File, onProgress: (done: Long, total: Long) -> Unit) =
-        withContext(Dispatchers.IO) {
+    suspend fun download(
+        option: MediaOption,
+        target: File,
+        onProgress: (done: Long, total: Long) -> Unit,
+        headers: Map<String, String> = emptyMap()
+    ) = withContext(Dispatchers.IO) {
             val tmp = File(target.parentFile, target.name + ".part")
-            val conn = Http.open(URL(option.url), "GET")
+            val conn = Http.open(URL(option.url), "GET", headers)
             try {
                 if (conn.responseCode !in 200..299) throw HttpStatusException(conn.responseCode)
                 val declared = conn.contentLengthLong.takeIf { it > 0 }

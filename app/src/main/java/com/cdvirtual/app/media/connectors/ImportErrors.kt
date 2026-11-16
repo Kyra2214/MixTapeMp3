@@ -15,6 +15,8 @@ enum class YouTubeFailure { Private, RegionBlocked, LiveNotSupported, AgeRestric
 
 class YouTubeUnavailableException(val failure: YouTubeFailure) : IOException("YouTube: $failure")
 
+class YouTubeCdnException(val code: Int) : IOException("YouTube CDN HTTP $code")
+
 fun Throwable.toUserMessage(): String = when (this) {
     is YouTubeUnavailableException -> when (failure) {
         YouTubeFailure.Private -> "Vídeo privado: o autor não liberou o acesso."
@@ -23,6 +25,13 @@ fun Throwable.toUserMessage(): String = when (this) {
         YouTubeFailure.AgeRestricted -> "Vídeo com restrição de idade: exige login."
         YouTubeFailure.NoAudio -> "Este vídeo não tem faixa de áudio disponível."
         YouTubeFailure.PlayerChanged -> "O YouTube mudou algo e a extração falhou. Atualize o app."
+    }
+    is YouTubeCdnException -> when (code) {
+        401 -> "O servidor de áudio do YouTube recusou a requisição (HTTP 401)."
+        403 -> "O servidor de áudio do YouTube recusou o acesso (HTTP 403). A URL pode exigir uma assinatura válida ou ter expirado."
+        404, 410 -> "A URL temporária do áudio expirou. Analise o vídeo novamente."
+        429 -> "O YouTube limitou as requisições. Tente novamente mais tarde."
+        else -> "Falha no servidor de áudio do YouTube (HTTP $code)."
     }
     is HttpStatusException -> when (code) {
         401, 403 -> "Acesso negado: o link exige login ou permissão."

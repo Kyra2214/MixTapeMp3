@@ -20,6 +20,18 @@ class YouTubeConnector : SourceConnector {
         return YouTubeApi.analyze(videoId)
     }
 
-    override suspend fun download(option: MediaOption, target: File, onProgress: (Long, Long) -> Unit) =
-        DirectDownloader.download(option, target, onProgress)
+    override suspend fun download(option: MediaOption, target: File, onProgress: (Long, Long) -> Unit) {
+        val headers = mapOf(
+            "User-Agent" to "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
+            "Accept" to "*/*",
+            "Accept-Language" to "pt-BR,pt;q=0.9",
+            "Referer" to "https://www.youtube.com/"
+        )
+
+        try {
+            DirectDownloader.download(option, target, onProgress, headers)
+        } catch (e: HttpStatusException) {
+            throw YouTubeCdnException(e.code)
+        }
+    }
 }
