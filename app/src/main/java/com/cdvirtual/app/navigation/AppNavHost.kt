@@ -7,6 +7,7 @@ import androidx.compose.ui.platform.LocalContext
 import android.webkit.WebView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cdvirtual.app.feature.importer.ImporterViewModel
+import com.cdvirtual.app.feature.importer.DownloadsScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
@@ -37,6 +38,7 @@ fun AppNavHost() {
         }
         composable(Destination.Home.route) { HomeScreen(onNavigate = { nav.navigate(it.route) }) }
         composable(Destination.Library.route) { LibraryScreen() }
+        composable(Destination.Downloads.route) { DownloadsScreen(vm = importerVm) }
         composable(
             route = "importer?url={url}&format={format}",
             arguments = listOf(
