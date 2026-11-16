@@ -63,7 +63,8 @@ fun CdEditorScreen(vm: CdEditorViewModel = viewModel()) {
     LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
         item {
         Text("Minhas playlists", style = MaterialTheme.typography.headlineSmall)
-        Button(onClick = vm::createCd, Modifier.padding(vertical = 8.dp)) { Text("Nova playlist") }
+        Text("Organize suas faixas e monte a sequência perfeita.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+        Button(onClick = vm::createCd, Modifier.padding(vertical = 8.dp)) { Text("＋  Nova playlist") }
         if (selected != null) CdDetails(selected, vm)
         message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         if (cds.isEmpty()) Text("Nenhum CD ainda. Toque em \"Novo CD\" para começar.")
@@ -131,7 +132,7 @@ private fun CdDetails(cd: CdEntity, vm: CdEditorViewModel) {
                 style = MaterialTheme.typography.bodySmall)
             if (CdStats.estimatedSizeBytes(CdStats.totalDurationMs(cdTracks)) > FAT32_MAX_BYTES) {
                 // 10.3: aviso antecipado; o app gera o arquivo normalmente, mas cartões FAT32 não aceitam >= 4 GiB.
-                Text("Este CD passa de 4 GB: ao exportar, a pasta de destino não pode ser FAT32 (alguns cartões SD).",
+                Text("Esta playlist passa de 4 GB: ao exportar, a pasta de destino não pode ser FAT32 (alguns cartões SD).",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             cdTracks.forEachIndexed { i, t ->
@@ -235,7 +236,7 @@ private fun CdAudioOptions(cdId: Long, context: android.content.Context) {
     )
     Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Column(Modifier.padding(12.dp)) {
-            Text("Áudio da playlist", style = MaterialTheme.typography.titleMedium)
+            Text("Personalizar áudio", style = MaterialTheme.typography.titleMedium)
             Text("Escolha como o som será processado no MP3 final. As músicas originais da biblioteca não serão alteradas.",
                 style = MaterialTheme.typography.bodySmall)
             Text("Equalizador", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
