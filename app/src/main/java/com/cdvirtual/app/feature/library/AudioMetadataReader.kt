@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import com.cdvirtual.app.core.storage.readFileInfo
+import java.io.File
 
 class AudioInfo(
     val title: String,
@@ -25,6 +26,7 @@ object AudioMetadataReader {
             val duration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                 ?: throw IllegalArgumentException("Arquivo sem duração de áudio")
             val mime = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
+            val actualSize = if (uri.scheme == "file") uri.path?.let { File(it).length() }?.takeIf { it > 0L } ?: file.sizeBytes else file.sizeBytes
             val embeddedTitle = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.trim()?.takeIf { it.isNotEmpty() }
             val fileTitle = file.displayName.substringBeforeLast('.').takeIf { it.isNotBlank() }
             return AudioInfo(
@@ -33,7 +35,7 @@ object AudioMetadataReader {
                 album = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.trim()?.takeIf { it.isNotEmpty() },
                 durationMs = duration,
                 format = formatOf(file.displayName, mime),
-                sizeBytes = file.sizeBytes,
+                sizeBytes = actualSize,
                 cover = r.embeddedPicture
             )
         } finally {
