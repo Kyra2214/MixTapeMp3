@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Button
@@ -45,7 +45,7 @@ fun ImporterScreen(vm: ImporterViewModel = viewModel()) {
             supportingText = if (err != null) { { Text(err) } } else null,
             modifier = Modifier.fillMaxWidth()
         )
-        Button(onClick = vm::submit, enabled = s.input.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = vm::submit, enabled = s.input.isNotBlank() && !s.analyzing, modifier = Modifier.fillMaxWidth()) {
             Text("Analisar link")
         }
         s.validUrl?.let { Text("Link válido: $it") }
@@ -56,12 +56,8 @@ fun ImporterScreen(vm: ImporterViewModel = viewModel()) {
         }
         s.notice?.let { Text(it) }
         if (s.importing) {
-            if (s.progress > 0f) LinearProgressIndicator(progress = { s.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-            else LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(if (s.progress >= 1f) "Importando para a biblioteca…" else "Baixando… ${(s.progress * 100).toInt()}%")
-        }
-        if (s.analyzing || s.importing) {
-            OutlinedButton(onClick = vm::cancel, modifier = Modifier.fillMaxWidth()) { Text("Cancelar") }
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Text("Fila em processamento…")
         }
         s.result?.let { Text(it) }
         s.info?.let { i ->
@@ -83,12 +79,21 @@ fun ImporterScreen(vm: ImporterViewModel = viewModel()) {
                 }
             }
             if (i.kind == LinkKind.Audio) {
-                Button(
-                    onClick = vm::importSelected,
-                    enabled = s.selected != null && !s.importing,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Importar para a biblioteca")
+                Button(onClick = vm::importSelected, enabled = s.selected != null, modifier = Modifier.fillMaxWidth()) {
+                    Text("Adicionar à fila e baixar")
+                }
+            }
+        }
+        if (s.queue.isNotEmpty()) {
+            Text("Fila de downloads", style = MaterialTheme.typography.titleMedium)
+            s.queue.forEach { item ->
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(item.title, style = MaterialTheme.typography.bodyMedium)
+                    Text("${item.format} · ${item.status}", style = MaterialTheme.typography.bodySmall)
+                    if (item.status == "Baixando" || item.status == "Importando") {
+                        LinearProgressIndicator(progress = { item.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                    }
+                    item.detail?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }
