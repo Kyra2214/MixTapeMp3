@@ -212,7 +212,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
                 queue = state.queue + DownloadQueueEntry(id, "Analisando link…", preferredFormat.uppercase(), "Analisando")
             )
         }
-        val job = viewModelScope.launch {
+        val job = app.downloadScope.launch {
             try {
                 val info = connector.analyze(url)
                 val best = info.options.maxWithOrNull(
@@ -332,7 +332,8 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startQueueWorker() {
         if (queueWorker?.isActive == true) return
-        queueWorker = viewModelScope.launch {
+        com.cdvirtual.app.media.service.DownloadService.start(app)
+        queueWorker = app.downloadScope.launch {
             while (pending.isNotEmpty()) {
                 val item = pending.removeFirst()
                 activeItemId = item.id
@@ -343,6 +344,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(importing = pending.isNotEmpty(), progress = 0f) }
             }
             _state.update { it.copy(importing = false) }
+            com.cdvirtual.app.media.service.DownloadService.finish(app)
         }
     }
 
