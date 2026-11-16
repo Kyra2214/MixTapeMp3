@@ -6,6 +6,9 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.audiofx.Equalizer
+import android.media.audiofx.LoudnessEnhancer
+import com.cdvirtual.app.media.normalization.GainPlanner
+import com.cdvirtual.app.media.normalization.NormalizationSettingsStore
 import android.net.Uri
 import com.cdvirtual.app.core.database.TrackEntity
 import android.os.PowerManager
@@ -54,6 +57,7 @@ object Mp3Player {
 
     private var mp: MediaPlayer? = null
     private var outputEqualizer: Equalizer? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
     private var libraryQueue: List<TrackEntity> = emptyList()
     private var libraryIndex: Int = -1
     private var appContext: Context? = null
@@ -172,6 +176,7 @@ object Mp3Player {
         if (mp !== player) return
         requestFocus()
         applyTrackEqualizer(player, track)
+        applyTrackNormalization(player, track, app)
         try { player.start() } catch (e: Throwable) { fail(e.message ?: "Não foi possível reproduzir ${track.title}"); return }
         PlaybackService.start(app)
         _state.value = PlayerState(playing = true, durationMs = player.duration.toLong().coerceAtLeast(0),
@@ -200,6 +205,23 @@ object Mp3Player {
         } catch (_: Throwable) {
             outputEqualizer?.let { try { it.release() } catch (_: Throwable) { } }
             outputEqualizer = null
+        }
+    }
+
+    /** Aplica ganho automático por loudness e true peak na reprodução da biblioteca, se habilitado. */
+    @Synchronized
+    private fun applyTrackNormalization(player: MediaPlayer, track: TrackEntity, context: Context) {
+        try {
+            val settings = NormalizationSettingsStore(context).load()
+            if (!settings.enabled) return
+            val gainDb = GainPlanner.forTrack(track, settings)?.gainDb ?: return
+            val enhancer = LoudnessEnhancer(player.audioSessionId)
+            enhancer.setTargetGain((gainDb * 100).toInt())
+            enhancer.enabled = true
+            loudnessEnhancer = enhancer
+        } catch (_: Throwable) {
+            loudnessEnhancer?.let { try { it.release() } catch (_: Throwable) { } }
+            loudnessEnhancer = null
         }
     }
 
@@ -322,6 +344,8 @@ object Mp3Player {
     }
 
     private fun stopCurrent() {
+        loudnessEnhancer?.let { try { it.release() } catch (_: Throwable) { } }
+        loudnessEnhancer = null
         outputEqualizer?.let { try { it.release() } catch (_: Throwable) { } }
         outputEqualizer = null
         mp?.let { try { it.stop() } catch (_: Throwable) { }; try { it.release() } catch (_: Throwable) { } }
