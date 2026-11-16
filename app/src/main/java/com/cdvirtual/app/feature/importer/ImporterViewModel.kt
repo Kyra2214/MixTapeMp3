@@ -8,6 +8,8 @@ import com.cdvirtual.app.media.connectors.ConnectorRegistry
 import com.cdvirtual.app.media.connectors.SourceConnector
 import com.cdvirtual.app.media.connectors.toUserMessage
 import java.io.File
+import java.net.URL
+import java.util.UUID
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cdvirtual.app.core.common.AppResult
@@ -24,6 +26,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class DownloadQueueEntry(
+    val id: String,
+    val title: String,
+    val format: String,
+    val status: String = "Na fila",
+    val progress: Float = 0f,
+    val detail: String? = null
+)
+
+private data class PendingImport(
+    val id: String,
+    val connector: SourceConnector,
+    val option: MediaOption,
+    val title: String?
+)
+
 data class ImporterUiState(
     val input: String = "",
     val error: String? = null,
@@ -35,25 +53,26 @@ data class ImporterUiState(
     val notice: String? = null,
     val importing: Boolean = false,
     val progress: Float = 0f,
-    val result: String? = null
+    val result: String? = null,
+    val queue: List<DownloadQueueEntry> = emptyList()
 )
 
 class ImporterViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(ImporterUiState())
     val state: StateFlow<ImporterUiState> = _state.asStateFlow()
     private var analysisJob: Job? = null
-    private var importJob: Job? = null
-    private var activeConnector: SourceConnector? = null
+    private var queueWorker: Job? = null
+    private val pending = ArrayDeque<PendingImport>()
     private val app = app as CDVirtualApp
 
     fun onInput(value: String) {
         analysisJob?.cancel()
-        _state.update { ImporterUiState(input = value) }
+        _state.update { it.copy(input = value, error = null) }
     }
 
     fun cancel() {
         analysisJob?.cancel()
-        importJob?.cancel()
+        queueWorker?.cancel()
     }
 
     fun select(option: MediaOption) {
@@ -75,8 +94,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(notice = "Conector para ${platform.label} ainda não disponível.") }
             return
         }
-        activeConnector = connector
-        if (!NetworkStatus.isOnline(app)) { // 10.7: avisa logo, em vez de esperar o tempo esgotar
+        if (!NetworkStatus.isOnline(app)) {
             _state.update { it.copy(error = NetworkStatus.OFFLINE_MESSAGE) }
             return
         }
@@ -95,49 +113,109 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { it.copy(analyzing = false) }
             }
         }
+        activeConnector = connector
     }
 
+    private var activeConnector: SourceConnector? = null
+
+    /** Adiciona o formato escolhido à fila e libera imediatamente a busca para o próximo link. */
     fun importSelected() {
-        val option = _state.value.selected ?: return
+        val current = _state.value
+        val option = current.selected ?: return
         val connector = activeConnector ?: return
         if (!NetworkStatus.isOnline(app)) {
             _state.update { it.copy(error = NetworkStatus.OFFLINE_MESSAGE) }
             return
         }
-        importJob?.cancel()
-        importJob = viewModelScope.launch {
-            _state.update { it.copy(importing = true, progress = 0f, result = null, error = null, notice = null) }
-            val dir = File(app.filesDir, "imports").apply { mkdirs() }
-            val target = File(dir, "${System.currentTimeMillis()}.${option.format.lowercase()}")
-            try {
-                connector.download(option, target) { done, total ->
-                    if (total > 0) {
-                        val fraction = (done.toFloat() / total).coerceIn(0f, 0.99f)
+        val id = UUID.randomUUID().toString()
+        val title = current.info?.fileName
+        val pendingImport = PendingImport(id, connector, option, title)
+        pending.addLast(pendingImport)
+        val displayTitle = title?.takeIf { it.isNotBlank() } ?: "Áudio ${id.take(8)}"
+        _state.update {
+            it.copy(
+                input = "",
+                error = null,
+                validUrl = null,
+                platform = null,
+                analyzing = false,
+                info = null,
+                selected = null,
+                notice = "Adicionado à fila de downloads",
+                importing = true,
+                progress = 0f,
+                result = null,
+                queue = it.queue + DownloadQueueEntry(id, displayTitle, option.format.uppercase())
+            )
+        }
+        startQueueWorker()
+    }
+
+    private fun startQueueWorker() {
+        if (queueWorker?.isActive == true) return
+        queueWorker = viewModelScope.launch {
+            while (pending.isNotEmpty()) {
+                val item = pending.removeFirst()
+                updateQueue(item.id, status = "Baixando", progress = 0f, detail = null)
+                _state.update { it.copy(importing = true, progress = 0f) }
+                val safeName = (item.title ?: "audio-${item.id.take(8)}")
+                    .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    .trim()
+                    .take(90)
+                    .ifBlank { "audio-${item.id.take(8)}" }
+                val dir = File(app.filesDir, "imports").apply { mkdirs() }
+                val target = File(dir, "${safeName}-${item.id.take(8)}.${item.option.format.lowercase()}")
+                try {
+                    item.connector.download(item.option, target) { done, total ->
+                        val fraction = if (total > 0L) (done.toFloat() / total).coerceIn(0f, 0.99f) else 0f
                         _state.update { it.copy(progress = fraction) }
+                        updateQueue(item.id, progress = fraction)
                     }
+                    _state.update { it.copy(progress = 1f) }
+                    updateQueue(item.id, status = "Importando", progress = 1f)
+                    when (val outcome = app.trackImporter.import(Uri.fromFile(target), item.title)) {
+                        is ImportOutcome.Added -> {
+                            updateQueue(item.id, status = "Concluído", progress = 1f)
+                            _state.update { it.copy(result = "${item.title ?: "Áudio"} importado para a biblioteca") }
+                        }
+                        ImportOutcome.Duplicate -> {
+                            target.delete()
+                            updateQueue(item.id, status = "Duplicado", progress = 1f, detail = "Já está na biblioteca")
+                        }
+                        is ImportOutcome.Failed -> {
+                            target.delete()
+                            updateQueue(item.id, status = "Falhou", detail = outcome.reason)
+                        }
+                    }
+                } catch (ce: CancellationException) {
+                    target.delete()
+                    updateQueue(item.id, status = "Cancelado")
+                    throw ce
+                } catch (t: Throwable) {
+                    target.delete()
+                    updateQueue(item.id, status = "Falhou", detail = t.toUserMessage())
+                } finally {
+                    _state.update { it.copy(importing = pending.isNotEmpty(), progress = 0f) }
                 }
-                _state.update { it.copy(progress = 1f) }
-                when (val outcome = app.trackImporter.import(Uri.fromFile(target))) {
-                    is ImportOutcome.Added -> _state.update { it.copy(result = "Música importada para a biblioteca") }
-                    ImportOutcome.Duplicate -> {
-                        target.delete()
-                        _state.update { it.copy(result = "Esta música já está na biblioteca") }
-                    }
-                    is ImportOutcome.Failed -> {
-                        target.delete()
-                        _state.update { it.copy(error = "Arquivo inválido: ${outcome.reason}") }
-                    }
-                }
-            } catch (ce: CancellationException) {
-                target.delete()
-                _state.update { it.copy(notice = "Importação cancelada") }
-                throw ce
-            } catch (t: Throwable) {
-                target.delete()
-                _state.update { it.copy(error = t.toUserMessage()) }
-            } finally {
-                _state.update { it.copy(importing = false) }
             }
+            _state.update { it.copy(importing = false) }
+        }
+    }
+
+    private fun updateQueue(
+        id: String,
+        status: String? = null,
+        progress: Float? = null,
+        detail: String? = null
+    ) {
+        _state.update { state ->
+            state.copy(queue = state.queue.map { entry ->
+                if (entry.id != id) entry else entry.copy(
+                    status = status ?: entry.status,
+                    progress = progress ?: entry.progress,
+                    detail = detail
+                )
+            })
         }
     }
 }
