@@ -5,6 +5,8 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.net.Uri
+import com.cdvirtual.app.core.database.TrackEntity
 import android.os.PowerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +30,11 @@ data class PlayerState(
     /** Faixas do CD (capítulos ID3) do arquivo atual, ordenadas; vazia se o arquivo não as tiver. */
     val chapters: List<Id3Chapter> = emptyList(),
     /** Verdadeiro enquanto o arquivo está sendo preparado (T-504). */
-    val loading: Boolean = false
+    val loading: Boolean = false,
+    val trackId: Long? = null,
+    val trackTitle: String? = null,
+    val trackArtist: String? = null,
+    val trackCoverPath: String? = null
 ) {
     /** Faixa que contém [positionMs] (a última cujo início já passou), ou null sem capítulos. */
     fun chapterIndexAt(positionMs: Long): Int = chapters.indexOfLast { it.startMs <= positionMs }.coerceAtLeast(0)
@@ -46,6 +52,8 @@ object Mp3Player {
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private var mp: MediaPlayer? = null
+    private var libraryQueue: List<TrackEntity> = emptyList()
+    private var libraryIndex: Int = -1
     private var appContext: Context? = null
     private var focusRequest: AudioFocusRequest? = null
     private var resumeOnFocusGain = false
@@ -89,6 +97,7 @@ object Mp3Player {
      */
     @Synchronized
     fun play(context: Context, file: File) {
+        libraryQueue = emptyList(); libraryIndex = -1
         stopCurrent() // sem emitir "vazio": o serviço em segundo plano não deve parar ao trocar de arquivo
         if (!file.isFile || file.length() == 0L) {
             _state.value = PlayerState(error = "Arquivo não encontrado: ${file.name}")
@@ -120,6 +129,68 @@ object Mp3Player {
             mp = null
             _state.value = PlayerState(error = e.message ?: "Não foi possível reproduzir ${file.name}")
         }
+    }
+
+    /** Reproduz uma faixa da biblioteca dentro de uma fila; embaralha a fila quando solicitado. */
+    @Synchronized
+    fun playLibrary(context: Context, tracks: List<TrackEntity>, startIndex: Int = 0, shuffle: Boolean = false) {
+        if (tracks.isEmpty()) return
+        val ordered = if (shuffle) tracks.shuffled() else tracks
+        libraryQueue = ordered
+        libraryIndex = if (shuffle) 0 else startIndex.coerceIn(0, ordered.lastIndex)
+        loadLibraryTrack(context, ordered[libraryIndex])
+    }
+
+    @Synchronized
+    private fun loadLibraryTrack(context: Context, track: TrackEntity) {
+        stopCurrent()
+        appContext = context.applicationContext
+        val player = MediaPlayer()
+        try {
+            player.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            player.setWakeMode(context.applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
+            player.setDataSource(context.applicationContext, Uri.parse(track.uri))
+            player.setOnCompletionListener { onCompleted() }
+            player.setOnErrorListener { _, what, extra -> fail("Erro ao reproduzir (código $what/$extra)"); true }
+            player.setOnPreparedListener { onPreparedLibrary(context.applicationContext, player, track) }
+            mp = player
+            _state.value = PlayerState(loading = true, trackId = track.id, trackTitle = track.title,
+                trackArtist = track.artist, trackCoverPath = track.coverPath)
+            player.prepareAsync()
+        } catch (e: Throwable) {
+            try { player.release() } catch (_: Throwable) { }
+            mp = null
+            _state.value = PlayerState(error = e.message ?: "Não foi possível reproduzir ${track.title}")
+        }
+    }
+
+    @Synchronized
+    private fun onPreparedLibrary(app: Context, player: MediaPlayer, track: TrackEntity) {
+        if (mp !== player) return
+        requestFocus()
+        try { player.start() } catch (e: Throwable) { fail(e.message ?: "Não foi possível reproduzir ${track.title}"); return }
+        PlaybackService.start(app)
+        _state.value = PlayerState(playing = true, durationMs = player.duration.toLong().coerceAtLeast(0),
+            trackId = track.id, trackTitle = track.title, trackArtist = track.artist, trackCoverPath = track.coverPath)
+    }
+
+    /** Próxima faixa da fila da biblioteca; volta ao início ao chegar ao fim. */
+    @Synchronized
+    fun nextTrack(): Boolean {
+        if (libraryQueue.isEmpty()) return false
+        libraryIndex = (libraryIndex + 1) % libraryQueue.size
+        loadLibraryTrack(appContext ?: return false, libraryQueue[libraryIndex])
+        return true
+    }
+
+    /** Faixa anterior da fila da biblioteca; no início volta para a última. */
+    @Synchronized
+    fun previousTrack(): Boolean {
+        if (libraryQueue.isEmpty()) return false
+        libraryIndex = if (libraryIndex <= 0) libraryQueue.lastIndex else libraryIndex - 1
+        loadLibraryTrack(appContext ?: return false, libraryQueue[libraryIndex])
+        return true
     }
 
     /** Chamado na thread principal quando a preparação termina; ignora players já substituídos. */
@@ -217,6 +288,7 @@ object Mp3Player {
     @Synchronized
     fun release() {
         stopCurrent()
+        libraryQueue = emptyList(); libraryIndex = -1
         abandonFocus()
         _state.value = PlayerState()
     }
@@ -229,6 +301,7 @@ object Mp3Player {
     @Synchronized
     private fun onCompleted() {
         abandonFocus()
+        if (libraryQueue.isNotEmpty() && libraryIndex < libraryQueue.lastIndex) { nextTrack(); return }
         _state.value = _state.value.copy(playing = false)
     }
 
