@@ -65,6 +65,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
     private var activeItemId: String? = null
     private val pending = ArrayDeque<PendingImport>()
     private val queueItems = mutableMapOf<String, PendingImport>()
+    private val autoAnalysisJobs = mutableMapOf<String, Job>()
     private val app = app as CDVirtualApp
 
     fun onInput(value: String) {
@@ -181,6 +182,81 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
 
     private var activeConnector: SourceConnector? = null
 
+    /**
+     * Enfileira um link vindo do navegador sem navegar para outra tela.
+     * Cada análise tem seu próprio Job, portanto enviar um segundo link não cancela o primeiro.
+     */
+    fun enqueueUrlAutomatically(rawUrl: String, preferredFormat: String) {
+        val url = when (val parsed = UrlInput.parse(rawUrl)) {
+            is AppResult.Success -> parsed.value
+            is AppResult.Failure -> {
+                _state.update { it.copy(error = parsed.message) }
+                return
+            }
+        }
+        val platform = PlatformDetector.detect(url)
+        val connector = ConnectorRegistry.default.forPlatform(platform)
+        if (connector == null) {
+            _state.update { it.copy(notice = "Conector para ${platform.label} ainda não disponível.") }
+            return
+        }
+        if (!NetworkStatus.isOnline(app)) {
+            _state.update { it.copy(error = NetworkStatus.OFFLINE_MESSAGE) }
+            return
+        }
+        val id = UUID.randomUUID().toString()
+        _state.update { state ->
+            state.copy(
+                error = null,
+                notice = "Analisando novo link…",
+                queue = state.queue + DownloadQueueEntry(id, "Analisando link…", preferredFormat.uppercase(), "Analisando")
+            )
+        }
+        val job = viewModelScope.launch {
+            try {
+                val info = connector.analyze(url)
+                val best = info.options.maxWithOrNull(
+                    compareBy<MediaOption> { it.bitrateKbps ?: 0 }.thenBy { it.sizeBytes }
+                )
+                val preferred = when (preferredFormat.lowercase()) {
+                    "webm", "opus" -> info.options.firstOrNull {
+                        it.format.equals("webm", true) || it.mimeType?.contains("opus", true) == true
+                    }
+                    "m4a", "aac" -> info.options.firstOrNull {
+                        it.format.equals("m4a", true) || it.format.equals("aac", true) ||
+                            it.mimeType?.contains("mp4", true) == true || it.mimeType?.contains("aac", true) == true
+                    }
+                    else -> best
+                }
+                val selected = preferred ?: best
+                if (selected == null) {
+                    updateQueue(id, status = "Falhou", title = info.fileName ?: "Áudio sem opções", detail = "Nenhuma opção de áudio compatível foi encontrada.")
+                } else {
+                    val item = PendingImport(id, connector, selected, info.fileName)
+                    queueItems[id] = item
+                    pending.addLast(item)
+                    updateQueue(
+                        id,
+                        status = "Na fila",
+                        title = info.fileName?.takeIf { it.isNotBlank() } ?: "Áudio ${id.take(8)}",
+                        format = selected.format.uppercase(),
+                        detail = null
+                    )
+                    _state.update { it.copy(notice = "Download adicionado à fila. Continue navegando.") }
+                    startQueueWorker()
+                }
+            } catch (ce: CancellationException) {
+                updateQueue(id, status = "Cancelado", detail = "Análise cancelada")
+                throw ce
+            } catch (t: Throwable) {
+                updateQueue(id, status = "Falhou", detail = t.toUserMessage())
+            } finally {
+                autoAnalysisJobs.remove(id)
+            }
+        }
+        autoAnalysisJobs[id] = job
+    }
+
     /** Adiciona o formato escolhido à fila e libera imediatamente a busca para o próximo link. */
     fun importSelected() {
         val current = _state.value
@@ -229,6 +305,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Remove apenas o registro da fila. Se estiver ativo, cancela o trabalho antes de removê-lo. */
     fun removeDownload(id: String) {
+        autoAnalysisJobs.remove(id)?.cancel()
         pending.removeAll { it.id == id }
         if (activeItemId == id) activeItemJob?.cancel()
         queueItems.remove(id)
@@ -245,6 +322,8 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Limpa o histórico visual, sem apagar arquivos já importados na Biblioteca. */
     fun clearQueue() {
+        autoAnalysisJobs.values.toList().forEach { it.cancel() }
+        autoAnalysisJobs.clear()
         pending.clear()
         queueItems.clear()
         activeItemJob?.cancel()
@@ -314,13 +393,17 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
         id: String,
         status: String? = null,
         progress: Float? = null,
-        detail: String? = null
+        detail: String? = null,
+        title: String? = null,
+        format: String? = null
     ) {
         _state.update { state ->
             state.copy(queue = state.queue.map { entry ->
                 if (entry.id != id) entry else entry.copy(
                     status = status ?: entry.status,
                     progress = progress ?: entry.progress,
+                    title = title ?: entry.title,
+                    format = format ?: entry.format,
                     detail = detail
                 )
             })
