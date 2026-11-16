@@ -24,6 +24,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +48,8 @@ import com.cdvirtual.app.core.common.formatSize
 import com.cdvirtual.app.core.database.CdEntity
 import com.cdvirtual.app.feature.library.CoverImage
 import com.cdvirtual.app.media.metadata.CueSettings
+import com.cdvirtual.app.media.equalization.CdAudioSettings
+import com.cdvirtual.app.media.equalization.CdAudioSettingsStore
 
 private const val FAT32_MAX_BYTES = 4L * 1024 * 1024 * 1024 - 1
 
@@ -152,6 +155,7 @@ private fun CdDetails(cd: CdEntity, vm: CdEditorViewModel) {
                 confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteCd(cd.id) }) { Text("Excluir") } },
                 dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } }
             )
+            CdAudioOptions(cd.id, context)
             val busy = export is ExportStatus.Running
             Button(
                 onClick = { withNotifications { ExportService.start(context, cd.id) } },
@@ -209,3 +213,57 @@ private fun TrackPickerDialog(inCd: Set<Long>, vm: CdEditorViewModel, onDismiss:
 
 private fun formatDate(millis: Long): String =
     java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(millis))
+
+
+@Composable
+private fun CdAudioOptions(cdId: Long, context: android.content.Context) {
+    val store = remember(context) { CdAudioSettingsStore(context) }
+    var settings by remember(cdId) { mutableStateOf(store.load(cdId)) }
+    fun update(next: CdAudioSettings) {
+        settings = next
+        store.save(cdId, next)
+    }
+    val presets = listOf(
+        "original" to "Original",
+        "acoustic" to "Acústico",
+        "bass" to "Grave",
+        "treble" to "Agudo",
+        "funk" to "Funk",
+        "pagode" to "Pagode",
+        "blues" to "Blues",
+        "rock" to "Rock"
+    )
+    Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            Text("Áudio do CD", style = MaterialTheme.typography.titleMedium)
+            Text("Escolha como o som será processado no MP3 final. As músicas originais da biblioteca não serão alteradas.",
+                style = MaterialTheme.typography.bodySmall)
+            Text("Equalizador", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            presets.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth()) {
+                    pair.forEach { (id, label) ->
+                        OutlinedButton(
+                            onClick = { update(CdAudioSettings.preset(id, settings.normalize)) },
+                            modifier = Modifier.weight(1f).padding(end = 4.dp)
+                        ) { Text(if (settings.presetId == id) "✓ $label" else label) }
+                    }
+                    if (pair.size == 1) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                }
+            }
+            Text("Personalizado", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            Text("Graves: ${settings.bassDb.toInt()} dB")
+            Slider(settings.bassDb, { update(settings.copy(presetId = "custom", bassDb = it)) }, valueRange = -12f..12f)
+            Text("Médios: ${settings.midDb.toInt()} dB")
+            Slider(settings.midDb, { update(settings.copy(presetId = "custom", midDb = it)) }, valueRange = -12f..12f)
+            Text("Agudos: ${settings.trebleDb.toInt()} dB")
+            Slider(settings.trebleDb, { update(settings.copy(presetId = "custom", trebleDb = it)) }, valueRange = -12f..12f)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = settings.normalize, onCheckedChange = { update(settings.copy(normalize = it)) })
+                Column {
+                    Text("Normalizar volume das músicas")
+                    Text("Ajusta o volume percebido entre as faixas e limita picos.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
