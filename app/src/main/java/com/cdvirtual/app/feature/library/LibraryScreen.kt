@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -26,6 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
+import com.cdvirtual.app.core.common.rememberNotificationGate
+import com.cdvirtual.app.media.playback.Mp3Player
 import com.cdvirtual.app.core.common.formatDuration
 import com.cdvirtual.app.core.common.formatSize
 import com.cdvirtual.app.core.database.TrackEntity
@@ -37,6 +41,9 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
     val message by vm.message.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
     val failures by vm.analysisFailures.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val withNotifications = rememberNotificationGate()
+    val player by Mp3Player.state.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { vm.import(it) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
@@ -50,6 +57,26 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
         )
         Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Button(onClick = { withNotifications { Mp3Player.playLibrary(context, tracks, 0, false) } }, enabled = tracks.isNotEmpty(), modifier = Modifier.weight(1f)) {
+                Text("▶ Reproduzir tudo")
+            }
+            OutlinedButton(onClick = { withNotifications { Mp3Player.playLibrary(context, tracks, 0, true) } }, enabled = tracks.isNotEmpty(), modifier = Modifier.padding(start = 8.dp)) {
+                Text("🔀 Aleatório")
+            }
+        }
+        if (player.trackId != null) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(player.trackTitle ?: "Tocando da biblioteca", style = MaterialTheme.typography.bodyLarge)
+                    Text(if (player.loading) "Carregando…" else if (player.playing) "Reproduzindo" else "Pausado",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = { Mp3Player.previousTrack() }) { Text("⏮") }
+                Button(onClick = { Mp3Player.togglePlayPause() }) { Text(if (player.playing) "Ⅱ" else "▶") }
+                TextButton(onClick = { Mp3Player.nextTrack() }) { Text("⏭") }
+            }
+        }
         LazyColumn {
             items(tracks, key = { it.id }) { t ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -57,7 +84,7 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
                     Column(Modifier.padding(start = 12.dp).weight(1f)) {
                         Text(t.title, style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            listOfNotNull(t.artist, t.album, formatDuration(t.durationMs), t.format, t.sizeBytes.takeIf { it > 0L }?.let { formatSize(it) }).joinToString(" · "),
+                            listOfNotNull(t.artist, t.album, formatDuration(t.durationMs), t.format, t.sizeBytes.takeIf { it > 0L }?.let { formatSize(it) }, estimatedBitrate(t), t.lufs?.let { "%.1f LUFS".format(it) }, t.truePeakDb?.let { "%.1f dBTP".format(it) }).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall
                         )
                         val failure = failures[t.id]
@@ -66,6 +93,7 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
                             TextButton(onClick = { vm.retryAnalysis(t.id) }) { Text("Tentar de novo") }
                         } else Text(analysisText(t), style = MaterialTheme.typography.bodySmall)
                     }
+                    TextButton(onClick = { withNotifications { Mp3Player.playLibrary(context, tracks, tracks.indexOfFirst { it.id == t.id }, false) } }) { Text("▶") }
                     TextButton(onClick = { vm.remove(t) }) { Text("Excluir") }
                 }
             }
@@ -75,3 +103,9 @@ fun LibraryScreen(vm: LibraryViewModel = viewModel()) {
 
 private fun analysisText(t: TrackEntity): String =
     if (t.lufs == null) "Analisando volume…" else "%.1f LUFS · pico real %.1f dBTP".format(t.lufs, t.truePeakDb)
+
+private fun estimatedBitrate(track: TrackEntity): String? {
+    if (track.durationMs <= 0L || track.sizeBytes <= 0L) return null
+    val kbps = (track.sizeBytes * 8.0 / track.durationMs).toInt()
+    return "≈$kbps kbps"
+}
