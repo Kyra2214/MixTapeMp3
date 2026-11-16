@@ -399,6 +399,14 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
         title: String? = null,
         format: String? = null
     ) {
+        val current = _state.value.queue.firstOrNull { it.id == id }
+        if (current != null) {
+            com.cdvirtual.app.media.service.DownloadService.update(
+                app,
+                "${current.title}: ${status ?: current.status}",
+                progress ?: current.progress
+            )
+        }
         _state.update { state ->
             state.copy(queue = state.queue.map { entry ->
                 if (entry.id != id) entry else entry.copy(
