@@ -17,7 +17,7 @@ class AudioInfo(
 
 object AudioMetadataReader {
     /** Lança exceção se o arquivo não for um áudio legível. */
-    fun read(context: Context, uri: Uri): AudioInfo {
+    fun read(context: Context, uri: Uri, fallbackTitle: String? = null): AudioInfo {
         val file = readFileInfo(context, uri)
         val r = MediaMetadataRetriever()
         try {
@@ -25,9 +25,10 @@ object AudioMetadataReader {
             val duration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                 ?: throw IllegalArgumentException("Arquivo sem duração de áudio")
             val mime = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
+            val embeddedTitle = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.trim()?.takeIf { it.isNotEmpty() }
+            val fileTitle = file.displayName.substringBeforeLast('.').takeIf { it.isNotBlank() }
             return AudioInfo(
-                title = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: file.displayName.substringBeforeLast('.'),
+                title = embeddedTitle ?: fallbackTitle?.trim()?.takeIf { it.isNotEmpty() } ?: fileTitle ?: "Áudio sem título",
                 artist = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.trim()?.takeIf { it.isNotEmpty() },
                 album = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.trim()?.takeIf { it.isNotEmpty() },
                 durationMs = duration,
