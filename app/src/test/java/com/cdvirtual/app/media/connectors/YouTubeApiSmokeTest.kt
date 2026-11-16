@@ -1,34 +1,37 @@
 package com.cdvirtual.app.media.connectors
 
-import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
-import org.junit.Assert.assertTrue
+import java.net.URL
 
+/**
+ * Testes unitários determinísticos do reconhecimento de URLs do YouTube.
+ *
+ * A extração real depende dos servidores do YouTube e pode ser bloqueada por
+ * verificações anti-bot (SignInConfirmNotBotException). Por isso, chamadas de
+ * rede não devem fazer parte da suíte unitária executada em todo push.
+ */
 class YouTubeApiSmokeTest {
 
     @Test
-    fun extractAudioStreamsFromYoutube() = runBlocking {
-        val videoId = "aqz-KE-bpKQ"
+    fun extractsVideoIdFromWatchUrl() {
+        assertEquals("aqz-KE-bpKQ", PlatformDetector.videoIdOf(URL("https://www.youtube.com/watch?v=aqz-KE-bpKQ")))
+    }
 
-        println("\n========== TESTE NEWPIPE ==========")
-        println("Vídeo: https://www.youtube.com/watch?v=$videoId")
+    @Test
+    fun extractsVideoIdFromShortUrl() {
+        assertEquals("aqz-KE-bpKQ", PlatformDetector.videoIdOf(URL("https://youtu.be/aqz-KE-bpKQ")))
+    }
 
-        val info = YouTubeApi.analyze(videoId)
+    @Test
+    fun extractsVideoIdFromShortsUrl() {
+        assertEquals("aqz-KE-bpKQ", PlatformDetector.videoIdOf(URL("https://www.youtube.com/shorts/aqz-KE-bpKQ")))
+    }
 
-        println("Título: ${info.fileName}")
-        println("Tipo: ${info.kind}")
-        println("Quantidade de faixas: ${info.options.size}")
-
-        info.options.forEachIndexed { index, option ->
-            println(
-                "${index + 1}. ${option.label} | " +
-                "Formato: ${option.format} | " +
-                "Bitrate: ${option.bitrateKbps} kbps"
-            )
-        }
-
-        assertTrue("Nenhuma faixa de áudio foi encontrada", info.options.isNotEmpty())
-
-        println("========== EXTRAÇÃO APROVADA ==========\n")
+    @Test
+    fun rejectsChannelAndPlaylistUrls() {
+        assertNull(PlatformDetector.videoIdOf(URL("https://www.youtube.com/@canal")))
+        assertNull(PlatformDetector.videoIdOf(URL("https://www.youtube.com/playlist?list=PL123456")))
     }
 }
