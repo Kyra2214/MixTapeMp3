@@ -102,6 +102,12 @@ class PlaybackService : Service() {
         } catch (_: Throwable) { null }
     }
 
+    private fun loadCoverPath(path: String): Bitmap? = try {
+        val file = java.io.File(path)
+        if (!file.isFile || file.length() !in 1..(8L * 1024 * 1024)) null
+        else CoverDecoder.fromBytes(file.readBytes(), 512)
+    } catch (_: Throwable) { null }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
