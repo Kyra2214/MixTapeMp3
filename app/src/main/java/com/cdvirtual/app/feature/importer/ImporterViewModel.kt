@@ -111,8 +111,12 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
             val target = File(dir, "${System.currentTimeMillis()}.${option.format.lowercase()}")
             try {
                 connector.download(option, target) { done, total ->
-                    if (total > 0) _state.update { it.copy(progress = done.toFloat() / total) }
+                    if (total > 0) {
+                        val fraction = (done.toFloat() / total).coerceIn(0f, 0.99f)
+                        _state.update { it.copy(progress = fraction) }
+                    }
                 }
+                _state.update { it.copy(progress = 1f) }
                 when (val outcome = app.trackImporter.import(Uri.fromFile(target))) {
                     is ImportOutcome.Added -> _state.update { it.copy(result = "Música importada para a biblioteca") }
                     ImportOutcome.Duplicate -> {
