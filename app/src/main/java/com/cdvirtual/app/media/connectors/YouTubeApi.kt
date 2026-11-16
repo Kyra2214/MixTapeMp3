@@ -217,13 +217,12 @@ object YouTubeApi {
                 it.toLong() * info.duration.coerceAtLeast(0L) / 8L
             } ?: 0L
             val formatName = extension.uppercase()
-            val bitrateText = bitrate?.let { " · ${it} kbps" } ?: ""
+            val bitrateText = bitrate?.let { " · ${it / 1000} kbps" } ?: ""
 
             MediaOption(
                 id = stream.itag.takeIf { it > 0 }?.toString()
                     ?: stream.formatId.toString(),
-                label = "$formatName$bitrateText" +
-                    if (size > 0) " · ~${formatSize(size)}" else "",
+                label = "$formatName$bitrateText",
                 format = extension,
                 mimeType = mime,
                 sizeBytes = size,
