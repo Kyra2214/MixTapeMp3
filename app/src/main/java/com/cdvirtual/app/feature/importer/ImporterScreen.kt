@@ -85,15 +85,36 @@ fun ImporterScreen(vm: ImporterViewModel = viewModel()) {
             }
         }
         if (s.queue.isNotEmpty()) {
-            Text("Fila de downloads", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Fila de downloads", style = MaterialTheme.typography.titleMedium)
+                OutlinedButton(onClick = vm::clearQueue) { Text("Limpar lista") }
+            }
             s.queue.forEach { item ->
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(item.title, style = MaterialTheme.typography.bodyMedium)
                     Text("${item.format} · ${item.status}", style = MaterialTheme.typography.bodySmall)
                     if (item.status == "Baixando" || item.status == "Importando") {
                         LinearProgressIndicator(progress = { item.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                     }
                     item.detail?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (item.status == "Falhou" || item.status == "Cancelado") {
+                            OutlinedButton(onClick = { vm.retryDownload(item.id) }) {
+                                Text("↻ Reiniciar")
+                            }
+                        }
+                        OutlinedButton(onClick = { vm.removeDownload(item.id) }) {
+                            Text("×")
+                        }
+                    }
                 }
             }
         }
