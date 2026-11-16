@@ -99,6 +99,11 @@ fun PlayerScreen() {
                 modifier = Modifier.fillMaxWidth()
             )
             Text("${formatDuration(shown.toLong())} / ${formatDuration(player.durationMs)}", style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🔈", style = MaterialTheme.typography.bodyMedium)
+                Slider(value = player.volume, onValueChange = Mp3Player::setVolume, valueRange = 0f..1f, modifier = Modifier.weight(1f))
+                Text("${(player.volume * 100).toInt()}%", style = MaterialTheme.typography.labelMedium)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { Mp3Player.previousChapter() }, enabled = player.chapters.isNotEmpty()) { Text("⏮") }
                 Button(onClick = { Mp3Player.nextChapter() }, enabled = player.chapters.isNotEmpty()) { Text("⏭") }
