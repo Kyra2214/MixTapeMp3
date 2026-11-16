@@ -38,7 +38,8 @@ data class PlayerState(
     val trackId: Long? = null,
     val trackTitle: String? = null,
     val trackArtist: String? = null,
-    val trackCoverPath: String? = null
+    val trackCoverPath: String? = null,
+    val volume: Float = 1f
 ) {
     /** Faixa que contém [positionMs] (a última cujo início já passou), ou null sem capítulos. */
     fun chapterIndexAt(positionMs: Long): Int = chapters.indexOfLast { it.startMs <= positionMs }.coerceAtLeast(0)
@@ -330,7 +331,11 @@ object Mp3Player {
 
     /** Volume relativo do player (0..1), usado para "ducking" por outros apps. */
     @Synchronized
-    fun setVolume(v: Float) { try { mp?.setVolume(v, v) } catch (_: Throwable) { } }
+    fun setVolume(v: Float) {
+        val level = v.coerceIn(0f, 1f)
+        try { mp?.setVolume(level, level) } catch (_: Throwable) { }
+        _state.update { it.copy(volume = level) }
+    }
 
     fun togglePlayPause() { if (_state.value.playing) pause() else resume() }
 
