@@ -77,13 +77,31 @@ fun BrowserScreen(onSendToDownloads: (String, String) -> Unit) {
             settings.allowContentAccess = false
             settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
-                override fun onPageFinished(view: WebView, url: String) {
-                    currentUrl = url
-                    address = url
-                    pageTitle = view.title?.takeIf { it.isNotBlank() } ?: "Navegador"
+                private fun syncAddress(view: WebView, url: String?) {
+                    if (!url.isNullOrBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
+                        currentUrl = url
+                        address = url
+                    }
                     canGoBack = view.canGoBack()
                     canGoForward = view.canGoForward()
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
+
+                override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                    syncAddress(view, url)
+                    progress = 0f
+                }
+
+                override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                    super.doUpdateVisitedHistory(view, url, isReload)
+                    // YouTube navega como SPA: troca a URL via History API sem recarregar a página.
+                    syncAddress(view, url)
+                }
+
+                override fun onPageFinished(view: WebView, url: String) {
+                    syncAddress(view, url)
+                    pageTitle = view.title?.takeIf { it.isNotBlank() } ?: "Navegador"
                     progress = 1f
                 }
             }
