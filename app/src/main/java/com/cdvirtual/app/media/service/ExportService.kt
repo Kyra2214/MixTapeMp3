@@ -82,19 +82,21 @@ class ExportService : Service() {
             ExportRecovery.markStarted(this, cdId, name)
             var tracks = app.cdRepository.tracksOf(cdId).first()
             if (tracks.isEmpty()) throw IllegalStateException("O CD não tem músicas")
-            update(cdId, name, "Analisando volume", 0f)
-            // Faixas ainda sem análise de loudness são analisadas antes, para o ganho automático valer.
-            val pending = tracks.filter { it.lufs == null }
-            pending.forEachIndexed { i, t ->
-                val r = LoudnessAnalyzer.analyze(this, Uri.parse(t.uri)) { job?.ensureActive() }
-                app.trackRepository.edit(t.id) {
-                    it.copy(peakDb = r.peakDb, rmsDb = r.rmsDb, lufs = r.lufs, truePeakDb = r.truePeakDb,
-                        bandBassDb = r.bandBassDb, bandMidDb = r.bandMidDb, bandTrebleDb = r.bandTrebleDb)
-                }
-                update(cdId, name, "Analisando volume", (i + 1f) / pending.size)
-            }
-            if (pending.isNotEmpty()) tracks = app.cdRepository.tracksOf(cdId).first()
             val audio = CdAudioSettingsStore(this).load(cdId)
+            if (audio.normalize) {
+                update(cdId, name, "Analisando volume", 0f)
+                // Só analisa as faixas quando a normalização foi solicitada para este CD.
+                val pending = tracks.filter { it.lufs == null }
+                pending.forEachIndexed { i, t ->
+                    val r = LoudnessAnalyzer.analyze(this, Uri.parse(t.uri)) { job?.ensureActive() }
+                    app.trackRepository.edit(t.id) {
+                        it.copy(peakDb = r.peakDb, rmsDb = r.rmsDb, lufs = r.lufs, truePeakDb = r.truePeakDb,
+                            bandBassDb = r.bandBassDb, bandMidDb = r.bandMidDb, bandTrebleDb = r.bandTrebleDb)
+                    }
+                    update(cdId, name, "Analisando volume", (i + 1f) / pending.size)
+                }
+                if (pending.isNotEmpty()) tracks = app.cdRepository.tracksOf(cdId).first()
+            }
             val settings = NormalizationSettingsStore(this).load().copy(enabled = audio.normalize)
             val target = ExportNaming.targetFor(this, cdId, name) // T-401: nunca sobrescreve o MP3 de outro CD
             checkFreeSpace(tracks, target)
