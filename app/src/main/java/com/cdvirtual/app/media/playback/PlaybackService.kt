@@ -134,7 +134,7 @@ class PlaybackService : Service() {
                 while (true) {
                     kotlinx.coroutines.delay(2000)
                     val s = Mp3Player.state.value
-                    if (s.file != null && s.playing) {
+                    if ((s.file != null || s.trackId != null) && s.playing) {
                         updateSession(s)
                         getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(s))
                     }
