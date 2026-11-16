@@ -62,8 +62,8 @@ fun CdEditorScreen(vm: CdEditorViewModel = viewModel()) {
     // T-501: uma única lista rolável (antes, Column fixa + LazyColumn: com CD longo os botões e a lista de CDs ficavam inacessíveis).
     LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
         item {
-        Text("Editor de CD", style = MaterialTheme.typography.headlineSmall)
-        Button(onClick = vm::createCd, Modifier.padding(vertical = 8.dp)) { Text("Novo CD") }
+        Text("Minhas playlists", style = MaterialTheme.typography.headlineSmall)
+        Button(onClick = vm::createCd, Modifier.padding(vertical = 8.dp)) { Text("Nova playlist") }
         if (selected != null) CdDetails(selected, vm)
         message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         if (cds.isEmpty()) Text("Nenhum CD ainda. Toque em \"Novo CD\" para começar.")
@@ -79,7 +79,7 @@ fun CdEditorScreen(vm: CdEditorViewModel = viewModel()) {
                         CoverImage(cd.coverPath, Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)))
                         Column(Modifier.padding(start = 12.dp)) {
                             Text(cd.name, style = MaterialTheme.typography.bodyLarge)
-                            Text((if (isSel) "CD atual · " else "") + "atualizado em " + formatDate(cd.updatedAt), style = MaterialTheme.typography.bodySmall)
+                            Text((if (isSel) "Playlist atual · " else "") + "atualizado em " + formatDate(cd.updatedAt), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -106,7 +106,7 @@ private fun CdDetails(cd: CdEntity, vm: CdEditorViewModel) {
                 }
             }
             OutlinedTextField(
-                value = name, onValueChange = { name = it.take(CdRepository.MAX_NAME) }, label = { Text("Nome do CD") },
+                value = name, onValueChange = { name = it.take(CdRepository.MAX_NAME) }, label = { Text("Nome da playlist") },
                 singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
             )
             Button(onClick = { vm.rename(cd.id, name) }, Modifier.padding(top = 4.dp), enabled = name.trim() != cd.name) {
@@ -125,7 +125,7 @@ private fun CdDetails(cd: CdEntity, vm: CdEditorViewModel) {
             val withNotifications = rememberNotificationGate() // T-503: gera mesmo se a notificação for negada
             var picking by remember { mutableStateOf(false) }
             Text("Músicas (${cdTracks.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
-            if (cdTracks.isEmpty()) Text("Este CD ainda não tem músicas.", style = MaterialTheme.typography.bodySmall)
+            if (cdTracks.isEmpty()) Text("Esta playlist ainda não tem músicas.", style = MaterialTheme.typography.bodySmall)
             else Text("Duração total: ${formatDuration(CdStats.totalDurationMs(cdTracks))} · " +
                 "MP3 estimado (${CdStats.MP3_KBPS} kbps): ${formatSize(CdStats.estimatedSizeBytes(CdStats.totalDurationMs(cdTracks)))}",
                 style = MaterialTheme.typography.bodySmall)
@@ -147,11 +147,11 @@ private fun CdDetails(cd: CdEntity, vm: CdEditorViewModel) {
                 Button(onClick = { vm.saveProject(cd.id) }, Modifier.padding(start = 8.dp)) { Text("Salvar projeto") }
             }
             var confirmDelete by remember(cd.id) { mutableStateOf(false) }
-            OutlinedButton(onClick = { confirmDelete = true }, Modifier.padding(top = 4.dp)) { Text("Excluir CD") }
+            OutlinedButton(onClick = { confirmDelete = true }, Modifier.padding(top = 4.dp)) { Text("Excluir playlist") }
             if (confirmDelete) AlertDialog(
                 onDismissRequest = { confirmDelete = false },
                 title = { Text("Excluir \"${cd.name}\"?") },
-                text = { Text("Remove só este projeto de CD. As músicas da biblioteca, os arquivos originais e MP3 já gerados não são apagados.") },
+                text = { Text("Remove só esta playlist. As músicas da biblioteca, os arquivos originais e MP3 já gerados não são apagados.") },
                 confirmButton = { TextButton(onClick = { confirmDelete = false; vm.deleteCd(cd.id) }) { Text("Excluir") } },
                 dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } }
             )
@@ -235,7 +235,7 @@ private fun CdAudioOptions(cdId: Long, context: android.content.Context) {
     )
     Card(Modifier.fillMaxWidth().padding(top = 12.dp)) {
         Column(Modifier.padding(12.dp)) {
-            Text("Áudio do CD", style = MaterialTheme.typography.titleMedium)
+            Text("Áudio da playlist", style = MaterialTheme.typography.titleMedium)
             Text("Escolha como o som será processado no MP3 final. As músicas originais da biblioteca não serão alteradas.",
                 style = MaterialTheme.typography.bodySmall)
             Text("Equalizador", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
