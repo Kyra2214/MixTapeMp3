@@ -47,7 +47,7 @@ private fun EqualizerContent(vm: EqualizerViewModel) {
     val scopeId by vm.scopeCdId.collectAsStateWithLifecycle()
     val scopeName = cds.firstOrNull { it.id == scopeId }?.name
     // Uma única lista rolável: antes o cabeçalho fixo ocupava boa parte da tela e sobrava pouco espaço para as músicas.
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
         Column(modifier = Modifier.padding(top = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -103,7 +103,7 @@ private fun EqualizerContent(vm: EqualizerViewModel) {
 @Composable
 private fun TrackCard(t: TrackEntity, settings: NormalizationSettings, vm: EqualizerViewModel, previewing: Boolean?) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(10.dp)) {
             Text(t.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val plan = GainPlanner.forTrack(t, settings)
             Text(
