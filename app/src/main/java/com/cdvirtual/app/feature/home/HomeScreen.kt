@@ -69,11 +69,11 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
 
     Column(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(48.dp).clip(CircleShape)
+                Modifier.size(38.dp).clip(CircleShape)
                     .background(Brush.linearGradient(listOf(Color(0xFF9B7BFF), Color(0xFF52E0D0)))),
                 contentAlignment = Alignment.Center
             ) { Text("♫", color = Color(0xFF111323), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
@@ -88,27 +88,27 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         }
 
         Card(
-            Modifier.fillMaxWidth().padding(top = 22.dp).animateContentSize(),
+            Modifier.fillMaxWidth().padding(top = 10.dp).animateContentSize(),
             shape = MaterialTheme.shapes.extraLarge,
             colors = CardDefaults.cardColors(containerColor = Color.Transparent)
         ) {
             Box(
                 Modifier.background(Brush.linearGradient(listOf(Color(0xFF38286F), Color(0xFF172F45), Color(0xFF172A34))))
-                    .padding(22.dp)
+                    .padding(12.dp)
             ) {
                 Column {
                     Text("PLAYLISTS DO SEU JEITO", color = Color(0xFF8DE9DE), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    Text("Sua coleção,\ncom identidade.", Modifier.padding(top = 8.dp), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Sua coleção,\ncom identidade.", Modifier.padding(top = 4.dp), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Monte playlists, personalize o som e leve sua música com você.",
-                        Modifier.padding(top = 8.dp), color = Color(0xFFD7DCEC), style = MaterialTheme.typography.bodyMedium)
-                    Button(onClick = { onNavigate(Destination.CdEditor) }, Modifier.padding(top = 16.dp)) {
+                        Modifier.padding(top = 4.dp), color = Color(0xFFD7DCEC), style = MaterialTheme.typography.bodySmall)
+                    Button(onClick = { onNavigate(Destination.CdEditor) }, Modifier.padding(top = 6.dp)) {
                         Text("Criar minha playlist  →")
                     }
                 }
             }
         }
 
-        Row(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Seu estúdio", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
             Text("${actions.size} ferramentas", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -122,12 +122,12 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         ) {
             items(actions, key = { it.destination.route }) { action ->
                 Card(
-                    Modifier.fillMaxWidth().height(116.dp).clickable { onNavigate(action.destination) }.animateContentSize(),
+                    Modifier.fillMaxWidth().height(96.dp).clickable { onNavigate(action.destination) }.animateContentSize(),
                     shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                        Box(Modifier.size(36.dp).clip(CircleShape).background(action.tint.copy(alpha = 0.17f)), contentAlignment = Alignment.Center) {
+                    Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                        Box(Modifier.size(30.dp).clip(CircleShape).background(action.tint.copy(alpha = 0.17f)), contentAlignment = Alignment.Center) {
                             Text(action.symbol, color = action.tint, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         }
                         Column {
