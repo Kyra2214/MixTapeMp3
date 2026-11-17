@@ -117,7 +117,7 @@ private fun PlayerContent() {
         while (true) { position = Mp3Player.positionMs(); delay(500) }
     }
 
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     item { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DeviceVolumeControl()
         player.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -128,7 +128,7 @@ private fun PlayerContent() {
                 value = withContext(Dispatchers.IO) { decodeCover(Id3Reader.readCover(it)) }
             }
             cover?.let { bmp ->
-                Image(bmp, contentDescription = "Capa da playlist", modifier = Modifier.size(180.dp).clip(RoundedCornerShape(24.dp)))
+                Image(bmp, contentDescription = "Capa da playlist", modifier = Modifier.size(120.dp).clip(RoundedCornerShape(16.dp)))
             }
             Text(
                 player.chapterAt(position)?.title?.ifBlank { null } ?: it.nameWithoutExtension,
