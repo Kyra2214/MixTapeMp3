@@ -51,8 +51,8 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     ScreenScaffold("Configurações", onBack) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Section("Pasta de destino") {
                 when (val s = folder) {
@@ -108,7 +108,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             content()
         }
