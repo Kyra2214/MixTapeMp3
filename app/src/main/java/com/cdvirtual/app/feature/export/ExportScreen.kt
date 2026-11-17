@@ -78,7 +78,7 @@ private fun ExportContent() {
         if (uri != null) state = folder.choose(uri)
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
         Text("Pasta de destino", style = MaterialTheme.typography.titleSmall)
         when (val s = state) {
             OutputFolderState.NotSet -> Text("Nenhuma pasta escolhida. Escolha onde salvar as playlists exportadas.", style = MaterialTheme.typography.bodyMedium)
