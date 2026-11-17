@@ -116,16 +116,16 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
     val queue by vm.state.collectAsStateWithLifecycle()
     var sendMessage by remember { mutableStateOf<String?>(null) }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(42.dp).clip(CircleShape)
+                Modifier.size(34.dp).clip(CircleShape)
                     .background(Brush.linearGradient(listOf(Color(0xFF9B7BFF), Color(0xFF52E0D0)))),
                 contentAlignment = Alignment.Center
             ) { Text("◎", color = Color(0xFF111323), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-            Column(Modifier.padding(start = 11.dp).weight(1f)) {
+            Column(Modifier.padding(start = 8.dp).weight(1f)) {
                 Text("Explorar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(pageTitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                Text(pageTitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
             OutlinedButton(onClick = onHome) { Text("⌂ Início") }
         }
@@ -135,7 +135,7 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 OutlinedTextField(
                     value = address, onValueChange = { address = it }, singleLine = true,
                     label = { Text("Endereço ou link") }, modifier = Modifier.fillMaxWidth()
