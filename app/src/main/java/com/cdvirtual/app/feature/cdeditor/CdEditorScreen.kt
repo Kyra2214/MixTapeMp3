@@ -69,11 +69,11 @@ private fun CdEditorContent(vm: CdEditorViewModel) {
     val message by vm.message.collectAsStateWithLifecycle()
     val selected = cds.firstOrNull { it.id == selectedId }
     // T-501: uma única lista rolável (antes, Column fixa + LazyColumn: com CD longo os botões e a lista de CDs ficavam inacessíveis).
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(12.dp)) {
         item {
             // Vários elementos num mesmo item precisam de uma Column; sem ela eles ficam um sobre o outro.
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Minhas playlists", style = MaterialTheme.typography.headlineSmall)
+                Text("Minhas playlists", style = MaterialTheme.typography.titleLarge)
                 Text("Organize suas faixas e monte a sequência perfeita.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(onClick = vm::createCd) { Text("＋  Nova playlist") }
                 if (selected != null) CdDetails(selected, vm)
@@ -111,7 +111,7 @@ private fun CdDetails(cd: CdEntity, vm: CdEditorViewModel) {
     Card(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CoverImage(cd.coverPath, Modifier.size(96.dp).clip(RoundedCornerShape(16.dp)))
+                CoverImage(cd.coverPath, Modifier.size(72.dp).clip(RoundedCornerShape(14.dp)))
                 Column(Modifier.padding(start = 12.dp)) {
                     OutlinedButton(onClick = { picker.launch(arrayOf("image/*")) }) { Text("Escolher capa") }
                     if (cd.coverPath != null) {
