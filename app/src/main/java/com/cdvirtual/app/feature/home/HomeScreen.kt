@@ -98,7 +98,7 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
             ) {
                 Column {
                     Text("PLAYLISTS DO SEU JEITO", color = Color(0xFF8DE9DE), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    Text("Sua coleção,\ncom identidade.", Modifier.padding(top = 4.dp), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Sua coleção, seu jeito.", Modifier.padding(top = 3.dp), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Monte playlists, personalize o som e leve sua música com você.",
                         Modifier.padding(top = 4.dp), color = Color(0xFFD7DCEC), style = MaterialTheme.typography.bodySmall)
                     Button(onClick = { onNavigate(Destination.CdEditor) }, Modifier.padding(top = 6.dp)) {
