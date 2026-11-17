@@ -49,7 +49,7 @@ private fun ImporterContent(initialUrl: String?, preferredFormat: String, vm: Im
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Importar por link", style = MaterialTheme.typography.headlineSmall)
+        Text("Importar por link", style = MaterialTheme.typography.titleLarge)
         Text(
             "Este é o único recurso que usa a internet; para músicas já no aparelho, use \"Importar músicas\" na Biblioteca (funciona offline).",
             style = MaterialTheme.typography.bodySmall
