@@ -25,19 +25,19 @@ private fun style(weight: FontWeight, size: Int, line: Int, tracking: Float = 0f
 )
 
 val MixTapeTypography = Typography(
-    displayLarge = style(FontWeight.Bold, 52, 62),
-    displayMedium = style(FontWeight.Bold, 42, 52),
-    displaySmall = style(FontWeight.Bold, 34, 42),
-    headlineLarge = style(FontWeight.Bold, 30, 38),
-    headlineMedium = style(FontWeight.Bold, 26, 34),
-    headlineSmall = style(FontWeight.Medium, 22, 30),
-    titleLarge = style(FontWeight.Medium, 20, 28),
-    titleMedium = style(FontWeight.Medium, 16, 24, 0.01f),
-    titleSmall = style(FontWeight.Medium, 14, 20, 0.01f),
-    bodyLarge = style(FontWeight.Normal, 16, 24, 0.01f),
-    bodyMedium = style(FontWeight.Normal, 14, 21, 0.01f),
-    bodySmall = style(FontWeight.Normal, 12, 18, 0.02f),
-    labelLarge = style(FontWeight.Medium, 14, 20, 0.01f),
-    labelMedium = style(FontWeight.Medium, 12, 16, 0.03f),
-    labelSmall = style(FontWeight.Medium, 11, 16, 0.04f)
+    displayLarge = style(FontWeight.Bold, 28, 34),
+    displayMedium = style(FontWeight.Bold, 26, 32),
+    displaySmall = style(FontWeight.Bold, 24, 30),
+    headlineLarge = style(FontWeight.Bold, 22, 28),
+    headlineMedium = style(FontWeight.Bold, 20, 26),
+    headlineSmall = style(FontWeight.Medium, 18, 24),
+    titleLarge = style(FontWeight.Medium, 17, 23),
+    titleMedium = style(FontWeight.Medium, 15, 21, 0.01f),
+    titleSmall = style(FontWeight.Medium, 13, 18, 0.01f),
+    bodyLarge = style(FontWeight.Normal, 14, 20, 0.01f),
+    bodyMedium = style(FontWeight.Normal, 13, 18, 0.01f),
+    bodySmall = style(FontWeight.Normal, 11, 15, 0.02f),
+    labelLarge = style(FontWeight.Medium, 13, 18, 0.01f),
+    labelMedium = style(FontWeight.Medium, 11, 15, 0.03f),
+    labelSmall = style(FontWeight.Medium, 10, 14, 0.04f)
 )
