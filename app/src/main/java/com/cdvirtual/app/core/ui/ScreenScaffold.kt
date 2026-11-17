@@ -33,7 +33,7 @@ fun ScreenScaffold(title: String, onBack: () -> Unit, content: @Composable Colum
             TextButton(onClick = onBack) { Text("← Voltar") }
             Text(
                 title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(end = 12.dp)
