@@ -30,6 +30,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -60,6 +62,7 @@ class YouTubePlaybackService : MediaSessionService() {
     private var playbackMonitorJob: Job? = null
     private var sponsorSegments: List<SponsorSegment> = emptyList()
     private val skippedSponsorSegments = mutableSetOf<Int>()
+    private val progressWriteMutex = Mutex()
     private var hasStartedCurrentItem = false
     private var resumingVideoId: String? = null
     private var resumingRequestId = 0L
@@ -331,11 +334,25 @@ class YouTubePlaybackService : MediaSessionService() {
 
     private fun persistCurrentPosition(resetToStart: Boolean = false) {
         val videoId = player.currentMediaItem?.mediaId ?: return
+        val requestId = playbackRequestId
         val position = if (resetToStart) 0L else player.currentPosition.coerceAtLeast(0L)
         scope.launch {
+            persistPositionIfCurrent(videoId, position, requestId)
+        }
+    }
+
+    private suspend fun persistPositionIfCurrent(
+        videoId: String,
+        positionMs: Long,
+        requestId: Long
+    ) {
+        progressWriteMutex.withLock {
+            // Eventos atrasados de uma reprodução anterior não podem sobrescrever
+            // a posição de uma nova solicitação, mesmo quando o ID do vídeo é igual.
+            if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) return
             runCatching {
                 (application as CDVirtualApp).database.youtubeHistoryDao()
-                    .updateProgress(videoId, position)
+                    .updateProgress(videoId, positionMs.coerceAtLeast(0L))
             }.onFailure { failure ->
                 android.util.Log.w(TAG, "Não foi possível salvar o progresso de $videoId", failure)
             }
@@ -382,11 +399,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 // Ao concluir, zera a posição para que Retomar recomece do início.
                 val savedPosition = if (ended) 0L else player.currentPosition.coerceAtLeast(0L)
                 if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) break
-                runCatching {
-                    dao.updateProgress(videoId, savedPosition)
-                }.onFailure { failure ->
-                    android.util.Log.w(TAG, "Não foi possível atualizar o progresso do histórico", failure)
-                }
+                persistPositionIfCurrent(videoId, savedPosition, requestId)
                 lastProgressWrite = now
             }
             if (ended) break
@@ -403,11 +416,13 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.currentPosition.coerceAtLeast(0L)
             }
             CoroutineScope(Dispatchers.IO).launch {
-                runCatching {
-                    (application as CDVirtualApp).database.youtubeHistoryDao()
-                        .updateProgress(videoId, position)
-                }.onFailure { failure ->
-                    android.util.Log.w(TAG, "Não foi possível salvar a posição ao encerrar o serviço", failure)
+                progressWriteMutex.withLock {
+                    runCatching {
+                        (application as CDVirtualApp).database.youtubeHistoryDao()
+                            .updateProgress(videoId, position)
+                    }.onFailure { failure ->
+                        android.util.Log.w(TAG, "Não foi possível salvar a posição ao encerrar o serviço", failure)
+                    }
                 }
             }
         }
