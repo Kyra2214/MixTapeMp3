@@ -52,7 +52,7 @@ class YouTubePlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val httpFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent("com.google.android.youtube/20.10.38 (Linux; U; Android 11)")
+            .setUserAgent("Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36")
             .setDefaultRequestProperties(
                 mapOf(
                     "Referer" to "https://www.youtube.com/",
