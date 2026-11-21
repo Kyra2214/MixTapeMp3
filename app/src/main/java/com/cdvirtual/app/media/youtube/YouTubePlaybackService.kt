@@ -14,7 +14,6 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
-import com.cdvirtual.app.media.connectors.toUserMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -150,7 +149,7 @@ class YouTubePlaybackService : MediaSessionService() {
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
             if (loadingVideoId == videoId) {
-                YouTubePlaybackStatus.reportError(failure.toUserMessage())
+                YouTubePlaybackStatus.reportError(failure.toYouTubePlaybackMessage())
                 loadingVideoId = null
             }
         }
