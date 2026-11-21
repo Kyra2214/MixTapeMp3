@@ -93,6 +93,14 @@ fun YouTubeScreen(onBack: () -> Unit) {
     fun startYouTubePlayback(videoId: String, audioOnly: Boolean = false) {
         error = null
         selectedVideoId = videoId
+        audioOnlyMode = audioOnly
+        audioIsPlaying = false
+        audioSeeking = false
+        audioPositionMs = 0L
+        audioDurationMs = 0L
+        audioTitle = ""
+        audioUploader = ""
+        audioThumbnail = null
         YouTubePlaybackService.play(context, videoId, audioOnly)
     }
 
