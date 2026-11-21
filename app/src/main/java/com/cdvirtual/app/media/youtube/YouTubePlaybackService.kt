@@ -17,6 +17,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -212,6 +213,9 @@ class YouTubePlaybackService : MediaSessionService() {
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) requestSponsorSegments(videoId, requestId)
             if (isCurrentRequest(videoId, audioOnly, requestId)) loadingVideoId = null
+        } catch (cancelled: CancellationException) {
+            // Encerrar o serviço ou cancelar a tarefa não deve aparecer como erro ao usuário.
+            throw cancelled
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
             if (isCurrentRequest(videoId, audioOnly, requestId)) {
