@@ -130,10 +130,17 @@ object YouTubeApi {
         val progressive = info.videoStreams
             .filter { !it.isVideoOnly && it.isUrl }
             .maxByOrNull { it.height }
+        val dashUrl = info.dashMpdUrl.takeIf { it.isNotBlank() }
+        val hlsUrl = info.hlsUrl.takeIf { it.isNotBlank() }
         val streamUrl = progressive?.content
-            ?: info.dashMpdUrl.takeIf { it.isNotBlank() }
+            ?: dashUrl
+            ?: hlsUrl
             ?: throw YouTubeUnavailableException(YouTubeFailure.PlayerChanged)
-        val mimeType = if (progressive == null) "application/dash+xml" else progressive.format?.mimeType
+        val mimeType = when {
+            progressive != null -> progressive.format?.mimeType
+            dashUrl != null -> "application/dash+xml"
+            else -> "application/x-mpegURL"
+        }
 
         YouTubePlaybackInfo(
             videoId = videoId,
