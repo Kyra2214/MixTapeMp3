@@ -180,7 +180,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) {
                 scope.launch {
-                    val segments = SponsorBlockRepository().getSkippableSegments(videoId)
+                    val segments = SponsorBlockRepository.getSkippableSegments(videoId)
                     if (player.currentMediaItem?.mediaId == videoId) {
                         sponsorSegments = segments
                     }
@@ -260,7 +260,7 @@ class YouTubePlaybackService : MediaSessionService() {
         private const val TAG = "YouTubePlayback"
         private const val ACTION_PLAY = "com.cdvirtual.app.youtube.PLAY"
         private const val EXTRA_VIDEO_ID = "youtube_video_id"
-        private const val EXTRA_AUDIO_ONLY = "youtube_audio_only"
+        const val EXTRA_AUDIO_ONLY = "youtube_audio_only"
         const val PREFERENCES = "youtube_preferences"
         const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
 
