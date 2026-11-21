@@ -2,6 +2,7 @@ package com.cdvirtual.app.media.youtube
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -29,6 +30,8 @@ class YouTubePlaybackService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private var mediaSession: MediaSession? = null
     private var loadingVideoId: String? = null
+    private var sponsorSegments: List<SponsorSegment> = emptyList()
+    private val skippedSponsorSegments = mutableSetOf<Int>()
 
     override fun onCreate() {
         super.onCreate()
@@ -72,6 +75,10 @@ class YouTubePlaybackService : MediaSessionService() {
     private suspend fun loadAndPlay(videoId: String) {
         try {
             val info = YouTubeApi.resolvePlayback(videoId)
+            val sponsorEnabled = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+                .getBoolean(KEY_SPONSOR_BLOCK, false)
+            sponsorSegments = if (sponsorEnabled) SponsorBlockRepository().getSkippableSegments(videoId) else emptyList()
+            skippedSponsorSegments.clear()
             val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
             val previous = dao.find(videoId)
             dao.save(
@@ -104,7 +111,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
-            scope.launch { persistProgress(videoId) }
+            scope.launch { monitorPlayback(videoId) }
             if (loadingVideoId == videoId) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
@@ -112,12 +119,30 @@ class YouTubePlaybackService : MediaSessionService() {
         }
     }
 
-    private suspend fun persistProgress(videoId: String) {
+    private suspend fun monitorPlayback(videoId: String) {
         val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
+        var lastProgressWrite = SystemClock.elapsedRealtime()
         while (player.currentMediaItem?.mediaId == videoId) {
-            delay(5_000)
-            if (player.currentMediaItem?.mediaId == videoId && player.currentPosition >= 0L) {
-                dao.updateProgress(videoId, player.currentPosition, System.currentTimeMillis())
+            delay(500)
+            if (player.currentMediaItem?.mediaId != videoId) break
+
+            if (player.isPlaying && sponsorSegments.isNotEmpty()) {
+                val positionSeconds = player.currentPosition / 1000.0
+                val segmentIndex = sponsorSegments.indices.firstOrNull { index ->
+                    index !in skippedSponsorSegments &&
+                        positionSeconds >= sponsorSegments[index].startSeconds &&
+                        positionSeconds < sponsorSegments[index].endSeconds
+                }
+                if (segmentIndex != null) {
+                    skippedSponsorSegments.add(segmentIndex)
+                    player.seekTo((sponsorSegments[segmentIndex].endSeconds * 1000.0).toLong())
+                }
+            }
+
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastProgressWrite >= 5_000L || player.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                dao.updateProgress(videoId, player.currentPosition.coerceAtLeast(0L), System.currentTimeMillis())
+                lastProgressWrite = now
             }
             if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) break
         }
@@ -137,6 +162,8 @@ class YouTubePlaybackService : MediaSessionService() {
         private const val TAG = "YouTubePlayback"
         private const val ACTION_PLAY = "com.cdvirtual.app.youtube.PLAY"
         private const val EXTRA_VIDEO_ID = "youtube_video_id"
+        const val PREFERENCES = "youtube_preferences"
+        const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
 
         fun play(context: Context, videoId: String) {
             context.startService(
