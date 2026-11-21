@@ -17,6 +17,9 @@ interface YouTubeHistoryDao {
     @Query("SELECT * FROM youtube_history WHERE videoId = :videoId LIMIT 1")
     suspend fun find(videoId: String): YouTubeHistoryEntity?
 
+    @Query("SELECT * FROM youtube_history ORDER BY watchedAt DESC LIMIT 1")
+    suspend fun findMostRecent(): YouTubeHistoryEntity?
+
     @Query("""
         UPDATE youtube_history
         SET lastPositionMs = :positionMs
