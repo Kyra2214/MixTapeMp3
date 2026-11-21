@@ -161,6 +161,10 @@ class YouTubePlaybackService : MediaSessionService() {
             delay(500)
             if (player.currentMediaItem?.mediaId != videoId) break
 
+            val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .getBoolean(KEY_SPONSOR_BLOCK, false)
+            if (!sponsorEnabled) sponsorSegments = emptyList()
+
             if (player.isPlaying && sponsorSegments.isNotEmpty()) {
                 val positionSeconds = player.currentPosition / 1000.0
                 val segmentIndex = sponsorSegments.indices.firstOrNull { index ->
