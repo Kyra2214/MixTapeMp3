@@ -259,7 +259,16 @@ fun YouTubeScreen(onBack: () -> Unit) {
 
         if (loading || loadingMore) CircularProgressIndicator()
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        playbackError?.let { message ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                selectedVideoId?.let { failedVideoId ->
+                    TextButton(
+                        onClick = { startYouTubePlayback(failedVideoId, audioOnly = audioOnlyMode) }
+                    ) { Text("Tentar novamente") }
+                }
+            }
+        }
         if (selectedVideoId != null) {
             mediaController?.let { controller ->
                 if (audioOnlyMode) {
