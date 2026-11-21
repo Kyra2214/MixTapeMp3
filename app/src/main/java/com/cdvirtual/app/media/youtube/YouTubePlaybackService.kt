@@ -54,9 +54,13 @@ class YouTubePlaybackService : MediaSessionService() {
         super.onStartCommand(intent, flags, startId)
         if (intent?.action == ACTION_PLAY) {
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
-            if (videoId != null && videoId != loadingVideoId) {
-                loadingVideoId = videoId
-                scope.launch { loadAndPlay(videoId) }
+            if (videoId != null) {
+                if (player.currentMediaItem?.mediaId == videoId) {
+                    player.play()
+                } else if (videoId != loadingVideoId) {
+                    loadingVideoId = videoId
+                    scope.launch { loadAndPlay(videoId) }
+                }
             }
         }
         return START_STICKY
@@ -96,7 +100,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
-            persistProgress(videoId)
+            scope.launch { persistProgress(videoId) }
             if (loadingVideoId == videoId) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
