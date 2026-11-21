@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -24,4 +25,17 @@ class WelcomeFlowTest {
         }
         composeRule.onNodeWithText("PLAYLISTS DO SEU JEITO").assertIsDisplayed()
     }
+    @Test
+    fun youtubeFeatureOpensFromHome() {
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("PLAYLISTS DO SEU JEITO").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("YouTube").performClick()
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithText("Pesquisar vídeos").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Pesquisar vídeos").assertIsDisplayed()
+        composeRule.onNodeWithText("Pular trechos patrocinados").assertIsDisplayed()
+    }
+
 }
