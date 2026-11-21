@@ -236,7 +236,7 @@ class YouTubePlaybackService : MediaSessionService() {
         scope.launch {
             runCatching {
                 (application as CDVirtualApp).database.youtubeHistoryDao()
-                    .updateProgress(videoId, position, System.currentTimeMillis())
+                    .updateProgress(videoId, position)
             }.onFailure { failure ->
                 android.util.Log.w(TAG, "Não foi possível salvar o progresso de $videoId", failure)
             }
@@ -284,7 +284,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 val savedPosition = if (ended) 0L else player.currentPosition.coerceAtLeast(0L)
                 if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) break
                 runCatching {
-                    dao.updateProgress(videoId, savedPosition, System.currentTimeMillis())
+                    dao.updateProgress(videoId, savedPosition)
                 }.onFailure { failure ->
                     android.util.Log.w(TAG, "Não foi possível atualizar o progresso do histórico", failure)
                 }
