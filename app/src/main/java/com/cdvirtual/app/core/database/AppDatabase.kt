@@ -17,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun trackDao(): TrackDao
     abstract fun cdDao(): CdDao
+    abstract fun youtubeHistoryDao(): YouTubeHistoryDao
 
     companion object {
         private const val NAME = "cdvirtual.db"
