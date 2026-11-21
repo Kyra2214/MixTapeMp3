@@ -127,7 +127,7 @@ object YouTubeApi {
 
         // Streams progressivos incluem áudio e vídeo. DASH separado será tratado em outra etapa.
         val stream = info.videoStreams
-            .filterNot { it.isVideoOnly }
+            .filter { !it.isVideoOnly && it.isUrl }
             .maxByOrNull { it.height }
             ?: throw YouTubeUnavailableException(YouTubeFailure.PlayerChanged)
 
@@ -137,7 +137,7 @@ object YouTubeApi {
             uploader = info.uploaderName.orEmpty(),
             thumbnailUrl = info.thumbnails.firstOrNull()?.url,
             durationSeconds = info.duration.coerceAtLeast(0L),
-            streamUrl = stream.url
+            streamUrl = stream.content
         )
     }
 
