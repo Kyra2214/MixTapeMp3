@@ -1,5 +1,6 @@
 package com.cdvirtual.app.media.youtube
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.stream.StreamInfo
@@ -27,6 +28,9 @@ object YouTubePlaybackRepository {
         YouTubeExtractor.initialize()
         val info = try {
             StreamInfo.getInfo(BASE_URL + videoId)
+        } catch (cancelled: CancellationException) {
+            // Cancelamento da tela/serviço não é falha de extração do YouTube.
+            throw cancelled
         } catch (failure: Exception) {
             throw classifyFailure(failure)
         }
