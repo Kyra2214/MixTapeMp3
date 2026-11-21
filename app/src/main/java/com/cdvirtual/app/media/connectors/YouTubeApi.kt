@@ -10,7 +10,7 @@ object YouTubeApi {
     fun initialize() = YouTubeExtractor.initialize()
 
     suspend fun analyze(videoId: String): LinkInfo = withContext(Dispatchers.IO) {
-        ensureInitialized()
+        YouTubeExtractor.initialize()
         val videoUrl = BASE_URL + videoId
         val info = try {
             StreamInfo.getInfo(videoUrl)
