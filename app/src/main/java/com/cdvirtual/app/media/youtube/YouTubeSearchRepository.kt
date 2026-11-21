@@ -1,6 +1,6 @@
 package com.cdvirtual.app.media.youtube
 
-import com.cdvirtual.app.media.connectors.YouTubeApi
+import com.cdvirtual.app.media.youtube.YouTubeExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.InfoItem
@@ -32,7 +32,7 @@ class YouTubeSearchRepository {
         val normalized = query.trim()
         require(normalized.isNotEmpty()) { "Digite o que deseja pesquisar." }
 
-        YouTubeApi.initialize()
+        YouTubeExtractor.initialize()
         val service = NewPipe.getService("YouTube")
         val handler = service.searchQHFactory.fromQuery(normalized)
         val info = SearchInfo.getInfo(service, handler)
