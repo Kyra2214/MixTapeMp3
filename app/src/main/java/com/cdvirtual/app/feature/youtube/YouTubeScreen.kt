@@ -1,10 +1,9 @@
 package com.cdvirtual.app.feature.youtube
 
-import androidx.compose.foundation.clickable
+import android.content.ComponentName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,24 +28,49 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import com.cdvirtual.app.CDVirtualApp
-import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import androidx.media3.ui.PlayerView
+import com.cdvirtual.app.CDVirtualApp
+import com.cdvirtual.app.core.database.YouTubeHistoryEntity
+import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
 import com.cdvirtual.app.media.youtube.YouTubeVideo
 import kotlinx.coroutines.launch
 
 @Composable
 fun YouTubeScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val app = context.applicationContext as CDVirtualApp
     val repository = remember { YouTubeSearchRepository() }
-    val app = LocalContext.current.applicationContext as CDVirtualApp
     val history by app.database.youtubeHistoryDao().observeAll().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var selectedVideoId by remember { mutableStateOf<String?>(null) }
+    var mediaController by remember { mutableStateOf<MediaController?>(null) }
+
+    DisposableEffect(selectedVideoId) {
+        if (selectedVideoId == null) {
+            onDispose { mediaController = null }
+        } else {
+            val token = SessionToken(context, ComponentName(context, YouTubePlaybackService::class.java))
+            val future = MediaController.Builder(context, token).buildAsync()
+            future.addListener({
+                mediaController = runCatching { future.get() }.getOrNull()
+            }, ContextCompat.getMainExecutor(context))
+            onDispose {
+                MediaController.releaseFuture(future)
+                mediaController = null
+            }
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -54,7 +79,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text("YouTube", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Pesquisa independente, sem depender do login Google.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Pesquisa e reprodução independentes do login Google.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OutlinedButton(onClick = onBack) { Text("Voltar") }
         }
@@ -65,7 +90,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             label = { Text("Pesquisar vídeos") }
-        }
+        )
 
         Button(
             onClick = {
@@ -90,27 +115,49 @@ fun YouTubeScreen(onBack: () -> Unit) {
 
         if (loading) CircularProgressIndicator()
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        if (selectedVideoId != null) {
+            mediaController?.let { controller ->
+                AndroidView(
+                    factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
+                    update = { it.player = controller },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                )
+            }
+        }
 
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (results.isNotEmpty()) item { Text("Resultados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            if (results.isNotEmpty()) {
+                item { Text("Resultados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            }
             items(results, key = { it.videoId }) { video ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(video.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text(video.channel.ifBlank { "Canal não informado" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(formatDuration(video.durationSeconds), style = MaterialTheme.typography.labelSmall)
+                        Button(onClick = {
+                            selectedVideoId = video.videoId
+                            YouTubePlaybackService.play(context, video.videoId)
+                        }) { Text("Reproduzir") }
                     }
                 }
             }
             if (history.isNotEmpty()) {
                 item { Text("Seu histórico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
                 items(history, key = { it.videoId }) { historyItem ->
-                    HistoryRow(item = historyItem, onDelete = {
-                        scope.launch { app.database.youtubeHistoryDao().delete(historyItem.videoId) }
-                    })
+                    HistoryRow(
+                        item = historyItem,
+                        onPlay = {
+                            selectedVideoId = historyItem.videoId
+                            YouTubePlaybackService.play(context, historyItem.videoId)
+                        },
+                        onDelete = {
+                            scope.launch { app.database.youtubeHistoryDao().delete(historyItem.videoId) }
+                        }
+                    )
                 }
                 item {
                     OutlinedButton(
@@ -124,7 +171,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun HistoryRow(item: YouTubeHistoryEntity, onDelete: () -> Unit) {
+private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onDelete: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(12.dp),
@@ -137,7 +184,10 @@ private fun HistoryRow(item: YouTubeHistoryEntity, onDelete: () -> Unit) {
                     Text("Retomar em " + formatDuration(item.lastPositionMs / 1000), style = MaterialTheme.typography.labelSmall)
                 }
             }
-            TextButton(onClick = onDelete) { Text("Excluir") }
+            Column {
+                TextButton(onClick = onPlay) { Text("Retomar") }
+                TextButton(onClick = onDelete) { Text("Excluir") }
+            }
         }
     }
 }
