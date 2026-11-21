@@ -73,6 +73,10 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var audioOnlyMode by remember { mutableStateOf(false) }
+    var audioTitle by remember { mutableStateOf("") }
+    var audioUploader by remember { mutableStateOf("") }
+    var audioThumbnail by remember { mutableStateOf<android.net.Uri?>(null) }
     var confirmClearHistory by remember { mutableStateOf(false) }
     var sponsorBlockEnabled by remember {
         mutableStateOf(context.getSharedPreferences(YouTubePlaybackService.PREFERENCES, 0)
@@ -119,11 +123,29 @@ fun YouTubeScreen(onBack: () -> Unit) {
         if (controller == null) {
             onDispose { }
         } else {
+            fun syncPlaybackDisplay() {
+                val metadata = controller.currentMediaItem?.mediaMetadata
+                audioOnlyMode = metadata?.extras?.getBoolean(
+                    YouTubePlaybackService.EXTRA_AUDIO_ONLY,
+                    false
+                ) ?: false
+                audioTitle = metadata?.title?.toString().orEmpty()
+                audioUploader = metadata?.artist?.toString().orEmpty()
+                audioThumbnail = metadata?.artworkUri
+            }
             val listener = object : Player.Listener {
+                override fun onMediaItemTransition(
+                    mediaItem: androidx.media3.common.MediaItem?,
+                    reason: Int
+                ) {
+                    syncPlaybackDisplay()
+                }
+
                 override fun onPlayerError(playbackError: PlaybackException) {
                     error = "Falha na reprodução: " + playbackError.errorCodeName
                 }
             }
+            syncPlaybackDisplay()
             controller.addListener(listener)
             onDispose { controller.removeListener(listener) }
         }
@@ -205,11 +227,38 @@ fun YouTubeScreen(onBack: () -> Unit) {
         playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         if (selectedVideoId != null) {
             mediaController?.let { controller ->
-                AndroidView(
-                    factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
-                    update = { it.player = controller },
-                    modifier = Modifier.fillMaxWidth().height(220.dp).padding(bottom = 4.dp)
-                )
+                if (audioOnlyMode) {
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AsyncImage(
+                                model = audioThumbnail,
+                                contentDescription = "Miniatura do áudio",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(88.dp)
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text("REPRODUÇÃO SOMENTE ÁUDIO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                Text(audioTitle.ifBlank { "Áudio do YouTube" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(audioUploader, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    if (controller.isPlaying) "Reproduzindo em segundo plano" else "Áudio pronto para reproduzir",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    AndroidView(
+                        factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
+                        update = { it.player = controller },
+                        modifier = Modifier.fillMaxWidth().height(220.dp).padding(bottom = 4.dp)
+                    )
+                }
             }
         }
 
