@@ -103,19 +103,21 @@ fun YouTubeScreen(onBack: () -> Unit) {
         )
     }
 
-    DisposableEffect(selectedVideoId) {
-        if (selectedVideoId == null) {
-            onDispose { mediaController = null }
-        } else {
-            val token = SessionToken(context, ComponentName(context, YouTubePlaybackService::class.java))
-            val future = MediaController.Builder(context, token).buildAsync()
-            future.addListener({
-                mediaController = runCatching { future.get() }.getOrNull()
-            }, ContextCompat.getMainExecutor(context))
-            onDispose {
-                MediaController.releaseFuture(future)
-                mediaController = null
+    DisposableEffect(context) {
+        val token = SessionToken(context, ComponentName(context, YouTubePlaybackService::class.java))
+        val future = MediaController.Builder(context, token).buildAsync()
+        var active = true
+        future.addListener({
+            val connected = runCatching { future.get() }.getOrNull()
+            if (active && connected != null) {
+                mediaController = connected
+                connected.currentMediaItem?.mediaId?.let { selectedVideoId = it }
             }
+        }, ContextCompat.getMainExecutor(context))
+        onDispose {
+            active = false
+            MediaController.releaseFuture(future)
+            mediaController = null
         }
     }
 
@@ -140,6 +142,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     mediaItem: androidx.media3.common.MediaItem?,
                     reason: Int
                 ) {
+                    selectedVideoId = mediaItem?.mediaId
                     syncPlaybackDisplay()
                 }
 
