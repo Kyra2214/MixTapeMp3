@@ -96,6 +96,7 @@ class YouTubePlaybackService : MediaSessionService() {
 
             override fun onPlayerError(error: PlaybackException) {
                 persistCurrentPosition()
+                YouTubePlaybackStatus.reportError(error.toYouTubePlaybackMessage())
             }
         })
         mediaSession = MediaSession.Builder(this, player).build()
