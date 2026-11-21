@@ -230,7 +230,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 }
             }
         }
-        // Não há restauração de sessão para um processo morto; evite recriar um serviço vazio.
+        // A retomada é iniciada sob demanda pelo MediaButtonReceiver, não por START_STICKY.
         return START_NOT_STICKY
     }
 
