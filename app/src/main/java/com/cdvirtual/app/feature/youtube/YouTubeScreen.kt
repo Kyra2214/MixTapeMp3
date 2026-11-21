@@ -74,6 +74,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
     var audioOnlyMode by remember { mutableStateOf(false) }
+    var audioIsPlaying by remember { mutableStateOf(false) }
     var audioTitle by remember { mutableStateOf("") }
     var audioUploader by remember { mutableStateOf("") }
     var audioThumbnail by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -132,6 +133,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 audioTitle = metadata?.title?.toString().orEmpty()
                 audioUploader = metadata?.artist?.toString().orEmpty()
                 audioThumbnail = metadata?.artworkUri
+                audioIsPlaying = controller.isPlaying
             }
             val listener = object : Player.Listener {
                 override fun onMediaItemTransition(
@@ -139,6 +141,10 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     reason: Int
                 ) {
                     syncPlaybackDisplay()
+                }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    audioIsPlaying = isPlaying
                 }
 
                 override fun onPlayerError(playbackError: PlaybackException) {
@@ -245,10 +251,20 @@ fun YouTubeScreen(onBack: () -> Unit) {
                                 Text(audioTitle.ifBlank { "Áudio do YouTube" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                                 Text(audioUploader, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
-                                    if (controller.isPlaying) "Reproduzindo em segundo plano" else "Áudio pronto para reproduzir",
+                                    if (audioIsPlaying) "Reproduzindo" else "Pausado",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = {
+                                        if (audioIsPlaying) controller.pause() else controller.play()
+                                    }) {
+                                        Text(if (audioIsPlaying) "Pausar" else "Reproduzir")
+                                    }
+                                    OutlinedButton(onClick = { controller.seekTo(0L) }) {
+                                        Text("Reiniciar")
+                                    }
+                                }
                             }
                         }
                     }
