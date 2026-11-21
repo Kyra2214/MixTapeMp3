@@ -154,6 +154,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 .setTitle(info.title)
                 .setArtist(info.uploader)
                 .setArtworkUri(info.thumbnailUrl?.let(android.net.Uri::parse))
+                .setExtras(Bundle().apply { putBoolean(EXTRA_AUDIO_ONLY, audioOnly) })
                 .build()
             if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
             val selectedUrl = if (audioOnly) info.audioStreamUrl
@@ -164,11 +165,7 @@ class YouTubePlaybackService : MediaSessionService() {
                     .setMediaId(videoId)
                     .setUri(selectedUrl)
                     .apply { selectedMimeType?.let { setMimeType(it) } }
-                    .setMediaMetadata(
-                        MediaMetadata.Builder(metadata)
-                            .setExtras(Bundle().apply { putBoolean(EXTRA_AUDIO_ONLY, audioOnly) })
-                            .build()
-                    )
+                    .setMediaMetadata(metadata)
                     .build()
             )
             player.prepare()
