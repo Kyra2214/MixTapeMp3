@@ -88,6 +88,15 @@ private object NewPipeHttpDownloader : Downloader() {
     }
 }
 
+data class YouTubePlaybackInfo(
+    val videoId: String,
+    val title: String,
+    val uploader: String,
+    val thumbnailUrl: String?,
+    val durationSeconds: Long,
+    val streamUrl: String
+)
+
 object YouTubeApi {
     private const val BASE_URL = "https://www.youtube.com/watch?v="
     @Volatile private var initialized = false
@@ -102,6 +111,34 @@ object YouTubeApi {
                 initialized = true
             }
         }
+    }
+
+    suspend fun resolvePlayback(videoId: String): YouTubePlaybackInfo = withContext(Dispatchers.IO) {
+        ensureInitialized()
+        val videoUrl = BASE_URL + videoId
+        val info = try {
+            StreamInfo.getInfo(videoUrl)
+        } catch (e: Exception) {
+            throw classifyFailure(e)
+        }
+        if (info.streamType.toString().contains("LIVE", ignoreCase = true)) {
+            throw YouTubeUnavailableException(YouTubeFailure.LiveNotSupported)
+        }
+
+        // Streams progressivos incluem áudio e vídeo. DASH separado será tratado em outra etapa.
+        val stream = info.videoStreams
+            .filterNot { it.isVideoOnly }
+            .maxByOrNull { it.height }
+            ?: throw YouTubeUnavailableException(YouTubeFailure.PlayerChanged)
+
+        YouTubePlaybackInfo(
+            videoId = videoId,
+            title = info.name.orEmpty(),
+            uploader = info.uploaderName.orEmpty(),
+            thumbnailUrl = info.thumbnails.firstOrNull()?.url,
+            durationSeconds = info.duration.coerceAtLeast(0L),
+            streamUrl = stream.url
+        )
     }
 
     suspend fun analyze(videoId: String): LinkInfo = withContext(Dispatchers.IO) {
