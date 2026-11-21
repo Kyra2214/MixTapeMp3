@@ -3,6 +3,8 @@ package com.cdvirtual.app.media.youtube
 import com.cdvirtual.app.media.connectors.YouTubeApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.schabi.newpipe.extractor.InfoItem
+import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
@@ -16,12 +18,17 @@ data class YouTubeVideo(
     val url: String
 )
 
+data class YouTubeSearchPage(
+    val videos: List<YouTubeVideo>,
+    val nextPage: Page?
+)
+
 /**
- * Pesquisa isolada da interface e do importador de áudio.
- * A extração usa o transporte NewPipe já configurado pelo conector existente.
+ * Pesquisa independente da interface e do importador de áudio.
+ * Mantém o cursor de paginação do NewPipe fora da camada visual.
  */
 class YouTubeSearchRepository {
-    suspend fun search(query: String): List<YouTubeVideo> = withContext(Dispatchers.IO) {
+    suspend fun search(query: String): YouTubeSearchPage = withContext(Dispatchers.IO) {
         val normalized = query.trim()
         require(normalized.isNotEmpty()) { "Digite o que deseja pesquisar." }
 
@@ -29,9 +36,28 @@ class YouTubeSearchRepository {
         val service = NewPipe.getService("YouTube")
         val handler = service.searchQHFactory.fromQuery(normalized)
         val info = SearchInfo.getInfo(service, handler)
+        YouTubeSearchPage(
+            videos = info.relatedItems.toVideos(),
+            nextPage = info.nextPage.takeIf { info.hasNextPage() }
+        )
+    }
 
-        info.relatedItems
-            .filterIsInstance<StreamInfoItem>()
+    suspend fun loadMore(query: String, page: Page): YouTubeSearchPage = withContext(Dispatchers.IO) {
+        val normalized = query.trim()
+        require(normalized.isNotEmpty()) { "A pesquisa atual não é válida." }
+
+        YouTubeApi.initialize()
+        val service = NewPipe.getService("YouTube")
+        val handler = service.searchQHFactory.fromQuery(normalized)
+        val result = SearchInfo.getMoreItems(service, handler, page)
+        YouTubeSearchPage(
+            videos = result.items.toVideos(),
+            nextPage = result.nextPage.takeIf { result.hasNextPage() }
+        )
+    }
+
+    private fun List<InfoItem>.toVideos(): List<YouTubeVideo> =
+        filterIsInstance<StreamInfoItem>()
             .mapNotNull { item ->
                 val url = item.url?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 val videoId = extractVideoId(url) ?: return@mapNotNull null
@@ -45,7 +71,6 @@ class YouTubeSearchRepository {
                 )
             }
             .distinctBy { it.videoId }
-    }
 
     private fun extractVideoId(rawUrl: String): String? = try {
         val uri = android.net.Uri.parse(rawUrl)
