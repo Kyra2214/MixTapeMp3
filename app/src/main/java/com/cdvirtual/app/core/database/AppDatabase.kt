@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TrackEntity::class, CdEntity::class, CdTrackEntity::class], version = 11, exportSchema = true)
+@Database(entities = [TrackEntity::class, CdEntity::class, CdTrackEntity::class, YouTubeHistoryEntity::class], version = 12, exportSchema = true)
 /**
  * REGRA (T-103): a v10 é a linha de base da 1.0 (v11 acrescenta o gênero das músicas). Toda mudança de schema exige incrementar a versão e registrar uma
  * `Migration` (addMigrations) — nunca voltar a usar fallbackToDestructiveMigration() sem lista de versões.
@@ -30,9 +30,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v11 -> v12: cria o histórico local e independente da área YouTube. */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS youtube_history (
+                        videoId TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        uploader TEXT,
+                        thumbnailUrl TEXT,
+                        durationSeconds INTEGER NOT NULL,
+                        lastPositionMs INTEGER NOT NULL,
+                        watchedAt INTEGER NOT NULL,
+                        watchCount INTEGER NOT NULL
+                    )"""
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_10_11)
+                .addMigrations(MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9) // só builds de desenvolvimento antigos; a v10 é a base da 1.0 e nunca é destruída
                 .build().also { instance = it }
         }
