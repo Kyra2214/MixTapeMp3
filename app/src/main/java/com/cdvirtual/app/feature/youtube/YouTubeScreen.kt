@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -66,6 +67,10 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var sponsorBlockEnabled by remember {
+        mutableStateOf(context.getSharedPreferences(YouTubePlaybackService.PREFERENCES, 0)
+            .getBoolean(YouTubePlaybackService.KEY_SPONSOR_BLOCK, false))
+    }
 
     DisposableEffect(selectedVideoId) {
         if (selectedVideoId == null) {
@@ -93,6 +98,31 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 Text("Pesquisa e reprodução independentes do login Google.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OutlinedButton(onClick = onBack) { Text("Voltar") }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Pular trechos patrocinados", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Consulta opcional ao SponsorBlock. Não remove anúncios do YouTube.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = sponsorBlockEnabled,
+                onCheckedChange = { enabled ->
+                    sponsorBlockEnabled = enabled
+                    context.getSharedPreferences(YouTubePlaybackService.PREFERENCES, 0)
+                        .edit()
+                        .putBoolean(YouTubePlaybackService.KEY_SPONSOR_BLOCK, enabled)
+                        .apply()
+                }
+            )
         }
 
         OutlinedTextField(
