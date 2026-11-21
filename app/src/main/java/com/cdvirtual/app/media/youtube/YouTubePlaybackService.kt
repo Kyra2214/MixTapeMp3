@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -63,6 +64,8 @@ class YouTubePlaybackService : MediaSessionService() {
             .setDataSourceFactory(httpFactory)
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .setHandleAudioBecomingNoisy(true)
             .build()
         player.setAudioAttributes(AudioAttributes.DEFAULT, true)
         mediaSession = MediaSession.Builder(this, player).build()
