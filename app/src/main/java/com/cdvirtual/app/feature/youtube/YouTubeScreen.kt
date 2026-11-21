@@ -84,6 +84,12 @@ fun YouTubeScreen(onBack: () -> Unit) {
             .getBoolean(YouTubePlaybackService.KEY_SPONSOR_BLOCK, false))
     }
 
+    fun startYouTubePlayback(videoId: String, audioOnly: Boolean = false) {
+        error = null
+        selectedVideoId = videoId
+        YouTubePlaybackService.play(context, videoId, audioOnly)
+    }
+
     if (confirmClearHistory) {
         AlertDialog(
             onDismissRequest = { confirmClearHistory = false },
@@ -291,14 +297,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
             items(results, key = { it.videoId }) { video ->
                 VideoResultRow(
                     video = video,
-                    onPlay = {
-                        selectedVideoId = video.videoId
-                        YouTubePlaybackService.play(context, video.videoId)
-                    },
-                    onListen = {
-                        selectedVideoId = video.videoId
-                        YouTubePlaybackService.play(context, video.videoId, audioOnly = true)
-                    }
+                    onPlay = { startYouTubePlayback(video.videoId) },
+                    onListen = { startYouTubePlayback(video.videoId, audioOnly = true) }
                 )
             }
             if (nextPage != null) {
@@ -330,14 +330,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 items(history, key = { it.videoId }) { historyItem ->
                     HistoryRow(
                         item = historyItem,
-                        onPlay = {
-                            selectedVideoId = historyItem.videoId
-                            YouTubePlaybackService.play(context, historyItem.videoId)
-                        },
-                        onListen = {
-                            selectedVideoId = historyItem.videoId
-                            YouTubePlaybackService.play(context, historyItem.videoId, audioOnly = true)
-                        },
+                        onPlay = { startYouTubePlayback(historyItem.videoId) },
+                        onListen = { startYouTubePlayback(historyItem.videoId, audioOnly = true) },
                         onDelete = {
                             scope.launch { app.database.youtubeHistoryDao().delete(historyItem.videoId) }
                         }
