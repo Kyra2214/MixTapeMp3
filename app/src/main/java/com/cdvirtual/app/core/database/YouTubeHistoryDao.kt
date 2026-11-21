@@ -19,13 +19,12 @@ interface YouTubeHistoryDao {
 
     @Query("""
         UPDATE youtube_history
-        SET lastPositionMs = :positionMs, watchedAt = :watchedAt
+        SET lastPositionMs = :positionMs
         WHERE videoId = :videoId
     """)
     suspend fun updateProgress(
         videoId: String,
-        positionMs: Long,
-        watchedAt: Long = System.currentTimeMillis()
+        positionMs: Long
     )
 
     @Query("DELETE FROM youtube_history WHERE videoId = :videoId")
