@@ -109,12 +109,14 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
+            scope.launch { monitorPlayback(videoId) }
             val sponsorEnabled = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) {
-                sponsorSegments = SponsorBlockRepository().getSkippableSegments(videoId)
+                scope.launch {
+                    sponsorSegments = SponsorBlockRepository().getSkippableSegments(videoId)
+                }
             }
-            scope.launch { monitorPlayback(videoId) }
             if (loadingVideoId == videoId) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
