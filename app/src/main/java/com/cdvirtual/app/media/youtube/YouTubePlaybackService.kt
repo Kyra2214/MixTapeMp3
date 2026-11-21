@@ -91,6 +91,7 @@ class YouTubePlaybackService : MediaSessionService() {
     private suspend fun loadAndPlay(videoId: String) {
         try {
             val info = YouTubeApi.resolvePlayback(videoId)
+            if (loadingVideoId != videoId) return
             sponsorSegments = emptyList()
             skippedSponsorSegments.clear()
             val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
@@ -112,6 +113,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 .setArtist(info.uploader)
                 .setArtworkUri(info.thumbnailUrl?.let(android.net.Uri::parse))
                 .build()
+            if (loadingVideoId != videoId) return
             player.setMediaItem(
                 MediaItem.Builder()
                     .setMediaId(videoId)
@@ -126,7 +128,7 @@ class YouTubePlaybackService : MediaSessionService() {
             }
             player.play()
             scope.launch { monitorPlayback(videoId) }
-            val sponsorEnabled = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+            val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) {
                 scope.launch {
@@ -139,10 +141,12 @@ class YouTubePlaybackService : MediaSessionService() {
             if (loadingVideoId == videoId) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
-            YouTubePlaybackStatus.reportError(
-                "Não foi possível obter a transmissão deste vídeo. Ele pode estar indisponível ou o YouTube pode ter alterado o formato."
-            )
-            loadingVideoId = null
+            if (loadingVideoId == videoId) {
+                YouTubePlaybackStatus.reportError(
+                    "Não foi possível obter a transmissão deste vídeo. Ele pode estar indisponível ou o YouTube pode ter alterado o formato."
+                )
+                loadingVideoId = null
+            }
         }
     }
 
