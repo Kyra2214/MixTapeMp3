@@ -306,7 +306,7 @@ class YouTubePlaybackService : MediaSessionService() {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     (application as CDVirtualApp).database.youtubeHistoryDao()
-                        .updateProgress(videoId, position, System.currentTimeMillis())
+                        .updateProgress(videoId, position)
                 }.onFailure { failure ->
                     android.util.Log.w(TAG, "Não foi possível salvar a posição ao encerrar o serviço", failure)
                 }
