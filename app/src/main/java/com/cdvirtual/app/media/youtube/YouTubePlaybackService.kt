@@ -14,7 +14,6 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
-import com.cdvirtual.app.media.connectors.YouTubeApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -98,7 +97,7 @@ class YouTubePlaybackService : MediaSessionService() {
 
     private suspend fun loadAndPlay(videoId: String) {
         try {
-            val info = YouTubeApi.resolvePlayback(videoId)
+            val info = YouTubePlaybackRepository.resolve(videoId)
             if (loadingVideoId != videoId) return
             sponsorSegments = emptyList()
             skippedSponsorSegments.clear()
