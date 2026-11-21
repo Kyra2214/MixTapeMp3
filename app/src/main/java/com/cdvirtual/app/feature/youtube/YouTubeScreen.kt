@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
+import org.schabi.newpipe.extractor.Page
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
@@ -53,6 +54,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var nextPage by remember { mutableStateOf<Page?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
@@ -99,7 +102,9 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     loading = true
                     error = null
                     try {
-                        results = repository.search(query)
+                        val page = repository.search(query)
+                        results = page.videos
+                        nextPage = page.nextPage
                         if (results.isEmpty()) error = "Nenhum vídeo encontrado."
                     } catch (failure: Exception) {
                         error = failure.message ?: "Não foi possível pesquisar agora."
@@ -114,7 +119,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             Text(if (loading) "Pesquisando..." else "Pesquisar")
         }
 
-        if (loading) CircularProgressIndicator()
+        if (loading || loadingMore) CircularProgressIndicator()
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         if (selectedVideoId != null) {
             mediaController?.let { controller ->
@@ -144,6 +149,30 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             YouTubePlaybackService.play(context, video.videoId)
                         }) { Text("Reproduzir") }
                     }
+                }
+            }
+            if (nextPage != null) {
+                item {
+                    OutlinedButton(
+                        onClick = {
+                            val cursor = nextPage ?: return@OutlinedButton
+                            scope.launch {
+                                loadingMore = true
+                                error = null
+                                try {
+                                    val page = repository.loadMore(query, cursor)
+                                    results = (results + page.videos).distinctBy { it.videoId }
+                                    nextPage = page.nextPage
+                                } catch (failure: Exception) {
+                                    error = failure.message ?: "Não foi possível carregar mais resultados."
+                                } finally {
+                                    loadingMore = false
+                                }
+                            }
+                        },
+                        enabled = !loading && !loadingMore,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (loadingMore) "Carregando..." else "Carregar mais") }
                 }
             }
             if (history.isNotEmpty()) {
