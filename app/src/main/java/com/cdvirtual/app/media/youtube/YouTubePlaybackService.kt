@@ -83,7 +83,7 @@ class YouTubePlaybackService : MediaSessionService() {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
                     hasStartedCurrentItem = true
-                } else if (hasStartedCurrentItem) {
+                } else if (hasStartedCurrentItem && player.playbackState != Player.STATE_ENDED) {
                     persistCurrentPosition()
                 }
             }
