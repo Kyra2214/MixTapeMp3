@@ -2,6 +2,7 @@ package com.cdvirtual.app.media.youtube
 
 import android.content.Context
 import android.content.Intent
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -24,7 +25,7 @@ import kotlinx.coroutines.launch
  * em segundo plano e fornece controles de mídia do Android.
  */
 class YouTubePlaybackService : MediaSessionService() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var player: ExoPlayer
     private var mediaSession: MediaSession? = null
     private var loadingVideoId: String? = null
@@ -45,6 +46,7 @@ class YouTubePlaybackService : MediaSessionService() {
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
+        player.setAudioAttributes(AudioAttributes.DEFAULT, true)
         mediaSession = MediaSession.Builder(this, player).build()
     }
 
