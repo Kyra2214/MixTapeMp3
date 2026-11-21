@@ -14,6 +14,7 @@ import org.schabi.newpipe.extractor.localization.Localization
 private object NewPipeHttpDownloader : Downloader() {
     private const val MAX_RESPONSE_BYTES = 8 * 1024 * 1024
     private const val MAX_ATTEMPTS = 3
+    private val retryableStatusCodes = setOf(408, 429, 500, 502, 503, 504)
 
     private val client = okhttp3.OkHttpClient.Builder()
         .proxy(java.net.Proxy.NO_PROXY)
@@ -28,7 +29,6 @@ private object NewPipeHttpDownloader : Downloader() {
 
     override fun execute(request: Request): Response {
         val method = request.httpMethod()
-        val requestPath = java.net.URL(request.url()).let { it.host + it.path }
         val data = request.dataToSend()
         val builder = okhttp3.Request.Builder().url(request.url())
 
@@ -50,14 +50,9 @@ private object NewPipeHttpDownloader : Downloader() {
         val httpRequest = builder.method(method, body).build()
 
         for (attempt in 1..MAX_ATTEMPTS) {
-            val startedAt = System.currentTimeMillis()
-            println("[NP-HTTP] INICIO $method $requestPath tentativa $attempt/$MAX_ATTEMPTS")
             try {
                 client.newCall(httpRequest).execute().use { response ->
-                    val status = response.code
-                    println("[NP-HTTP] HTTP $status em ${System.currentTimeMillis() - startedAt} ms")
-                    if (status in setOf(408, 429, 500, 502, 503, 504) && attempt < MAX_ATTEMPTS) {
-                        Thread.sleep(700L * attempt)
+                    if (response.code in retryableStatusCodes && attempt < MAX_ATTEMPTS) {
                         return@use null
                     }
                     val responseHeaders = response.headers.toMultimap()
@@ -76,8 +71,6 @@ private object NewPipeHttpDownloader : Downloader() {
                         }
                     }
                     val responseBody = output.toString("UTF-8")
-                    println("[NP-HTTP] CORPO RECEBIDO: $total bytes")
-                    println("[NP-HTTP] CONCLUIDO EM ${System.currentTimeMillis() - startedAt} ms")
                     return Response(
                         status,
                         response.message,
@@ -86,13 +79,22 @@ private object NewPipeHttpDownloader : Downloader() {
                         response.request.url.toString()
                     )
                 }?.let { return it }
+                waitBeforeRetry(attempt)
             } catch (failure: java.io.IOException) {
-                println("[NP-HTTP] FALHA ${failure.javaClass.simpleName}: ${failure.message}")
                 if (attempt == MAX_ATTEMPTS) throw failure
-                Thread.sleep(700L * attempt)
+                waitBeforeRetry(attempt)
             }
         }
         throw java.io.IOException("Falha inesperada no transporte HTTP")
+    }
+
+    private fun waitBeforeRetry(attempt: Int) {
+        try {
+            Thread.sleep(700L * attempt)
+        } catch (interrupted: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw java.io.IOException("Tentativa HTTP interrompida", interrupted)
+        }
     }
 }
 
