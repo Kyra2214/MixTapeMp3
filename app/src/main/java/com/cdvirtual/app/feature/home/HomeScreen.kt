@@ -56,6 +56,7 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         if (uri != null) folder = outputFolder.choose(uri)
     }
     val actions = listOf(
+        HomeAction(Destination.YouTube, "▶", "Busque e baixe do YouTube", Color(0xFFFF5A5A)),
         HomeAction(Destination.Browser, "◎", "Encontre áudio na web", Color(0xFF58D8D0)),
         HomeAction(Destination.Importer, "↓", "Adicione à sua coleção", Color(0xFFFFA36C)),
         HomeAction(Destination.Downloads, "⇩", "Acompanhe sua fila", Color(0xFF69C6FF)),

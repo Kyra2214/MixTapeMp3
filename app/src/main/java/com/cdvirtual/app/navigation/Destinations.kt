@@ -6,6 +6,7 @@ enum class Destination(val route: String, val label: String) {
     Library("library", "Biblioteca"),
     Importer("importer", "Importar"),
     Downloads("downloads", "Downloads"),
+    YouTube("youtube", "YouTube"),
     Browser("browser", "Navegador"),
     CdEditor("cdeditor", "Playlists"),
     Equalizer("equalizer", "Equalizador"),

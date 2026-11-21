@@ -59,16 +59,22 @@ private val formatChoices = listOf(
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
+fun BrowserScreen(
+    webView: WebView,
+    vm: ImporterViewModel,
+    onHome: () -> Unit,
+    startUrl: String = "https://www.youtube.com/",
+    title: String = "Navegador"
+) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE) }
     var preferredFormat by remember { mutableStateOf(preferences.getString(FORMAT_KEY, "BEST") ?: "BEST") }
     var showFormatDialog by remember { mutableStateOf(false) }
     var formatConfigured by remember { mutableStateOf(preferences.getBoolean(FORMAT_CONFIGURED_KEY, false)) }
-    var address by remember(webView) { mutableStateOf(webView.url ?: "https://www.youtube.com/") }
-    var currentUrl by remember(webView) { mutableStateOf(webView.url ?: "https://www.youtube.com/") }
+    var address by remember(webView) { mutableStateOf(webView.url ?: startUrl) }
+    var currentUrl by remember(webView) { mutableStateOf(webView.url ?: startUrl) }
     var progress by remember(webView) { mutableFloatStateOf(if (webView.progress == 100) 1f else 0f) }
-    var pageTitle by remember(webView) { mutableStateOf(webView.title?.takeIf { it.isNotBlank() } ?: "Navegador") }
+    var pageTitle by remember(webView) { mutableStateOf(webView.title?.takeIf { it.isNotBlank() } ?: title) }
     var canGoBack by remember(webView) { mutableStateOf(webView.canGoBack()) }
     var canGoForward by remember(webView) { mutableStateOf(webView.canGoForward()) }
 
@@ -103,7 +109,7 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
             }
             override fun onPageFinished(view: WebView, url: String) {
                 syncAddress(view, url)
-                pageTitle = view.title?.takeIf { it.isNotBlank() } ?: "Navegador"
+                pageTitle = view.title?.takeIf { it.isNotBlank() } ?: title
                 progress = 1f
             }
         }
@@ -114,7 +120,7 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
                 canGoForward = view.canGoForward()
             }
         }
-        if (webView.url.isNullOrBlank()) webView.loadUrl("https://www.youtube.com/")
+        if (webView.url.isNullOrBlank()) webView.loadUrl(startUrl)
         onDispose { /* A sessão é mantida no AppNavHost. */ }
     }
     BackHandler(enabled = canGoBack) { webView.goBack() }

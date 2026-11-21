@@ -36,6 +36,8 @@ fun AppNavHost() {
     val back: () -> Unit = { nav.back() }
     val context = LocalContext.current
     val browserWebView = remember { WebView(context) }
+    // Sessão separada: histórico, cookies e login do YouTube não se misturam com o Navegador.
+    val youtubeWebView = remember { WebView(context) }
     // Escopo da Activity: a fila não morre quando a tela Importar sai da navegação.
     val importerVm: ImporterViewModel = viewModel()
     NavHost(navController = nav, startDestination = Destination.Welcome.route) {
@@ -71,6 +73,20 @@ fun AppNavHost() {
                         launchSingleTop = true
                     }
                 }
+            )
+        }
+        composable(Destination.YouTube.route) {
+            BrowserScreen(
+                webView = youtubeWebView,
+                vm = importerVm,
+                onHome = {
+                    nav.navigate(Destination.Home.route) {
+                        popUpTo(Destination.Home.route) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+                startUrl = "https://www.youtube.com/",
+                title = "YouTube"
             )
         }
         composable(Destination.CdEditor.route) { CdEditorScreen(onBack = back) }
