@@ -126,19 +126,19 @@ object YouTubeApi {
             throw YouTubeUnavailableException(YouTubeFailure.LiveNotSupported)
         }
 
-        // Streams progressivos incluem áudio e vídeo. DASH separado será tratado em outra etapa.
+        // Prioriza DASH adaptativo; usa progressivo ou HLS como alternativas.
+        val dashUrl = info.dashMpdUrl.takeIf { it.isNotBlank() }
         val progressive = info.videoStreams
             .filter { !it.isVideoOnly && it.isUrl }
             .maxByOrNull { it.height }
-        val dashUrl = info.dashMpdUrl.takeIf { it.isNotBlank() }
         val hlsUrl = info.hlsUrl.takeIf { it.isNotBlank() }
-        val streamUrl = progressive?.content
-            ?: dashUrl
+        val streamUrl = dashUrl
+            ?: progressive?.content
             ?: hlsUrl
             ?: throw YouTubeUnavailableException(YouTubeFailure.PlayerChanged)
         val mimeType = when {
-            progressive != null -> progressive.format?.mimeType
             dashUrl != null -> "application/dash+xml"
+            progressive != null -> progressive.format?.mimeType
             else -> "application/x-mpegURL"
         }
 
