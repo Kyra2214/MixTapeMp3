@@ -2,6 +2,7 @@ package com.cdvirtual.app.media.youtube
 
 import android.content.Context
 import android.content.Intent
+import android.app.PendingIntent
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
@@ -16,6 +17,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.cdvirtual.app.CDVirtualApp
+import com.cdvirtual.app.MainActivity
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -100,7 +102,17 @@ class YouTubePlaybackService : MediaSessionService() {
                 YouTubePlaybackStatus.reportError(error.toYouTubePlaybackMessage())
             }
         })
-        mediaSession = MediaSession.Builder(this, player).build()
+        val sessionActivity = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(sessionActivity)
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
