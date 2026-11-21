@@ -46,6 +46,7 @@ import coil.compose.AsyncImage
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
+import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
 import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
 import com.cdvirtual.app.media.youtube.YouTubeVideo
 import kotlinx.coroutines.launch
@@ -60,6 +61,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
     val app = context.applicationContext as CDVirtualApp
     val repository = remember { YouTubeSearchRepository() }
     val history by app.database.youtubeHistoryDao().observeAll().collectAsState(initial = emptyList())
+    val playbackError by YouTubePlaybackStatus.error.collectAsState()
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
@@ -177,6 +179,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
 
         if (loading || loadingMore) CircularProgressIndicator()
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         if (selectedVideoId != null) {
             mediaController?.let { controller ->
                 AndroidView(
