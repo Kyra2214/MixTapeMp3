@@ -113,7 +113,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 val currentAudioOnly = player.currentMediaItem?.mediaMetadata?.extras
                     ?.getBoolean(EXTRA_AUDIO_ONLY, false) ?: false
                 if (player.currentMediaItem?.mediaId == videoId && currentAudioOnly == audioOnly) {
-                    playbackRequestId++
+                    val requestId = ++playbackRequestId
                     loadingVideoId = null
                     if (player.playbackState == Player.STATE_ENDED) {
                         player.seekTo(0L)
@@ -121,6 +121,7 @@ class YouTubePlaybackService : MediaSessionService() {
                         player.prepare()
                     }
                     player.play()
+                    startPlaybackMonitor(videoId, requestId)
                 } else if (videoId != loadingVideoId || audioOnly != loadingAudioOnly) {
                     // Evita que o vídeo anterior continue tocando enquanto o novo stream é resolvido.
                     player.pause()
@@ -179,14 +180,15 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
-            playbackMonitorJob?.cancel()
-            playbackMonitorJob = scope.launch { monitorPlayback(videoId, requestId) }
+            startPlaybackMonitor(videoId, requestId)
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) {
                 scope.launch {
                     val segments = SponsorBlockRepository.getSkippableSegments(videoId)
-                    if (isCurrentRequest(videoId, audioOnly, requestId) && player.currentMediaItem?.mediaId == videoId) {
+                    // A resolução do stream já terminou e loadingVideoId foi limpo.
+                    // Aqui a geração + mediaId identificam a reprodução ativa.
+                    if (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
                         sponsorSegments = segments
                     }
                 }
@@ -199,6 +201,11 @@ class YouTubePlaybackService : MediaSessionService() {
                 loadingVideoId = null
             }
         }
+    }
+
+    private fun startPlaybackMonitor(videoId: String, requestId: Long) {
+        playbackMonitorJob?.cancel()
+        playbackMonitorJob = scope.launch { monitorPlayback(videoId, requestId) }
     }
 
     private fun persistCurrentPosition(resetToStart: Boolean = false) {
