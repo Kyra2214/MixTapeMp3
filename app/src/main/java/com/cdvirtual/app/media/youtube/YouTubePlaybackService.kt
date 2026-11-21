@@ -16,6 +16,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.common.util.UnstableApi
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.MainActivity
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
@@ -58,6 +61,8 @@ class YouTubePlaybackService : MediaSessionService() {
     private var sponsorSegments: List<SponsorSegment> = emptyList()
     private val skippedSponsorSegments = mutableSetOf<Int>()
     private var hasStartedCurrentItem = false
+    private var resumingVideoId: String? = null
+    private var resumingRequestId = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -81,6 +86,16 @@ class YouTubePlaybackService : MediaSessionService() {
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 hasStartedCurrentItem = false
+                val resumedId = mediaItem?.mediaId
+                if (resumedId != null && resumedId == resumingVideoId) {
+                    val requestId = resumingRequestId
+                    resumingVideoId = null
+                    loadingVideoId = null
+                    startPlaybackMonitor(resumedId, requestId)
+                    val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                        .getBoolean(KEY_SPONSOR_BLOCK, false)
+                    if (sponsorEnabled) requestSponsorSegments(resumedId, requestId)
+                }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -112,7 +127,71 @@ class YouTubePlaybackService : MediaSessionService() {
         )
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivity)
+            .setCallback(playbackResumptionCallback)
             .build()
+    }
+
+    @OptIn(UnstableApi::class)
+    private val playbackResumptionCallback = object : MediaSession.Callback {
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            isForPlayback: Boolean
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val history = (application as CDVirtualApp).database
+                        .youtubeHistoryDao().findMostRecent()
+                        ?: throw IllegalStateException("Nenhum vídeo disponível no histórico para retomar")
+                    val audioOnly = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                        .getBoolean(KEY_LAST_AUDIO_ONLY, false)
+                    val info = if (isForPlayback) {
+                        YouTubePlaybackRepository.resolve(history.videoId)
+                    } else {
+                        null
+                    }
+                    val metadata = MediaMetadata.Builder()
+                        .setTitle(info?.title ?: history.title)
+                        .setArtist(info?.uploader ?: history.uploader)
+                        .setArtworkUri((info?.thumbnailUrl ?: history.thumbnailUrl)?.let(android.net.Uri::parse))
+                        .setExtras(Bundle().apply { putBoolean(EXTRA_AUDIO_ONLY, audioOnly) })
+                        .build()
+                    val itemBuilder = MediaItem.Builder()
+                        .setMediaId(history.videoId)
+                        .setMediaMetadata(metadata)
+                    if (info != null) {
+                        val streamUrl = if (audioOnly) info.audioStreamUrl
+                            ?: throw YouTubeUnavailableException(YouTubeFailure.NoAudio)
+                        else info.streamUrl
+                        val mimeType = if (audioOnly) info.audioMimeType else info.mimeType
+                        itemBuilder.setUri(streamUrl)
+                        mimeType?.let(itemBuilder::setMimeType)
+                    }
+                    if (isForPlayback) {
+                        val requestId = ++playbackRequestId
+                        resumingVideoId = history.videoId
+                        resumingRequestId = requestId
+                        loadingVideoId = history.videoId
+                        loadingAudioOnly = audioOnly
+                    }
+                    result.set(
+                        MediaSession.MediaItemsWithStartPosition(
+                            listOf(itemBuilder.build()),
+                            0,
+                            if (isForPlayback) history.lastPositionMs.coerceAtLeast(0L) else C.TIME_UNSET
+                        )
+                    )
+                } catch (cancelled: CancellationException) {
+                    result.cancel(false)
+                    throw cancelled
+                } catch (failure: Exception) {
+                    android.util.Log.w(TAG, "Não foi possível preparar a retomada do YouTube", failure)
+                    result.setException(failure)
+                }
+            }
+            return result
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
@@ -123,6 +202,8 @@ class YouTubePlaybackService : MediaSessionService() {
             YouTubePlaybackStatus.clearError()
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
             val audioOnly = intent.getBooleanExtra(EXTRA_AUDIO_ONLY, false)
+            getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_LAST_AUDIO_ONLY, audioOnly).apply()
             if (videoId != null) {
                 val currentAudioOnly = player.currentMediaItem?.mediaMetadata?.extras
                     ?.getBoolean(EXTRA_AUDIO_ONLY, false) ?: false
@@ -352,6 +433,7 @@ class YouTubePlaybackService : MediaSessionService() {
         const val EXTRA_AUDIO_ONLY = "youtube_audio_only"
         const val PREFERENCES = "youtube_preferences"
         const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
+        private const val KEY_LAST_AUDIO_ONLY = "last_audio_only"
 
         fun play(context: Context, videoId: String, audioOnly: Boolean = false) {
             // Chamado pela interface enquanto o app está visível. O MediaSessionService
