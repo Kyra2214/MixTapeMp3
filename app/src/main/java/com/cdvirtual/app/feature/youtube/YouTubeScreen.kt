@@ -221,10 +221,17 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 item { Text("Resultados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
             items(results, key = { it.videoId }) { video ->
-                VideoResultRow(video) {
-                    selectedVideoId = video.videoId
-                    YouTubePlaybackService.play(context, video.videoId)
-                }
+                VideoResultRow(
+                    video = video,
+                    onPlay = {
+                        selectedVideoId = video.videoId
+                        YouTubePlaybackService.play(context, video.videoId)
+                    },
+                    onListen = {
+                        selectedVideoId = video.videoId
+                        YouTubePlaybackService.play(context, video.videoId, audioOnly = true)
+                    }
+                )
             }
             if (nextPage != null) {
                 item {
@@ -259,6 +266,10 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             selectedVideoId = historyItem.videoId
                             YouTubePlaybackService.play(context, historyItem.videoId)
                         },
+                        onListen = {
+                            selectedVideoId = historyItem.videoId
+                            YouTubePlaybackService.play(context, historyItem.videoId, audioOnly = true)
+                        },
                         onDelete = {
                             scope.launch { app.database.youtubeHistoryDao().delete(historyItem.videoId) }
                         }
@@ -276,7 +287,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit) {
+private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(10.dp),
@@ -293,14 +304,17 @@ private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit) {
                 Text(video.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(video.channel.ifBlank { "Canal não informado" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(formatDuration(video.durationSeconds), style = MaterialTheme.typography.labelSmall)
-                Button(onClick = onPlay) { Text("Reproduzir") }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Button(onClick = onPlay) { Text("Assistir") }
+                    TextButton(onClick = onListen) { Text("Ouvir") }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onDelete: () -> Unit) {
+private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onListen: () -> Unit, onDelete: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(10.dp),
@@ -322,7 +336,8 @@ private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onDelete:
                 }
                 Text(formatWatchedAt(item.watchedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row {
-                    TextButton(onClick = onPlay) { Text("Retomar") }
+                    TextButton(onClick = onPlay) { Text("Assistir") }
+                    TextButton(onClick = onListen) { Text("Ouvir") }
                     TextButton(onClick = onDelete) { Text("Excluir") }
                 }
             }
