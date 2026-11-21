@@ -72,7 +72,7 @@ private object NewPipeHttpDownloader : Downloader() {
                     }
                     val responseBody = output.toString("UTF-8")
                     return Response(
-                        status,
+                        response.code,
                         response.message,
                         responseHeaders,
                         responseBody,
