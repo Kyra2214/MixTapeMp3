@@ -404,7 +404,7 @@ private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onListen:
                 }
                 Text(formatWatchedAt(item.watchedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row {
-                    TextButton(onClick = onPlay) { Text("Assistir") }
+                    TextButton(onClick = onPlay) { Text(if (item.lastPositionMs > 0) "Retomar" else "Assistir") }
                     TextButton(onClick = onListen) { Text("Ouvir") }
                     TextButton(onClick = onDelete) { Text("Excluir") }
                 }
