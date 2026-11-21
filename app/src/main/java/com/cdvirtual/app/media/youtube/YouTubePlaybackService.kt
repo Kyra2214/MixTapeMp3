@@ -363,11 +363,6 @@ class YouTubePlaybackService : MediaSessionService() {
         playbackRequestId == requestId && loadingVideoId == videoId && loadingAudioOnly == audioOnly
 
     private suspend fun monitorPlayback(videoId: String, requestId: Long) {
-        val dao = runCatching {
-            (application as CDVirtualApp).database.youtubeHistoryDao()
-        }.onFailure { failure ->
-            android.util.Log.w(TAG, "Monitor de histórico indisponível", failure)
-        }.getOrNull() ?: return
         var lastProgressWrite = SystemClock.elapsedRealtime()
         while (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
             delay(500)
