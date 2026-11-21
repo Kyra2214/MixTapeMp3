@@ -56,6 +56,7 @@ dependencies {
     implementation("com.github.teamnewpipe:NewPipeExtractor:v0.27.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.0.4")
