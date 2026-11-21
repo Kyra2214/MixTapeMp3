@@ -185,7 +185,11 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 }
 
                 override fun onPlayerError(playbackError: PlaybackException) {
-                    error = "Falha na reprodução: " + playbackError.errorCodeName
+                    val message = "Falha na reprodução: " + playbackError.errorCodeName
+                    error = message
+                    // Erros que acontecem depois de carregar o stream também precisam
+                    // liberar a ação global de tentar novamente.
+                    YouTubePlaybackStatus.reportError(message)
                 }
             }
             syncPlaybackDisplay()
