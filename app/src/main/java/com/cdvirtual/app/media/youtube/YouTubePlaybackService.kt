@@ -147,6 +147,8 @@ class YouTubePlaybackService : MediaSessionService() {
                         .getBoolean(KEY_LAST_AUDIO_ONLY, false)
                     // URLs extraídas do YouTube expiram. Resolva um stream novo ao retomar.
                     val info = YouTubePlaybackRepository.resolve(history.videoId)
+                    (application as CDVirtualApp).database.youtubeHistoryDao()
+                        .markResumed(history.videoId, System.currentTimeMillis())
                     val metadata = MediaMetadata.Builder()
                         .setTitle(info.title)
                         .setArtist(info.uploader)
