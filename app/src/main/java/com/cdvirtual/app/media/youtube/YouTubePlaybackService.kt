@@ -246,13 +246,30 @@ class YouTubePlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        // Faz uma última tentativa de salvar o ponto atual em um escopo independente,
+        // pois o escopo principal será cancelado logo abaixo.
+        player.currentMediaItem?.mediaId?.let { videoId ->
+            val position = if (player.playbackState == Player.STATE_ENDED) {
+                0L
+            } else {
+                player.currentPosition.coerceAtLeast(0L)
+            }
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching {
+                    (application as CDVirtualApp).database.youtubeHistoryDao()
+                        .updateProgress(videoId, position, System.currentTimeMillis())
+                }.onFailure { failure ->
+                    android.util.Log.w(TAG, "Não foi possível salvar a posição ao encerrar o serviço", failure)
+                }
+            }
+        }
+        playbackMonitorJob?.cancel()
+        loadingVideoId = null
         mediaSession?.run {
             player.release()
             release()
         } ?: player.release()
         scope.cancel()
-        loadingVideoId = null
-        playbackMonitorJob?.cancel()
         super.onDestroy()
     }
 
