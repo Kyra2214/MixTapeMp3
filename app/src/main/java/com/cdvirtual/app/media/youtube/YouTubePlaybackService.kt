@@ -112,13 +112,15 @@ class YouTubePlaybackService : MediaSessionService() {
             if (videoId != null) {
                 val currentAudioOnly = player.currentMediaItem?.mediaMetadata?.extras
                     ?.getBoolean(EXTRA_AUDIO_ONLY, false) ?: false
-                if (player.currentMediaItem?.mediaId == videoId && currentAudioOnly == audioOnly) {
+                if (
+                    player.currentMediaItem?.mediaId == videoId &&
+                    currentAudioOnly == audioOnly &&
+                    player.playbackState != Player.STATE_IDLE
+                ) {
                     val requestId = ++playbackRequestId
                     loadingVideoId = null
                     if (player.playbackState == Player.STATE_ENDED) {
                         player.seekTo(0L)
-                    } else if (player.playbackState == Player.STATE_IDLE) {
-                        player.prepare()
                     }
                     player.play()
                     startPlaybackMonitor(videoId, requestId)
