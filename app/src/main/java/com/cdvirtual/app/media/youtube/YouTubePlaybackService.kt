@@ -135,8 +135,7 @@ class YouTubePlaybackService : MediaSessionService() {
         @OptIn(UnstableApi::class)
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            isForPlayback: Boolean
+            controller: MediaSession.ControllerInfo
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
             scope.launch {
@@ -146,40 +145,34 @@ class YouTubePlaybackService : MediaSessionService() {
                         ?: throw IllegalStateException("Nenhum vídeo disponível no histórico para retomar")
                     val audioOnly = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                         .getBoolean(KEY_LAST_AUDIO_ONLY, false)
-                    val info = if (isForPlayback) {
-                        YouTubePlaybackRepository.resolve(history.videoId)
-                    } else {
-                        null
-                    }
+                    // URLs extraídas do YouTube expiram. Resolva um stream novo ao retomar.
+                    val info = YouTubePlaybackRepository.resolve(history.videoId)
                     val metadata = MediaMetadata.Builder()
-                        .setTitle(info?.title ?: history.title)
-                        .setArtist(info?.uploader ?: history.uploader)
-                        .setArtworkUri((info?.thumbnailUrl ?: history.thumbnailUrl)?.let(android.net.Uri::parse))
+                        .setTitle(info.title)
+                        .setArtist(info.uploader)
+                        .setArtworkUri(info.thumbnailUrl?.let(android.net.Uri::parse))
                         .setExtras(Bundle().apply { putBoolean(EXTRA_AUDIO_ONLY, audioOnly) })
                         .build()
+                    val streamUrl = if (audioOnly) info.audioStreamUrl
+                        ?: throw YouTubeUnavailableException(YouTubeFailure.NoAudio)
+                    else info.streamUrl
+                    val mimeType = if (audioOnly) info.audioMimeType else info.mimeType
                     val itemBuilder = MediaItem.Builder()
                         .setMediaId(history.videoId)
+                        .setUri(streamUrl)
                         .setMediaMetadata(metadata)
-                    if (info != null) {
-                        val streamUrl = if (audioOnly) info.audioStreamUrl
-                            ?: throw YouTubeUnavailableException(YouTubeFailure.NoAudio)
-                        else info.streamUrl
-                        val mimeType = if (audioOnly) info.audioMimeType else info.mimeType
-                        itemBuilder.setUri(streamUrl)
-                        mimeType?.let(itemBuilder::setMimeType)
-                    }
-                    if (isForPlayback) {
-                        val requestId = ++playbackRequestId
-                        resumingVideoId = history.videoId
-                        resumingRequestId = requestId
-                        loadingVideoId = history.videoId
-                        loadingAudioOnly = audioOnly
-                    }
+                    mimeType?.let(itemBuilder::setMimeType)
+
+                    val requestId = ++playbackRequestId
+                    resumingVideoId = history.videoId
+                    resumingRequestId = requestId
+                    loadingVideoId = history.videoId
+                    loadingAudioOnly = audioOnly
                     result.set(
                         MediaSession.MediaItemsWithStartPosition(
                             listOf(itemBuilder.build()),
                             0,
-                            if (isForPlayback) history.lastPositionMs.coerceAtLeast(0L) else C.TIME_UNSET
+                            history.lastPositionMs.coerceAtLeast(0L)
                         )
                     )
                 } catch (cancelled: CancellationException) {
