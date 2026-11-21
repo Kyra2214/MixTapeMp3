@@ -11,7 +11,9 @@ data class YouTubePlaybackInfo(
     val thumbnailUrl: String?,
     val durationSeconds: Long,
     val streamUrl: String,
-    val mimeType: String?
+    val mimeType: String?,
+    val audioStreamUrl: String?,
+    val audioMimeType: String?
 )
 
 /**
@@ -46,6 +48,11 @@ object YouTubePlaybackRepository {
             progressive != null -> progressive.format?.mimeType
             else -> "application/x-mpegURL"
         }
+        val audioStream = info.audioStreams
+            .filter { !it.isUrl.not() && !it.url.isNullOrBlank() }
+            .maxByOrNull { it.averageBitrate.takeIf { rate -> rate > 0 } ?: it.bitrate }
+        val audioStreamUrl = audioStream?.url
+        val audioMimeType = audioStream?.format?.mimeType
 
         YouTubePlaybackInfo(
             videoId = videoId,
@@ -54,7 +61,9 @@ object YouTubePlaybackRepository {
             thumbnailUrl = info.thumbnails.firstOrNull()?.url,
             durationSeconds = info.duration.coerceAtLeast(0L),
             streamUrl = streamUrl,
-            mimeType = mimeType
+            mimeType = mimeType,
+            audioStreamUrl = audioStreamUrl,
+            audioMimeType = audioMimeType
         )
     }
 
