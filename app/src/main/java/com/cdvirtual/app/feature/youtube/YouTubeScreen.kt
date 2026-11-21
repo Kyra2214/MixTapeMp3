@@ -50,6 +50,7 @@ import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
+import com.cdvirtual.app.media.youtube.toYouTubePlaybackMessage
 import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
 import com.cdvirtual.app.media.youtube.YouTubeVideo
 import kotlinx.coroutines.launch
