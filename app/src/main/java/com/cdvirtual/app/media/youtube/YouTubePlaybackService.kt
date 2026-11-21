@@ -142,7 +142,8 @@ class YouTubePlaybackService : MediaSessionService() {
                 }
             }
         }
-        return START_STICKY
+        // Não há restauração de sessão para um processo morto; evite recriar um serviço vazio.
+        return START_NOT_STICKY
     }
 
     private suspend fun loadAndPlay(videoId: String, audioOnly: Boolean, requestId: Long) {
