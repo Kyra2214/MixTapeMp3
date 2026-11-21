@@ -58,6 +58,7 @@ class YouTubePlaybackService : MediaSessionService() {
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
             if (videoId != null) {
                 if (player.currentMediaItem?.mediaId == videoId) {
+                    if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) player.seekTo(0L)
                     player.play()
                 } else if (videoId != loadingVideoId) {
                     loadingVideoId = videoId
