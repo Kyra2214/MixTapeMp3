@@ -94,6 +94,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 MediaItem.Builder()
                     .setMediaId(videoId)
                     .setUri(info.streamUrl)
+                    .apply { info.mimeType?.let { setMimeType(it) } }
                     .setMediaMetadata(metadata)
                     .build()
             )
