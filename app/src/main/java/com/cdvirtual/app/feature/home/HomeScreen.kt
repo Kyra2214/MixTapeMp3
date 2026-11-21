@@ -91,16 +91,16 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             HomeCentralCard(
-                title = "Vídeos",
-                subtitle = "Explore, assista e descubra canais",
+                title = "Central de Vídeos YT",
+                subtitle = "Explore vídeos e descubra canais",
                 symbol = "▶",
                 tint = Color(0xFFFF5A5A),
                 modifier = Modifier.weight(1f),
                 onClick = { onNavigate(Destination.YouTube) }
             )
             HomeCentralCard(
-                title = "Áudios",
-                subtitle = "Encontre áudio na web",
+                title = "Central de Áudios YT",
+                subtitle = "Encontre e extraia áudio de vídeos",
                 symbol = "♫",
                 tint = Color(0xFF58D8D0),
                 modifier = Modifier.weight(1f),
