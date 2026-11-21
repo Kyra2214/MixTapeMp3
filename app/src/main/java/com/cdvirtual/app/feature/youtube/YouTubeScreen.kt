@@ -316,7 +316,7 @@ private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onDelete:
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(item.uploader.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Reproduzido " + item.watchCount + if (item.watchCount == 1) " vez" else " vezes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Reproduzido " + item.watchCount + (if (item.watchCount == 1) " vez" else " vezes"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (item.lastPositionMs > 0) {
                     Text("Retomar em " + formatDuration(item.lastPositionMs / 1000), style = MaterialTheme.typography.labelSmall)
                 }
