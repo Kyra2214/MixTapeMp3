@@ -122,6 +122,11 @@ class YouTubePlaybackService : MediaSessionService() {
                     }
                     player.play()
                     startPlaybackMonitor(videoId, requestId)
+                    val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                        .getBoolean(KEY_SPONSOR_BLOCK, false)
+                    if (sponsorEnabled && sponsorSegments.isEmpty()) {
+                        requestSponsorSegments(videoId, requestId)
+                    }
                 } else if (videoId != loadingVideoId || audioOnly != loadingAudioOnly) {
                     // Evita que o vídeo anterior continue tocando enquanto o novo stream é resolvido.
                     player.pause()
@@ -183,22 +188,24 @@ class YouTubePlaybackService : MediaSessionService() {
             startPlaybackMonitor(videoId, requestId)
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
-            if (sponsorEnabled) {
-                scope.launch {
-                    val segments = SponsorBlockRepository.getSkippableSegments(videoId)
-                    // A resolução do stream já terminou e loadingVideoId foi limpo.
-                    // Aqui a geração + mediaId identificam a reprodução ativa.
-                    if (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
-                        sponsorSegments = segments
-                    }
-                }
-            }
+            if (sponsorEnabled) requestSponsorSegments(videoId, requestId)
             if (isCurrentRequest(videoId, audioOnly, requestId)) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
             if (isCurrentRequest(videoId, audioOnly, requestId)) {
                 YouTubePlaybackStatus.reportError(failure.toYouTubePlaybackMessage())
                 loadingVideoId = null
+            }
+        }
+    }
+
+    private fun requestSponsorSegments(videoId: String, requestId: Long) {
+        scope.launch {
+            val segments = SponsorBlockRepository.getSkippableSegments(videoId)
+            // A resolução do stream já terminou e loadingVideoId pode estar limpo.
+            // Geração + mediaId identificam a reprodução ativa.
+            if (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
+                sponsorSegments = segments
             }
         }
     }
