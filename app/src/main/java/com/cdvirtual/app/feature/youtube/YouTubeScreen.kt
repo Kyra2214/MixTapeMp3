@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -71,9 +72,29 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var confirmClearHistory by remember { mutableStateOf(false) }
     var sponsorBlockEnabled by remember {
         mutableStateOf(context.getSharedPreferences(YouTubePlaybackService.PREFERENCES, 0)
             .getBoolean(YouTubePlaybackService.KEY_SPONSOR_BLOCK, false))
+    }
+
+    if (confirmClearHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearHistory = false },
+            title = { Text("Limpar histórico?") },
+            text = { Text("Todos os vídeos e posições salvas serão removidos deste aparelho.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClearHistory = false
+                        scope.launch { app.database.youtubeHistoryDao().clear() }
+                    }
+                ) { Text("Limpar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearHistory = false }) { Text("Cancelar") }
+            }
+        )
     }
 
     DisposableEffect(selectedVideoId) {
@@ -243,7 +264,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 }
                 item {
                     OutlinedButton(
-                        onClick = { scope.launch { app.database.youtubeHistoryDao().clear() } },
+                        onClick = { confirmClearHistory = true },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Limpar histórico") }
                 }
