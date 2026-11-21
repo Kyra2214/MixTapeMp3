@@ -22,7 +22,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,6 +53,7 @@ import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
 import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
 import com.cdvirtual.app.media.youtube.YouTubeVideo
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.schabi.newpipe.extractor.Page
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -75,6 +78,9 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
     var audioOnlyMode by remember { mutableStateOf(false) }
     var audioIsPlaying by remember { mutableStateOf(false) }
+    var audioPositionMs by remember { mutableStateOf(0L) }
+    var audioDurationMs by remember { mutableStateOf(0L) }
+    var audioSeeking by remember { mutableStateOf(false) }
     var audioTitle by remember { mutableStateOf("") }
     var audioUploader by remember { mutableStateOf("") }
     var audioThumbnail by remember { mutableStateOf<android.net.Uri?>(null) }
@@ -127,6 +133,18 @@ fun YouTubeScreen(onBack: () -> Unit) {
         }
     }
 
+    LaunchedEffect(mediaController, audioOnlyMode) {
+        val controller = mediaController ?: return@LaunchedEffect
+        while (audioOnlyMode) {
+            if (!audioSeeking) {
+                audioPositionMs = controller.currentPosition.coerceAtLeast(0L)
+                audioDurationMs = controller.duration.takeIf { it > 0L } ?: 0L
+                audioIsPlaying = controller.isPlaying
+            }
+            delay(500)
+        }
+    }
+
     DisposableEffect(mediaController) {
         val controller = mediaController
         if (controller == null) {
@@ -142,6 +160,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 audioUploader = metadata?.artist?.toString().orEmpty()
                 audioThumbnail = metadata?.artworkUri
                 audioIsPlaying = controller.isPlaying
+                audioPositionMs = controller.currentPosition.coerceAtLeast(0L)
+                audioDurationMs = controller.duration.takeIf { it > 0L } ?: 0L
             }
             val listener = object : Player.Listener {
                 override fun onMediaItemTransition(
@@ -261,6 +281,27 @@ fun YouTubeScreen(onBack: () -> Unit) {
                                 Text(audioUploader, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
                                     if (audioIsPlaying) "Reproduzindo" else "Pausado",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Slider(
+                                    value = if (audioDurationMs > 0L) {
+                                        (audioPositionMs.toFloat() / audioDurationMs).coerceIn(0f, 1f)
+                                    } else 0f,
+                                    onValueChange = { fraction ->
+                                        audioSeeking = true
+                                        if (audioDurationMs > 0L) {
+                                            audioPositionMs = (fraction * audioDurationMs).toLong()
+                                        }
+                                    },
+                                    onValueChangeFinished = {
+                                        controller.seekTo(audioPositionMs)
+                                        audioSeeking = false
+                                    },
+                                    enabled = audioDurationMs > 0L
+                                )
+                                Text(
+                                    "${formatDuration(audioPositionMs / 1000)} / ${formatDuration(audioDurationMs / 1000)}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
