@@ -92,11 +92,12 @@ class YouTubePlaybackService : MediaSessionService() {
                     .build()
             )
             player.prepare()
-            if (previous?.lastPositionMs ?: 0L > 0L) {
+            if ((previous?.lastPositionMs ?: 0L) > 0L) {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
             persistProgress(videoId)
+            if (loadingVideoId == videoId) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
             loadingVideoId = null
@@ -105,9 +106,7 @@ class YouTubePlaybackService : MediaSessionService() {
 
     private suspend fun persistProgress(videoId: String) {
         val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
-        while (!scope.coroutineContext[kotlinx.coroutines.Job]!!.isCancelled &&
-            player.currentMediaItem?.mediaId == videoId
-        ) {
+        while (player.currentMediaItem?.mediaId == videoId) {
             delay(5_000)
             if (player.currentMediaItem?.mediaId == videoId && player.currentPosition >= 0L) {
                 dao.updateProgress(videoId, player.currentPosition, System.currentTimeMillis())
