@@ -18,13 +18,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.cdvirtual.app.CDVirtualApp
+import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
@@ -34,6 +39,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun YouTubeScreen(onBack: () -> Unit) {
     val repository = remember { YouTubeSearchRepository() }
+    val app = LocalContext.current.applicationContext as CDVirtualApp
+    val history by app.database.youtubeHistoryDao().observeAll().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
@@ -88,6 +95,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (results.isNotEmpty()) item { Text("Resultados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             items(results, key = { it.videoId }) { video ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -97,6 +105,39 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     }
                 }
             }
+            if (history.isNotEmpty()) {
+                item { Text("Seu histórico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                items(history, key = { it.videoId }) { historyItem ->
+                    HistoryRow(item = historyItem, onDelete = {
+                        scope.launch { app.database.youtubeHistoryDao().delete(historyItem.videoId) }
+                    })
+                }
+                item {
+                    OutlinedButton(
+                        onClick = { scope.launch { app.database.youtubeHistoryDao().clear() } },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Limpar histórico") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryRow(item: YouTubeHistoryEntity, onDelete: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(item.uploader.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (item.lastPositionMs > 0) {
+                    Text("Retomar em " + formatDuration(item.lastPositionMs / 1000), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            TextButton(onClick = onDelete) { Text("Excluir") }
         }
     }
 }
