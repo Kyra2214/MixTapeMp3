@@ -24,7 +24,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -264,8 +263,9 @@ class YouTubePlaybackService : MediaSessionService() {
         const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
 
         fun play(context: Context, videoId: String, audioOnly: Boolean = false) {
-            ContextCompat.startForegroundService(
-                context,
+            // Chamado pela interface enquanto o app está visível. O MediaSessionService
+            // assume o foreground automaticamente quando a reprodução efetivamente começa.
+            context.startService(
                 Intent(context, YouTubePlaybackService::class.java)
                     .setAction(ACTION_PLAY)
                     .putExtra(EXTRA_VIDEO_ID, videoId)
