@@ -121,7 +121,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
         } else {
             val listener = object : Player.Listener {
                 override fun onPlayerError(playbackError: PlaybackException) {
-                    error = "Não foi possível reproduzir este vídeo. Tente novamente mais tarde."
+                    error = "Falha na reprodução: " + playbackError.errorCodeName
                 }
             }
             controller.addListener(listener)
