@@ -131,15 +131,15 @@ class YouTubePlaybackService : MediaSessionService() {
             .build()
     }
 
-    @OptIn(UnstableApi::class)
     private val playbackResumptionCallback = object : MediaSession.Callback {
+        @OptIn(UnstableApi::class)
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo,
             isForPlayback: Boolean
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
-            scope.launch(Dispatchers.IO) {
+            scope.launch {
                 try {
                     val history = (application as CDVirtualApp).database
                         .youtubeHistoryDao().findMostRecent()
