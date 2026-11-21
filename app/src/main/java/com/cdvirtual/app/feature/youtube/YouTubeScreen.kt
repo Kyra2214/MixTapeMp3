@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
@@ -120,7 +121,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 AndroidView(
                     factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
                     update = { it.player = controller },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                    modifier = Modifier.fillMaxWidth().height(220.dp).padding(bottom = 4.dp)
                 )
             }
         }
