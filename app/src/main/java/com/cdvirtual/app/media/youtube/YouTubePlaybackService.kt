@@ -146,21 +146,36 @@ class YouTubePlaybackService : MediaSessionService() {
             if (!isCurrentRequest(videoId, audioOnly, requestId)) return
             sponsorSegments = emptyList()
             skippedSponsorSegments.clear()
-            val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
-            val previous = dao.find(videoId)
+            // O histórico é complementar: falha no Room não pode impedir a reprodução.
+            val historyDao = runCatching {
+                (application as CDVirtualApp).database.youtubeHistoryDao()
+            }.onFailure { failure ->
+                android.util.Log.w(TAG, "Histórico indisponível; a reprodução continuará", failure)
+            }.getOrNull()
+            val previous = historyDao?.let { dao ->
+                runCatching { dao.find(videoId) }.onFailure { failure ->
+                    android.util.Log.w(TAG, "Não foi possível consultar o histórico", failure)
+                }.getOrNull()
+            }
             if (!isCurrentRequest(videoId, audioOnly, requestId)) return
-            dao.save(
-                YouTubeHistoryEntity(
-                    videoId = videoId,
-                    title = info.title,
-                    uploader = info.uploader,
-                    thumbnailUrl = info.thumbnailUrl,
-                    durationSeconds = info.durationSeconds,
-                    lastPositionMs = previous?.lastPositionMs ?: 0L,
-                    watchedAt = System.currentTimeMillis(),
-                    watchCount = (previous?.watchCount ?: 0) + 1
-                )
-            )
+            historyDao?.let { dao ->
+                runCatching {
+                    dao.save(
+                        YouTubeHistoryEntity(
+                            videoId = videoId,
+                            title = info.title,
+                            uploader = info.uploader,
+                            thumbnailUrl = info.thumbnailUrl,
+                            durationSeconds = info.durationSeconds,
+                            lastPositionMs = previous?.lastPositionMs ?: 0L,
+                            watchedAt = System.currentTimeMillis(),
+                            watchCount = (previous?.watchCount ?: 0) + 1
+                        )
+                    )
+                }.onFailure { failure ->
+                    android.util.Log.w(TAG, "Não foi possível registrar o vídeo no histórico", failure)
+                }
+            }
             if (!isCurrentRequest(videoId, audioOnly, requestId)) return
             val metadata = MediaMetadata.Builder()
                 .setTitle(info.title)
@@ -232,7 +247,11 @@ class YouTubePlaybackService : MediaSessionService() {
         playbackRequestId == requestId && loadingVideoId == videoId && loadingAudioOnly == audioOnly
 
     private suspend fun monitorPlayback(videoId: String, requestId: Long) {
-        val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
+        val dao = runCatching {
+            (application as CDVirtualApp).database.youtubeHistoryDao()
+        }.onFailure { failure ->
+            android.util.Log.w(TAG, "Monitor de histórico indisponível", failure)
+        }.getOrNull() ?: return
         var lastProgressWrite = SystemClock.elapsedRealtime()
         while (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
             delay(500)
@@ -261,7 +280,11 @@ class YouTubePlaybackService : MediaSessionService() {
                 // Ao concluir, zera a posição para que Retomar recomece do início.
                 val savedPosition = if (ended) 0L else player.currentPosition.coerceAtLeast(0L)
                 if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) break
-                dao.updateProgress(videoId, savedPosition, System.currentTimeMillis())
+                runCatching {
+                    dao.updateProgress(videoId, savedPosition, System.currentTimeMillis())
+                }.onFailure { failure ->
+                    android.util.Log.w(TAG, "Não foi possível atualizar o progresso do histórico", failure)
+                }
                 lastProgressWrite = now
             }
             if (ended) break
