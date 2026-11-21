@@ -49,7 +49,7 @@ object YouTubePlaybackRepository {
             else -> "application/x-mpegURL"
         }
         val audioStream = info.audioStreams
-            .filter { !it.isUrl.not() && !it.url.isNullOrBlank() }
+            .filter { !it.url.isNullOrBlank() }
             .maxByOrNull { it.averageBitrate.takeIf { rate -> rate > 0 } ?: it.bitrate }
         val audioStreamUrl = audioStream?.url
         val audioMimeType = audioStream?.format?.mimeType
