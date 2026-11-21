@@ -1,6 +1,7 @@
 package com.cdvirtual.app.feature.youtube
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.ComponentName
@@ -115,6 +116,18 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 controller.hide(WindowInsetsCompat.Type.systemBars())
                 controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             } else controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    BackHandler(enabled = isFullscreen) { setFullscreen(false) }
+
+    DisposableEffect(context) {
+        onDispose {
+            context.findActivity()?.let { activity ->
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                WindowInsetsControllerCompat(activity.window, activity.window.decorView)
+                    .show(WindowInsetsCompat.Type.systemBars())
+            }
         }
     }
 
