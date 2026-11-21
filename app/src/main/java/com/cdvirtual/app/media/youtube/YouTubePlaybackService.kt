@@ -2,6 +2,7 @@ package com.cdvirtual.app.media.youtube
 
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -18,6 +19,7 @@ import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -48,6 +50,8 @@ class YouTubePlaybackService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private var mediaSession: MediaSession? = null
     private var loadingVideoId: String? = null
+    private var loadingAudioOnly = false
+    private var playbackMonitorJob: Job? = null
     private var sponsorSegments: List<SponsorSegment> = emptyList()
     private val skippedSponsorSegments = mutableSetOf<Int>()
     private var hasStartedCurrentItem = false
@@ -104,28 +108,32 @@ class YouTubePlaybackService : MediaSessionService() {
         if (intent?.action == ACTION_PLAY) {
             YouTubePlaybackStatus.clearError()
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
+            val audioOnly = intent.getBooleanExtra(EXTRA_AUDIO_ONLY, false)
             if (videoId != null) {
-                if (player.currentMediaItem?.mediaId == videoId) {
+                val currentAudioOnly = player.currentMediaItem?.mediaMetadata?.extras
+                    ?.getBoolean(EXTRA_AUDIO_ONLY, false) ?: false
+                if (player.currentMediaItem?.mediaId == videoId && currentAudioOnly == audioOnly) {
                     loadingVideoId = null
-                    if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                    if (player.playbackState == Player.STATE_ENDED) {
                         player.seekTo(0L)
-                    } else if (player.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                    } else if (player.playbackState == Player.STATE_IDLE) {
                         player.prepare()
                     }
                     player.play()
-                } else if (videoId != loadingVideoId) {
+                } else if (videoId != loadingVideoId || audioOnly != loadingAudioOnly) {
                     loadingVideoId = videoId
-                    scope.launch { loadAndPlay(videoId) }
+                    loadingAudioOnly = audioOnly
+                    scope.launch { loadAndPlay(videoId, audioOnly) }
                 }
             }
         }
         return START_STICKY
     }
 
-    private suspend fun loadAndPlay(videoId: String) {
+    private suspend fun loadAndPlay(videoId: String, audioOnly: Boolean) {
         try {
             val info = YouTubePlaybackRepository.resolve(videoId)
-            if (loadingVideoId != videoId) return
+            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
             sponsorSegments = emptyList()
             skippedSponsorSegments.clear()
             val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
@@ -147,13 +155,20 @@ class YouTubePlaybackService : MediaSessionService() {
                 .setArtist(info.uploader)
                 .setArtworkUri(info.thumbnailUrl?.let(android.net.Uri::parse))
                 .build()
-            if (loadingVideoId != videoId) return
+            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
+            val selectedUrl = if (audioOnly) info.audioStreamUrl
+                ?: throw YouTubeUnavailableException(YouTubeFailure.NoAudio) else info.streamUrl
+            val selectedMimeType = if (audioOnly) info.audioMimeType else info.mimeType
             player.setMediaItem(
                 MediaItem.Builder()
                     .setMediaId(videoId)
-                    .setUri(info.streamUrl)
-                    .apply { info.mimeType?.let { setMimeType(it) } }
-                    .setMediaMetadata(metadata)
+                    .setUri(selectedUrl)
+                    .apply { selectedMimeType?.let { setMimeType(it) } }
+                    .setMediaMetadata(
+                        MediaMetadata.Builder(metadata)
+                            .setExtras(Bundle().apply { putBoolean(EXTRA_AUDIO_ONLY, audioOnly) })
+                            .build()
+                    )
                     .build()
             )
             player.prepare()
@@ -161,7 +176,8 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
-            scope.launch { monitorPlayback(videoId) }
+            playbackMonitorJob?.cancel()
+            playbackMonitorJob = scope.launch { monitorPlayback(videoId) }
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) {
@@ -172,10 +188,10 @@ class YouTubePlaybackService : MediaSessionService() {
                     }
                 }
             }
-            if (loadingVideoId == videoId) loadingVideoId = null
+            if (loadingVideoId == videoId && loadingAudioOnly == audioOnly) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
-            if (loadingVideoId == videoId) {
+            if (loadingVideoId == videoId && loadingAudioOnly == audioOnly) {
                 YouTubePlaybackStatus.reportError(failure.toYouTubePlaybackMessage())
                 loadingVideoId = null
             }
@@ -238,6 +254,7 @@ class YouTubePlaybackService : MediaSessionService() {
         } ?: player.release()
         scope.cancel()
         loadingVideoId = null
+        playbackMonitorJob?.cancel()
         super.onDestroy()
     }
 
@@ -245,15 +262,17 @@ class YouTubePlaybackService : MediaSessionService() {
         private const val TAG = "YouTubePlayback"
         private const val ACTION_PLAY = "com.cdvirtual.app.youtube.PLAY"
         private const val EXTRA_VIDEO_ID = "youtube_video_id"
+        private const val EXTRA_AUDIO_ONLY = "youtube_audio_only"
         const val PREFERENCES = "youtube_preferences"
         const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
 
-        fun play(context: Context, videoId: String) {
+        fun play(context: Context, videoId: String, audioOnly: Boolean = false) {
             ContextCompat.startForegroundService(
                 context,
                 Intent(context, YouTubePlaybackService::class.java)
                     .setAction(ACTION_PLAY)
                     .putExtra(EXTRA_VIDEO_ID, videoId)
+                    .putExtra(EXTRA_AUDIO_ONLY, audioOnly)
             )
         }
     }
