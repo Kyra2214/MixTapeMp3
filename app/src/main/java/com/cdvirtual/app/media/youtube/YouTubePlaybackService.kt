@@ -139,6 +139,7 @@ class YouTubePlaybackService : MediaSessionService() {
             skippedSponsorSegments.clear()
             val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
             val previous = dao.find(videoId)
+            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
             dao.save(
                 YouTubeHistoryEntity(
                     videoId = videoId,
@@ -151,6 +152,7 @@ class YouTubePlaybackService : MediaSessionService() {
                     watchCount = (previous?.watchCount ?: 0) + 1
                 )
             )
+            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
             val metadata = MediaMetadata.Builder()
                 .setTitle(info.title)
                 .setArtist(info.uploader)
