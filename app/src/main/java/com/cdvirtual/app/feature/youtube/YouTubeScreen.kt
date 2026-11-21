@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -57,9 +56,6 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
@@ -246,7 +242,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxSize()
             )
             IconButton(onClick = { setFullscreen(false) }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
-                Icon(Icons.Default.FullscreenExit, contentDescription = "Sair da tela cheia", tint = Color.White)
+                Text("×", color = Color.White, style = MaterialTheme.typography.headlineMedium)
             }
         }
     } else {
@@ -399,7 +395,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             modifier = Modifier.fillMaxSize()
                         )
                         IconButton(onClick = { setFullscreen(true) }, modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                            Icon(Icons.Default.Fullscreen, contentDescription = "Tela cheia")
+                            Text("⛶", style = MaterialTheme.typography.headlineSmall)
                         }
                     }
                 }
