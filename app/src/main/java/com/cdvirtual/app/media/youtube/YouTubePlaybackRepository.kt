@@ -1,7 +1,5 @@
 package com.cdvirtual.app.media.youtube
 
-import com.cdvirtual.app.media.connectors.YouTubeFailure
-import com.cdvirtual.app.media.connectors.YouTubeUnavailableException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.stream.StreamInfo
