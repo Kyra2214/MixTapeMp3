@@ -95,9 +95,26 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var channelNextPage by remember { mutableStateOf<Page?>(null) }
     var channelTabHandler by remember { mutableStateOf<ListLinkHandler?>(null) }
     var channelLoading by remember { mutableStateOf(false) }
+    var homeVideos by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
+    var homeLoading by remember { mutableStateOf(false) }
     var sponsorBlockEnabled by remember {
         mutableStateOf(context.getSharedPreferences(YouTubePlaybackService.PREFERENCES, 0)
             .getBoolean(YouTubePlaybackService.KEY_SPONSOR_BLOCK, false))
+    }
+
+    LaunchedEffect(savedChannels) {
+        if (savedChannels.isNotEmpty()) {
+            homeLoading = true
+            val collected = mutableListOf<YouTubeVideo>()
+            savedChannels.take(5).forEach { channel ->
+                runCatching { repository.loadChannel(channel.channelUrl).videos }
+                    .getOrNull()?.let { collected.addAll(it) }
+            }
+            homeVideos = collected.distinctBy { it.videoId }
+            homeLoading = false
+        } else {
+            homeVideos = emptyList()
+        }
     }
 
     fun openChannel(channelUrl: String, channelName: String, avatarUrl: String?) {
@@ -408,7 +425,15 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         SavedChannelRow(channel, { openChannel(channel.channelUrl, channel.channelName, channel.avatarUrl) }, { scope.launch { app.database.youtubeChannelDao().remove(channel.channelUrl) } })
                     }
                 }
-                if (results.isNotEmpty()) item { Text("Vídeos da última pesquisa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                if (homeLoading) item { CircularProgressIndicator() }
+                if (homeVideos.isNotEmpty()) {
+                    item { Text("Novidades dos seus canais", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    items(homeVideos, key = { "followed-" + it.videoId }) { video ->
+                        VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {
+                            video.channelUrl?.let { openChannel(it, video.channel, video.channelAvatarUrl) }
+                        })
+                    }
+                } else if (results.isNotEmpty()) item { Text("Vídeos da última pesquisa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
             if (section == "Buscar" && results.isNotEmpty()) {
                 item { Text("Resultados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
@@ -448,7 +473,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     }
                 }
             }
-            if (nextPage != null) {
+            if ((section == "Buscar" || section == "Início") && nextPage != null) {
                 item {
                     OutlinedButton(
                         onClick = {
