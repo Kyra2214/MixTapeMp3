@@ -120,6 +120,8 @@ class YouTubePlaybackService : MediaSessionService() {
                     }
                     player.play()
                 } else if (videoId != loadingVideoId || audioOnly != loadingAudioOnly) {
+                    // Evita que o vídeo anterior continue tocando enquanto o novo stream é resolvido.
+                    player.pause()
                     loadingVideoId = videoId
                     loadingAudioOnly = audioOnly
                     scope.launch { loadAndPlay(videoId, audioOnly) }
