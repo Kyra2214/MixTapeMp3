@@ -81,7 +81,11 @@ class YouTubePlaybackService : MediaSessionService() {
             if (videoId != null) {
                 if (player.currentMediaItem?.mediaId == videoId) {
                     loadingVideoId = null
-                    if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) player.seekTo(0L)
+                    if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                        player.seekTo(0L)
+                    } else if (player.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                        player.prepare()
+                    }
                     player.play()
                 } else if (videoId != loadingVideoId) {
                     loadingVideoId = videoId
