@@ -114,7 +114,10 @@ class YouTubePlaybackService : MediaSessionService() {
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) {
                 scope.launch {
-                    sponsorSegments = SponsorBlockRepository().getSkippableSegments(videoId)
+                    val segments = SponsorBlockRepository().getSkippableSegments(videoId)
+                    if (player.currentMediaItem?.mediaId == videoId) {
+                        sponsorSegments = segments
+                    }
                 }
             }
             if (loadingVideoId == videoId) loadingVideoId = null
