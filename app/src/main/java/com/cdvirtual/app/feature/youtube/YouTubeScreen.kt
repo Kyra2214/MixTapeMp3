@@ -127,7 +127,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text("Pular trechos patrocinados", style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "Consulta opcional ao SponsorBlock. Não remove anúncios do YouTube.",
+                    "Ativar vale para o próximo vídeo. Desativar interrompe os pulos atuais.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
