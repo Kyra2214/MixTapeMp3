@@ -7,6 +7,8 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -20,6 +22,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -47,6 +50,7 @@ class YouTubePlaybackService : MediaSessionService() {
     private var loadingVideoId: String? = null
     private var sponsorSegments: List<SponsorSegment> = emptyList()
     private val skippedSponsorSegments = mutableSetOf<Int>()
+    private var hasStartedCurrentItem = false
 
     override fun onCreate() {
         super.onCreate()
@@ -67,6 +71,29 @@ class YouTubePlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
         player.setAudioAttributes(AudioAttributes.DEFAULT, true)
+        player.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                hasStartedCurrentItem = false
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    hasStartedCurrentItem = true
+                } else if (hasStartedCurrentItem) {
+                    persistCurrentPosition()
+                }
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    persistCurrentPosition(resetToStart = true)
+                }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                persistCurrentPosition()
+            }
+        })
         mediaSession = MediaSession.Builder(this, player).build()
     }
 
@@ -155,6 +182,19 @@ class YouTubePlaybackService : MediaSessionService() {
         }
     }
 
+    private fun persistCurrentPosition(resetToStart: Boolean = false) {
+        val videoId = player.currentMediaItem?.mediaId ?: return
+        val position = if (resetToStart) 0L else player.currentPosition.coerceAtLeast(0L)
+        scope.launch {
+            runCatching {
+                (application as CDVirtualApp).database.youtubeHistoryDao()
+                    .updateProgress(videoId, position, System.currentTimeMillis())
+            }.onFailure { failure ->
+                android.util.Log.w(TAG, "Não foi possível salvar o progresso de $videoId", failure)
+            }
+        }
+    }
+
     private suspend fun monitorPlayback(videoId: String) {
         val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
         var lastProgressWrite = SystemClock.elapsedRealtime()
@@ -209,7 +249,8 @@ class YouTubePlaybackService : MediaSessionService() {
         const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
 
         fun play(context: Context, videoId: String) {
-            context.startService(
+            ContextCompat.startForegroundService(
+                context,
                 Intent(context, YouTubePlaybackService::class.java)
                     .setAction(ACTION_PLAY)
                     .putExtra(EXTRA_VIDEO_ID, videoId)
