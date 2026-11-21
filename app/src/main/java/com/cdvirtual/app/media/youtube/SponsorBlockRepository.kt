@@ -1,6 +1,7 @@
 package com.cdvirtual.app.media.youtube
 
 import android.net.Uri
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -66,6 +67,8 @@ object SponsorBlockRepository {
                         }
                     }.sortedBy { it.startSeconds }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (_: Exception) {
                 // Falha do SponsorBlock nunca deve impedir a reprodução do vídeo.
                 emptyList()
