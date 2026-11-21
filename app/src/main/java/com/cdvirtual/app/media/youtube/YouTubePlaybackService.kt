@@ -120,6 +120,9 @@ class YouTubePlaybackService : MediaSessionService() {
                     val requestId = ++playbackRequestId
                     loadingVideoId = null
                     if (player.playbackState == Player.STATE_ENDED) {
+                        // Uma reprodução concluída que começa de novo deve poder
+                        // pular novamente os mesmos segmentos do SponsorBlock.
+                        skippedSponsorSegments.clear()
                         player.seekTo(0L)
                     }
                     player.play()
