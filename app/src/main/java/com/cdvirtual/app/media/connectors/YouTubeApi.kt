@@ -94,7 +94,8 @@ data class YouTubePlaybackInfo(
     val uploader: String,
     val thumbnailUrl: String?,
     val durationSeconds: Long,
-    val streamUrl: String
+    val streamUrl: String,
+    val mimeType: String?
 )
 
 object YouTubeApi {
@@ -126,10 +127,13 @@ object YouTubeApi {
         }
 
         // Streams progressivos incluem áudio e vídeo. DASH separado será tratado em outra etapa.
-        val stream = info.videoStreams
+        val progressive = info.videoStreams
             .filter { !it.isVideoOnly && it.isUrl }
             .maxByOrNull { it.height }
+        val streamUrl = progressive?.content
+            ?: info.dashMpdUrl.takeIf { it.isNotBlank() }
             ?: throw YouTubeUnavailableException(YouTubeFailure.PlayerChanged)
+        val mimeType = if (progressive == null) "application/dash+xml" else progressive.format?.mimeType
 
         YouTubePlaybackInfo(
             videoId = videoId,
@@ -137,7 +141,8 @@ object YouTubeApi {
             uploader = info.uploaderName.orEmpty(),
             thumbnailUrl = info.thumbnails.firstOrNull()?.url,
             durationSeconds = info.duration.coerceAtLeast(0L),
-            streamUrl = stream.content
+            streamUrl = streamUrl,
+            mimeType = mimeType
         )
     }
 
