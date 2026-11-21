@@ -172,7 +172,7 @@ class YouTubePlaybackService : MediaSessionService() {
                         MediaSession.MediaItemsWithStartPosition(
                             listOf(itemBuilder.build()),
                             0,
-                            history.lastPositionMs.coerceAtLeast(0L)
+                            history.lastPositionMs.coerceIn(0L, (history.durationSeconds * 1000L).coerceAtLeast(0L))
                         )
                     )
                 } catch (cancelled: CancellationException) {
