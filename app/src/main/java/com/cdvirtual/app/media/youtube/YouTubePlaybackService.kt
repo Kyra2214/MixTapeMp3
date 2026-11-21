@@ -50,6 +50,7 @@ class YouTubePlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var loadingVideoId: String? = null
     private var loadingAudioOnly = false
+    private var playbackRequestId = 0L
     private var playbackMonitorJob: Job? = null
     private var sponsorSegments: List<SponsorSegment> = emptyList()
     private val skippedSponsorSegments = mutableSetOf<Int>()
@@ -112,6 +113,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 val currentAudioOnly = player.currentMediaItem?.mediaMetadata?.extras
                     ?.getBoolean(EXTRA_AUDIO_ONLY, false) ?: false
                 if (player.currentMediaItem?.mediaId == videoId && currentAudioOnly == audioOnly) {
+                    playbackRequestId++
                     loadingVideoId = null
                     if (player.playbackState == Player.STATE_ENDED) {
                         player.seekTo(0L)
@@ -124,22 +126,23 @@ class YouTubePlaybackService : MediaSessionService() {
                     player.pause()
                     loadingVideoId = videoId
                     loadingAudioOnly = audioOnly
-                    scope.launch { loadAndPlay(videoId, audioOnly) }
+                    val requestId = ++playbackRequestId
+                    scope.launch { loadAndPlay(videoId, audioOnly, requestId) }
                 }
             }
         }
         return START_STICKY
     }
 
-    private suspend fun loadAndPlay(videoId: String, audioOnly: Boolean) {
+    private suspend fun loadAndPlay(videoId: String, audioOnly: Boolean, requestId: Long) {
         try {
             val info = YouTubePlaybackRepository.resolve(videoId)
-            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
+            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
             sponsorSegments = emptyList()
             skippedSponsorSegments.clear()
             val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
             val previous = dao.find(videoId)
-            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
+            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
             dao.save(
                 YouTubeHistoryEntity(
                     videoId = videoId,
@@ -152,14 +155,14 @@ class YouTubePlaybackService : MediaSessionService() {
                     watchCount = (previous?.watchCount ?: 0) + 1
                 )
             )
-            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
+            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
             val metadata = MediaMetadata.Builder()
                 .setTitle(info.title)
                 .setArtist(info.uploader)
                 .setArtworkUri(info.thumbnailUrl?.let(android.net.Uri::parse))
                 .setExtras(Bundle().apply { putBoolean(EXTRA_AUDIO_ONLY, audioOnly) })
                 .build()
-            if (loadingVideoId != videoId || loadingAudioOnly != audioOnly) return
+            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
             val selectedUrl = if (audioOnly) info.audioStreamUrl
                 ?: throw YouTubeUnavailableException(YouTubeFailure.NoAudio) else info.streamUrl
             val selectedMimeType = if (audioOnly) info.audioMimeType else info.mimeType
@@ -177,21 +180,21 @@ class YouTubePlaybackService : MediaSessionService() {
             }
             player.play()
             playbackMonitorJob?.cancel()
-            playbackMonitorJob = scope.launch { monitorPlayback(videoId) }
+            playbackMonitorJob = scope.launch { monitorPlayback(videoId, requestId) }
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) {
                 scope.launch {
                     val segments = SponsorBlockRepository.getSkippableSegments(videoId)
-                    if (player.currentMediaItem?.mediaId == videoId) {
+                    if (isCurrentRequest(videoId, audioOnly, requestId) && player.currentMediaItem?.mediaId == videoId) {
                         sponsorSegments = segments
                     }
                 }
             }
-            if (loadingVideoId == videoId && loadingAudioOnly == audioOnly) loadingVideoId = null
+            if (isCurrentRequest(videoId, audioOnly, requestId)) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
-            if (loadingVideoId == videoId && loadingAudioOnly == audioOnly) {
+            if (isCurrentRequest(videoId, audioOnly, requestId)) {
                 YouTubePlaybackStatus.reportError(failure.toYouTubePlaybackMessage())
                 loadingVideoId = null
             }
@@ -211,12 +214,15 @@ class YouTubePlaybackService : MediaSessionService() {
         }
     }
 
-    private suspend fun monitorPlayback(videoId: String) {
+    private fun isCurrentRequest(videoId: String, audioOnly: Boolean, requestId: Long): Boolean =
+        playbackRequestId == requestId && loadingVideoId == videoId && loadingAudioOnly == audioOnly
+
+    private suspend fun monitorPlayback(videoId: String, requestId: Long) {
         val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
         var lastProgressWrite = SystemClock.elapsedRealtime()
-        while (player.currentMediaItem?.mediaId == videoId) {
+        while (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
             delay(500)
-            if (player.currentMediaItem?.mediaId != videoId) break
+            if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) break
 
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
@@ -240,6 +246,7 @@ class YouTubePlaybackService : MediaSessionService() {
             if (now - lastProgressWrite >= 5_000L || ended) {
                 // Ao concluir, zera a posição para que Retomar recomece do início.
                 val savedPosition = if (ended) 0L else player.currentPosition.coerceAtLeast(0L)
+                if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) break
                 dao.updateProgress(videoId, savedPosition, System.currentTimeMillis())
                 lastProgressWrite = now
             }
@@ -267,10 +274,10 @@ class YouTubePlaybackService : MediaSessionService() {
         }
         playbackMonitorJob?.cancel()
         loadingVideoId = null
-        mediaSession?.run {
-            player.release()
-            release()
-        } ?: player.release()
+        playbackRequestId++
+        mediaSession?.release()
+        mediaSession = null
+        player.release()
         scope.cancel()
         super.onDestroy()
     }
