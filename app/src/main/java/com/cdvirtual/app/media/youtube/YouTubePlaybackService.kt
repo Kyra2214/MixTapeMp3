@@ -256,6 +256,9 @@ class YouTubePlaybackService : MediaSessionService() {
         while (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
             delay(500)
             if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) break
+            // Um erro de reprodução normalmente devolve o player a STATE_IDLE.
+            // Não mantenha um monitor acordando a cada meio segundo após a falha.
+            if (player.playbackState == Player.STATE_IDLE) break
 
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
