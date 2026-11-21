@@ -75,9 +75,7 @@ class YouTubePlaybackService : MediaSessionService() {
     private suspend fun loadAndPlay(videoId: String) {
         try {
             val info = YouTubeApi.resolvePlayback(videoId)
-            val sponsorEnabled = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
-                .getBoolean(KEY_SPONSOR_BLOCK, false)
-            sponsorSegments = if (sponsorEnabled) SponsorBlockRepository().getSkippableSegments(videoId) else emptyList()
+            sponsorSegments = emptyList()
             skippedSponsorSegments.clear()
             val dao = (application as CDVirtualApp).database.youtubeHistoryDao()
             val previous = dao.find(videoId)
@@ -111,6 +109,11 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
+            val sponsorEnabled = getSharedPreferences(PREFERENCES, MODE_PRIVATE)
+                .getBoolean(KEY_SPONSOR_BLOCK, false)
+            if (sponsorEnabled) {
+                sponsorSegments = SponsorBlockRepository().getSkippableSegments(videoId)
+            }
             scope.launch { monitorPlayback(videoId) }
             if (loadingVideoId == videoId) loadingVideoId = null
         } catch (failure: Exception) {
