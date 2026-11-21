@@ -10,10 +10,9 @@ import java.net.UnknownHostException
 import java.net.UnknownServiceException
 import javax.net.ssl.SSLException
 
-/** Motivos de indisponibilidade de um vídeo do YouTube, traduzidos para o usuário em [toUserMessage]. */
-enum class YouTubeFailure { Private, RegionBlocked, LiveNotSupported, AgeRestricted, NoAudio, PlayerChanged }
-
-class YouTubeUnavailableException(val failure: YouTubeFailure) : IOException("YouTube: $failure")
+// Compatibilidade com os conectores existentes; os tipos pertencem ao módulo YouTube.
+typealias YouTubeFailure = com.cdvirtual.app.media.youtube.YouTubeFailure
+typealias YouTubeUnavailableException = com.cdvirtual.app.media.youtube.YouTubeUnavailableException
 
 class YouTubeCdnException(val code: Int) : IOException("YouTube CDN HTTP $code")
 
