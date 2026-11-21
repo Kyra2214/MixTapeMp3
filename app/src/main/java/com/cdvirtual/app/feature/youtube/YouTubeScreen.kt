@@ -1,7 +1,14 @@
 package com.cdvirtual.app.feature.youtube
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.ComponentName
+import android.content.pm.ActivityInfo
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -75,6 +86,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var nextPage by remember { mutableStateOf<Page?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
+    var isFullscreen by remember { mutableStateOf(false) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
     var audioOnlyMode by remember { mutableStateOf(false) }
     var audioIsPlaying by remember { mutableStateOf(false) }
@@ -88,6 +100,31 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var sponsorBlockEnabled by remember {
         mutableStateOf(context.getSharedPreferences(YouTubePlaybackService.PREFERENCES, 0)
             .getBoolean(YouTubePlaybackService.KEY_SPONSOR_BLOCK, false))
+    }
+
+    fun setFullscreen(enabled: Boolean) {
+        isFullscreen = enabled
+        val activity = context.findActivity()
+        activity?.requestedOrientation = if (enabled) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        activity?.window?.let { window ->
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            if (enabled) {
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    BackHandler(enabled = isFullscreen) { setFullscreen(false) }
+
+    DisposableEffect(context) {
+        onDispose {
+            context.findActivity()?.let { activity ->
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                WindowInsetsControllerCompat(activity.window, activity.window.decorView)
+                    .show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
     }
 
     fun startYouTubePlayback(videoId: String, audioOnly: Boolean = false) {
@@ -197,6 +234,18 @@ fun YouTubeScreen(onBack: () -> Unit) {
         }
     }
 
+    if (isFullscreen && selectedVideoId != null && !audioOnlyMode && mediaController != null) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            AndroidView(
+                factory = { viewContext -> PlayerView(viewContext).apply { player = mediaController } },
+                update = { it.player = mediaController },
+                modifier = Modifier.fillMaxSize()
+            )
+            IconButton(onClick = { setFullscreen(false) }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                Text("×", color = Color.White, style = MaterialTheme.typography.headlineMedium)
+            }
+        }
+    } else {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -339,11 +388,16 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         }
                     }
                 } else {
-                    AndroidView(
-                        factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
-                        update = { it.player = controller },
-                        modifier = Modifier.fillMaxWidth().height(220.dp).padding(bottom = 4.dp)
-                    )
+                    Box(Modifier.fillMaxWidth().height(220.dp).padding(bottom = 4.dp)) {
+                        AndroidView(
+                            factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
+                            update = { it.player = controller },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        IconButton(onClick = { setFullscreen(true) }, modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
+                            Text("⛶", style = MaterialTheme.typography.headlineSmall)
+                        }
+                    }
                 }
             }
         }
@@ -406,6 +460,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
     }
 }
 
@@ -478,4 +533,11 @@ private fun formatDuration(seconds: Long): String {
     val remainder = seconds % 60
     return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, remainder)
     else "%d:%02d".format(minutes, remainder)
+}
+
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
