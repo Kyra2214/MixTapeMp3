@@ -92,6 +92,8 @@ object YouTubeApi {
     private const val BASE_URL = "https://www.youtube.com/watch?v="
     @Volatile private var initialized = false
 
+    fun initialize() = ensureInitialized()
+
     private fun ensureInitialized() {
         if (initialized) return
         synchronized(YouTubeApi) {
