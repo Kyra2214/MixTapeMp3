@@ -17,8 +17,9 @@ data class SponsorSegment(
 /**
  * Integração opcional com a API pública do SponsorBlock.
  * Envia somente o ID público do vídeo para consultar segmentos enviados pela comunidade.
+ * O cliente HTTP é compartilhado para reutilizar conexões entre consultas.
  */
-class SponsorBlockRepository {
+object SponsorBlockRepository {
     private val client = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
@@ -27,7 +28,9 @@ class SponsorBlockRepository {
 
     suspend fun getSkippableSegments(videoId: String): List<SponsorSegment> =
         withContext(Dispatchers.IO) {
-            val categories = JSONArray(listOf("sponsor", "selfpromo").map { it })
+            if (videoId.isBlank()) return@withContext emptyList()
+
+            val categories = JSONArray(listOf("sponsor", "selfpromo"))
             val url = "https://sponsor.ajay.app/api/skipSegments" +
                 "?videoID=" + Uri.encode(videoId) +
                 "&categories=" + Uri.encode(categories.toString())
@@ -51,7 +54,7 @@ class SponsorBlockRepository {
                             if (range.length() < 2) continue
                             val start = range.optDouble(0, -1.0)
                             val end = range.optDouble(1, -1.0)
-                            if (start >= 0.0 && end > start) {
+                            if (start.isFinite() && end.isFinite() && start >= 0.0 && end > start) {
                                 add(
                                     SponsorSegment(
                                         startSeconds = start,
