@@ -265,15 +265,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             OutlinedButton(onClick = onBack) { Text("Voltar") }
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            listOf("Início", "Buscar", "Canais", "Biblioteca").forEach { destination ->
-                TextButton(onClick = { section = destination; selectedChannel = null; error = null }) {
-                    Text(destination, fontWeight = if (section == destination) FontWeight.Bold else FontWeight.Normal)
-                }
-            }
-        }
-
-        if (section == "Início" || section == "Buscar") Row(
+        Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -497,6 +489,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     ) { Text(if (loadingMore) "Carregando..." else "Carregar mais") }
                 }
             }
+            if (section == "Biblioteca" && history.isEmpty()) item { Text("Seu histórico ainda está vazio.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (section == "Biblioteca" && history.isNotEmpty()) {
                 item { Text("Seu histórico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
                 items(history, key = { it.videoId }) { historyItem ->
