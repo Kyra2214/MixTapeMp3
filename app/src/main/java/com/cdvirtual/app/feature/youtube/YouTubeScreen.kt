@@ -37,6 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
@@ -85,6 +87,21 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 MediaController.releaseFuture(future)
                 mediaController = null
             }
+        }
+    }
+
+    DisposableEffect(mediaController) {
+        val controller = mediaController
+        if (controller == null) {
+            onDispose { }
+        } else {
+            val listener = object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    error = "Não foi possível reproduzir este vídeo. Tente novamente mais tarde."
+                }
+            }
+            controller.addListener(listener)
+            onDispose { controller.removeListener(listener) }
         }
     }
 
