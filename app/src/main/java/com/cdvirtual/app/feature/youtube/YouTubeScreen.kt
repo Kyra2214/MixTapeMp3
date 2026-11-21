@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,7 +28,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,13 +39,17 @@ import androidx.core.content.ContextCompat
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
-import org.schabi.newpipe.extractor.Page
+import coil.compose.AsyncImage
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
 import com.cdvirtual.app.media.youtube.YouTubeVideo
 import kotlinx.coroutines.launch
+import org.schabi.newpipe.extractor.Page
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun YouTubeScreen(onBack: () -> Unit) {
@@ -101,6 +108,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 scope.launch {
                     loading = true
                     error = null
+                    nextPage = null
+                    results = emptyList()
                     try {
                         val page = repository.search(query)
                         results = page.videos
@@ -113,7 +122,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     }
                 }
             },
-            enabled = query.isNotBlank() && !loading,
+            enabled = query.isNotBlank() && !loading && !loadingMore,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(if (loading) "Pesquisando..." else "Pesquisar")
@@ -139,16 +148,9 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 item { Text("Resultados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
             items(results, key = { it.videoId }) { video ->
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(video.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text(video.channel.ifBlank { "Canal não informado" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(formatDuration(video.durationSeconds), style = MaterialTheme.typography.labelSmall)
-                        Button(onClick = {
-                            selectedVideoId = video.videoId
-                            YouTubePlaybackService.play(context, video.videoId)
-                        }) { Text("Reproduzir") }
-                    }
+                VideoResultRow(video) {
+                    selectedVideoId = video.videoId
+                    YouTubePlaybackService.play(context, video.videoId)
                 }
             }
             if (nextPage != null) {
@@ -201,26 +203,61 @@ fun YouTubeScreen(onBack: () -> Unit) {
 }
 
 @Composable
+private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = video.thumbnailUrl,
+                contentDescription = "Miniatura de " + video.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(width = 116.dp, height = 72.dp)
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(video.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(video.channel.ifBlank { "Canal não informado" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatDuration(video.durationSeconds), style = MaterialTheme.typography.labelSmall)
+                Button(onClick = onPlay) { Text("Reproduzir") }
+            }
+        }
+    }
+}
+
+@Composable
 private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onDelete: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            Modifier.fillMaxWidth().padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            AsyncImage(
+                model = item.thumbnailUrl,
+                contentDescription = "Miniatura de " + item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(width = 104.dp, height = 64.dp)
+            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(item.uploader.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (item.lastPositionMs > 0) {
                     Text("Retomar em " + formatDuration(item.lastPositionMs / 1000), style = MaterialTheme.typography.labelSmall)
                 }
-            }
-            Column {
-                TextButton(onClick = onPlay) { Text("Retomar") }
-                TextButton(onClick = onDelete) { Text("Excluir") }
+                Text(formatWatchedAt(item.watchedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row {
+                    TextButton(onClick = onPlay) { Text("Retomar") }
+                    TextButton(onClick = onDelete) { Text("Excluir") }
+                }
             }
         }
     }
 }
+
+private fun formatWatchedAt(timestamp: Long): String =
+    SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
 
 private fun formatDuration(seconds: Long): String {
     if (seconds <= 0) return "Duração indisponível"
