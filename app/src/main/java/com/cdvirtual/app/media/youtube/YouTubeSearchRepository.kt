@@ -6,7 +6,6 @@ import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
-import java.net.URL
 
 data class YouTubeVideo(
     val videoId: String,
