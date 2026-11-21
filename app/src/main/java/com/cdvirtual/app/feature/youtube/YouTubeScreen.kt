@@ -306,7 +306,7 @@ private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: ()
                 Text(formatDuration(video.durationSeconds), style = MaterialTheme.typography.labelSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(onClick = onPlay) { Text("Assistir") }
-                    TextButton(onClick = onListen) { Text("Ouvir") }
+                    TextButton(onClick = onListen) { Text("Só áudio") }
                 }
             }
         }
