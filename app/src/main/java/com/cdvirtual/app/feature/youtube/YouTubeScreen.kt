@@ -57,7 +57,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("Pesquisar vídeos") )
+            label = { Text("Pesquisar vídeos") }
         }
 
         Button(
