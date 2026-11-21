@@ -183,11 +183,14 @@ class YouTubePlaybackService : MediaSessionService() {
             }
 
             val now = SystemClock.elapsedRealtime()
-            if (now - lastProgressWrite >= 5_000L || player.playbackState == androidx.media3.common.Player.STATE_ENDED) {
-                dao.updateProgress(videoId, player.currentPosition.coerceAtLeast(0L), System.currentTimeMillis())
+            val ended = player.playbackState == androidx.media3.common.Player.STATE_ENDED
+            if (now - lastProgressWrite >= 5_000L || ended) {
+                // Ao concluir, zera a posição para que Retomar recomece do início.
+                val savedPosition = if (ended) 0L else player.currentPosition.coerceAtLeast(0L)
+                dao.updateProgress(videoId, savedPosition, System.currentTimeMillis())
                 lastProgressWrite = now
             }
-            if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) break
+            if (ended) break
         }
     }
 
