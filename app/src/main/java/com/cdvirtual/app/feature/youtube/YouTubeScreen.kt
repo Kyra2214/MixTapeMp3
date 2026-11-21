@@ -65,6 +65,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
+    var activeQuery by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var loadingMore by remember { mutableStateOf(false) }
@@ -180,8 +181,9 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     error = null
                     nextPage = null
                     results = emptyList()
+                    activeQuery = query.trim()
                     try {
-                        val page = repository.search(query)
+                        val page = repository.search(activeQuery)
                         results = page.videos
                         nextPage = page.nextPage
                         if (results.isEmpty()) error = "Nenhum vídeo encontrado."
@@ -233,7 +235,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                                 loadingMore = true
                                 error = null
                                 try {
-                                    val page = repository.loadMore(query, cursor)
+                                    val page = repository.loadMore(activeQuery, cursor)
                                     results = (results + page.videos).distinctBy { it.videoId }
                                     nextPage = page.nextPage
                                 } catch (failure: Exception) {
@@ -314,6 +316,7 @@ private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onDelete:
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(item.uploader.orEmpty(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Reproduzido " + item.watchCount + if (item.watchCount == 1) " vez" else " vezes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (item.lastPositionMs > 0) {
                     Text("Retomar em " + formatDuration(item.lastPositionMs / 1000), style = MaterialTheme.typography.labelSmall)
                 }
