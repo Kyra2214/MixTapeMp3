@@ -20,6 +20,21 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+object YouTubePlaybackStatus {
+    private val mutableError = MutableStateFlow<String?>(null)
+    val error = mutableError.asStateFlow()
+
+    fun clearError() {
+        mutableError.value = null
+    }
+
+    fun reportError(message: String) {
+        mutableError.value = message
+    }
+}
 
 /**
  * Player isolado da reprodução de MP3 local. O MediaSessionService mantém a reprodução
@@ -58,6 +73,7 @@ class YouTubePlaybackService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         if (intent?.action == ACTION_PLAY) {
+            YouTubePlaybackStatus.clearError()
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
             if (videoId != null) {
                 if (player.currentMediaItem?.mediaId == videoId) {
@@ -123,6 +139,9 @@ class YouTubePlaybackService : MediaSessionService() {
             if (loadingVideoId == videoId) loadingVideoId = null
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
+            YouTubePlaybackStatus.reportError(
+                "Não foi possível obter a transmissão deste vídeo. Ele pode estar indisponível ou o YouTube pode ter alterado o formato."
+            )
             loadingVideoId = null
         }
     }
