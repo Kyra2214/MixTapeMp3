@@ -13,11 +13,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -73,6 +76,8 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
+        webView.settings.textZoom = 85
+        webView.setInitialScale(90)
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.settings.setSupportMultipleWindows(false)
         webView.settings.allowFileAccess = false
@@ -116,18 +121,18 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
     val queue by vm.state.collectAsStateWithLifecycle()
     var sendMessage by remember { mutableStateOf<String?>(null) }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 7.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(34.dp).clip(CircleShape)
+                Modifier.size(27.dp).clip(CircleShape)
                     .background(Brush.linearGradient(listOf(Color(0xFF9B7BFF), Color(0xFF52E0D0)))),
                 contentAlignment = Alignment.Center
-            ) { Text("◎", color = Color(0xFF111323), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
-            Column(Modifier.padding(start = 8.dp).weight(1f)) {
-                Text("Explorar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            ) { Text("◎", color = Color(0xFF111323), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            Column(Modifier.padding(start = 6.dp).weight(1f)) {
+                Text("Explorar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(pageTitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
-            OutlinedButton(onClick = onHome) { Text("⌂ Início") }
+            OutlinedButton(onClick = onHome, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp), modifier = Modifier.height(34.dp)) { Text("⌂ Início", style = MaterialTheme.typography.labelSmall) }
         }
 
         Card(
@@ -135,22 +140,22 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
             shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 OutlinedTextField(
                     value = address, onValueChange = { address = it }, singleLine = true,
-                    label = { Text("Endereço ou link") }, modifier = Modifier.fillMaxWidth()
+                    label = { Text("Endereço ou link", style = MaterialTheme.typography.labelSmall) }, textStyle = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().height(52.dp)
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         val raw = address.trim()
                         val url = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "https://$raw"
                         webView.loadUrl(url)
-                    }, modifier = Modifier.weight(1f)) { Text("Abrir página  ↗") }
-                    OutlinedButton(onClick = { webView.reload() }) { Text("↻") }
+                    }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp), modifier = Modifier.weight(1f).height(36.dp)) { Text("Abrir página  ↗", style = MaterialTheme.typography.labelSmall) }
+                    OutlinedButton(onClick = { webView.reload() }, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(36.dp)) { Text("↻", style = MaterialTheme.typography.bodySmall) }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { if (webView.canGoBack()) webView.goBack() }, enabled = canGoBack, modifier = Modifier.weight(1f)) { Text("← Voltar") }
-                    OutlinedButton(onClick = { if (webView.canGoForward()) webView.goForward() }, enabled = canGoForward, modifier = Modifier.weight(1f)) { Text("Avançar →") }
+                    OutlinedButton(onClick = { if (webView.canGoBack()) webView.goBack() }, enabled = canGoBack, modifier = Modifier.weight(1f).height(34.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) { Text("← Voltar", style = MaterialTheme.typography.labelSmall) }
+                    OutlinedButton(onClick = { if (webView.canGoForward()) webView.goForward() }, enabled = canGoForward, modifier = Modifier.weight(1f).height(34.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) { Text("Avançar →", style = MaterialTheme.typography.labelSmall) }
                 }
             }
         }
@@ -161,13 +166,13 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
                 shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text("CONFIGURAÇÃO INICIAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-                    Text("Escolha a qualidade padrão dos seus áudios", style = MaterialTheme.typography.titleSmall)
+                    Text("Escolha a qualidade padrão dos seus áudios", style = MaterialTheme.typography.bodySmall)
                     Text(formatChoices.firstOrNull { it.first == preferredFormat }?.second ?: "Melhor qualidade",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(onClick = { showFormatDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Escolher qualidade")
+                    Button(onClick = { showFormatDialog = true }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp), modifier = Modifier.fillMaxWidth().height(34.dp)) {
+                        Text("Escolher qualidade", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -178,14 +183,14 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
                 sendMessage = "Link enviado para a fila. Você pode continuar navegando."
             },
             enabled = currentUrl.startsWith("http"),
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("↓  Enviar para downloads") }
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp), modifier = Modifier.fillMaxWidth().height(36.dp)
+        ) { Text("↓  Enviar para downloads", style = MaterialTheme.typography.labelSmall) }
         sendMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
         val activeCount = queue.queue.count { it.status == "Analisando" || it.status == "Na fila" || it.status == "Baixando" || it.status == "Importando" }
         if (activeCount > 0 || queue.queue.isNotEmpty()) {
             Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("Downloads · $activeCount em andamento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     queue.queue.takeLast(3).forEach { entry ->
                         Text("${entry.title} · ${entry.status}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
@@ -204,7 +209,7 @@ fun BrowserScreen(webView: WebView, vm: ImporterViewModel, onHome: () -> Unit) {
             onDismissRequest = { showFormatDialog = false },
             title = { Text("Formato e qualidade") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     formatChoices.forEach { (value, label) ->
                         TextButton(onClick = {
                             preferredFormat = value
