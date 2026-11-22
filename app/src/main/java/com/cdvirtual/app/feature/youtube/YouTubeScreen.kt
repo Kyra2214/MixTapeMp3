@@ -404,13 +404,14 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             }
                         }
                     }
-                } else {
+                } else if (!isVideoFullscreen) {
                     Box(
                         modifier = Modifier.fillMaxWidth().height(220.dp).padding(bottom = 4.dp)
                     ) {
                         AndroidView(
                             factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
                             update = { it.player = controller },
+                            onRelease = { it.player = null },
                             modifier = Modifier.fillMaxSize()
                         )
                         Button(
@@ -578,6 +579,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         }
                     },
                     update = { it.player = mediaController },
+                    onRelease = { it.player = null },
                     modifier = Modifier.fillMaxSize()
                 )
                 Button(
