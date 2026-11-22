@@ -17,18 +17,20 @@ class WelcomeFlowTest {
 
     @Test
     fun welcomeFlowOpensHomeScreen() {
-        // A tela inicial avança automaticamente após a animação de boas-vindas.
-        // Validamos o título do card principal, que identifica a Home e fica na área visível,
-        // sem depender de toque sintético nem de itens que podem ficar abaixo da dobra.
+        // O texto de boas-vindas também existe na tela de abertura.
+        // Esperamos pelo cartão exclusivo da Home para evitar falso positivo.
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithText("Seu som. Seu jeito.").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("Central de Vídeos YT").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("Seu som. Seu jeito.").assertIsDisplayed()
+        composeRule.onNodeWithText("Central de Vídeos YT").assertIsDisplayed()
+        composeRule.onNodeWithText("Central de Áudios YT").assertIsDisplayed()
     }
+
     @Test
     fun youtubeFeatureOpensFromHome() {
+        // Aguarda a saída da tela de boas-vindas e a composição real da Home.
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithText("Seu som. Seu jeito.").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("Central de Vídeos YT").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithText("Central de Vídeos YT").performClick()
         composeRule.onNodeWithText("Buscar").performClick()
@@ -38,5 +40,4 @@ class WelcomeFlowTest {
         composeRule.onNodeWithText("Pesquisar vídeos").assertIsDisplayed()
         composeRule.onNodeWithText("Pular trechos patrocinados").assertIsDisplayed()
     }
-
 }
