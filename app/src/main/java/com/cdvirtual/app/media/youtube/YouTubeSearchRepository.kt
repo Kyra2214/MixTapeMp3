@@ -5,6 +5,9 @@ import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.channel.ChannelInfo
+import org.schabi.newpipe.extractor.channel.tabs.ChannelTabInfo
+import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
@@ -14,7 +17,9 @@ data class YouTubeVideo(
     val channel: String,
     val thumbnailUrl: String?,
     val durationSeconds: Long,
-    val url: String
+    val url: String,
+    val channelUrl: String? = null,
+    val channelAvatarUrl: String? = null
 )
 
 data class YouTubeSearchPage(
@@ -22,9 +27,18 @@ data class YouTubeSearchPage(
     val nextPage: Page?
 )
 
+data class YouTubeChannelPage(
+    val channelUrl: String,
+    val channelName: String,
+    val avatarUrl: String?,
+    val videos: List<YouTubeVideo>,
+    val nextPage: Page?,
+    val tabHandler: ListLinkHandler
+)
+
 /**
- * Pesquisa independente da interface e do importador de áudio.
- * Mantém o cursor de paginação do NewPipe fora da camada visual.
+ * Pesquisa, páginas de canais e paginação usando o mesmo NewPipe já adotado pelo app.
+ * Conteúdo curto/Shorts é excluído intencionalmente da experiência MixTapeMp3.
  */
 class YouTubeSearchRepository {
     suspend fun search(query: String): YouTubeSearchPage = withContext(Dispatchers.IO) {
@@ -55,8 +69,40 @@ class YouTubeSearchRepository {
         )
     }
 
+    suspend fun loadChannel(channelUrl: String): YouTubeChannelPage = withContext(Dispatchers.IO) {
+        require(channelUrl.isNotBlank()) { "O endereço do canal não é válido." }
+        YouTubeExtractor.initialize()
+        val service = NewPipe.getService("YouTube")
+        val info = ChannelInfo.getInfo(service, channelUrl)
+        val videosTab = info.tabs.firstOrNull()
+            ?: throw IllegalStateException("Não foi possível encontrar a lista de vídeos deste canal.")
+        val tab = ChannelTabInfo.getInfo(service, videosTab)
+        YouTubeChannelPage(
+            channelUrl = info.url,
+            channelName = info.name.orEmpty(),
+            avatarUrl = info.avatars.firstOrNull()?.url,
+            videos = tab.relatedItems.toVideos(),
+            nextPage = tab.nextPage.takeIf { tab.hasNextPage() },
+            tabHandler = videosTab
+        )
+    }
+
+    suspend fun loadMoreChannel(
+        tabHandler: ListLinkHandler,
+        page: Page
+    ): YouTubeSearchPage = withContext(Dispatchers.IO) {
+        YouTubeExtractor.initialize()
+        val service = NewPipe.getService("YouTube")
+        val result = ChannelTabInfo.getMoreItems(service, tabHandler, page)
+        YouTubeSearchPage(
+            videos = result.items.toVideos(),
+            nextPage = result.nextPage
+        )
+    }
+
     private fun List<InfoItem>.toVideos(): List<YouTubeVideo> =
         filterIsInstance<StreamInfoItem>()
+            .filterNot { it.isShortFormContent }
             .mapNotNull { item ->
                 val url = item.url?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 val videoId = extractVideoId(url) ?: return@mapNotNull null
@@ -66,7 +112,9 @@ class YouTubeSearchRepository {
                     channel = item.uploaderName.orEmpty(),
                     thumbnailUrl = item.thumbnails.firstOrNull()?.url,
                     durationSeconds = item.duration.coerceAtLeast(0L),
-                    url = url
+                    url = url,
+                    channelUrl = item.uploaderUrl?.takeIf { it.isNotBlank() },
+                    channelAvatarUrl = item.uploaderAvatars.firstOrNull()?.url
                 )
             }
             .distinctBy { it.videoId }

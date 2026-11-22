@@ -56,8 +56,6 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         if (uri != null) folder = outputFolder.choose(uri)
     }
     val actions = listOf(
-        HomeAction(Destination.YouTube, "▶", "Pesquise, assista e ouça vídeos", Color(0xFFFF5A5A)),
-        HomeAction(Destination.Browser, "◎", "Encontre áudio na web", Color(0xFF58D8D0)),
         HomeAction(Destination.Importer, "↓", "Adicione à sua coleção", Color(0xFFFFA36C)),
         HomeAction(Destination.Downloads, "⇩", "Acompanhe sua fila", Color(0xFF69C6FF)),
         HomeAction(Destination.Library, "♫", "Ouça e organize", Color(0xFFB49AFF)),
@@ -88,25 +86,26 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
             }
         }
 
-        Card(
-            Modifier.fillMaxWidth().padding(top = 10.dp).animateContentSize(),
-            shape = MaterialTheme.shapes.extraLarge,
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                Modifier.background(Brush.linearGradient(listOf(Color(0xFF38286F), Color(0xFF172F45), Color(0xFF172A34))))
-                    .padding(12.dp)
-            ) {
-                Column {
-                    Text("PLAYLISTS DO SEU JEITO", color = Color(0xFF8DE9DE), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    Text("Sua coleção, seu jeito.", Modifier.padding(top = 3.dp), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Monte playlists, personalize o som e leve sua música com você.",
-                        Modifier.padding(top = 4.dp), color = Color(0xFFD7DCEC), style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = { onNavigate(Destination.CdEditor) }, Modifier.padding(top = 6.dp)) {
-                        Text("Criar minha playlist  →")
-                    }
-                }
-            }
+            HomeCentralCard(
+                title = "Central de Vídeos YT",
+                subtitle = "Explore vídeos e descubra canais",
+                symbol = "▶",
+                tint = Color(0xFFFF5A5A),
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Destination.YouTube) }
+            )
+            HomeCentralCard(
+                title = "Central de Áudios YT",
+                subtitle = "Encontre e extraia áudio de vídeos",
+                symbol = "♫",
+                tint = Color(0xFF58D8D0),
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Destination.Browser) }
+            )
         }
 
         Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -158,6 +157,41 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
                         Text(if (folder is OutputFolderState.Ready) "Alterar" else "Escolher")
                     }
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun HomeCentralCard(
+    title: String,
+    subtitle: String,
+    symbol: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier.height(142.dp).clickable(onClick = onClick).animateContentSize(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            Modifier.fillMaxSize().background(
+                Brush.linearGradient(listOf(tint.copy(alpha = 0.22f), MaterialTheme.colorScheme.surface))
+            ).padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(
+                Modifier.size(42.dp).clip(CircleShape).background(tint.copy(alpha = 0.20f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(symbol, color = tint, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            }
+            Column {
+                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

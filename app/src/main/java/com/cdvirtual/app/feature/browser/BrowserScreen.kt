@@ -128,25 +128,36 @@ fun BrowserScreen(
     var sendMessage by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 7.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(27.dp).clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Color(0xFF9B7BFF), Color(0xFF52E0D0)))),
-                contentAlignment = Alignment.Center
-            ) { Text("◎", color = Color(0xFF111323), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            Column(Modifier.padding(start = 6.dp).weight(1f)) {
-                Text("Explorar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(pageTitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().background(
+                    Brush.linearGradient(listOf(Color(0xFF174E4B), Color(0xFF202B35), MaterialTheme.colorScheme.surface))
+                ).padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF58D8D0).copy(alpha = 0.20f)),
+                    contentAlignment = Alignment.Center
+                ) { Text("♫", color = Color(0xFF58D8D0), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }
+                Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                    Text("Central de Áudios YT", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Encontre links e envie para baixar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                OutlinedButton(onClick = onHome, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp), modifier = Modifier.height(34.dp)) { Text("⌂", style = MaterialTheme.typography.titleMedium) }
             }
-            OutlinedButton(onClick = onHome, contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp), modifier = Modifier.height(34.dp)) { Text("⌂ Início", style = MaterialTheme.typography.labelSmall) }
         }
 
         Card(
             Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large,
+            shape = MaterialTheme.shapes.extraLarge,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
-            Column(Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("ENCONTRAR ÁUDIO", style = MaterialTheme.typography.labelSmall, color = Color(0xFF58BFB8), fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = address, onValueChange = { address = it }, singleLine = true,
                     label = { Text("Endereço ou link", style = MaterialTheme.typography.labelSmall) }, textStyle = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().height(52.dp)
@@ -173,7 +184,7 @@ fun BrowserScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("CONFIGURAÇÃO INICIAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
+                    Text("QUALIDADE DO DOWNLOAD", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
                     Text("Escolha a qualidade padrão dos seus áudios", style = MaterialTheme.typography.bodySmall)
                     Text(formatChoices.firstOrNull { it.first == preferredFormat }?.second ?: "Melhor qualidade",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -194,10 +205,10 @@ fun BrowserScreen(
         sendMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
         val activeCount = queue.queue.count { it.status == "Analisando" || it.status == "Na fila" || it.status == "Baixando" || it.status == "Importando" }
         if (activeCount > 0 || queue.queue.isNotEmpty()) {
-            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large,
+            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("Downloads · $activeCount em andamento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Sua fila · $activeCount em andamento", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     queue.queue.takeLast(3).forEach { entry ->
                         Text("${entry.title} · ${entry.status}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
                         if (entry.status == "Baixando" || entry.status == "Importando") {
