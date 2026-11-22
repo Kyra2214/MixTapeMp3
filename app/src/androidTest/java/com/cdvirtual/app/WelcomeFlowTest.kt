@@ -21,16 +21,16 @@ class WelcomeFlowTest {
         // Validamos o título do card principal, que identifica a Home e fica na área visível,
         // sem depender de toque sintético nem de itens que podem ficar abaixo da dobra.
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithText("PLAYLISTS DO SEU JEITO").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("Seu som. Seu jeito.").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("PLAYLISTS DO SEU JEITO").assertIsDisplayed()
+        composeRule.onNodeWithText("Seu som. Seu jeito.").assertIsDisplayed()
     }
     @Test
     fun youtubeFeatureOpensFromHome() {
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithText("PLAYLISTS DO SEU JEITO").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("Seu som. Seu jeito.").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("YouTube").performClick()
+        composeRule.onNodeWithText("Central de Vídeos YT").performClick()
         composeRule.waitUntil(timeoutMillis = 10_000) {
             composeRule.onAllNodesWithText("Pesquisar vídeos").fetchSemanticsNodes().isNotEmpty()
         }
