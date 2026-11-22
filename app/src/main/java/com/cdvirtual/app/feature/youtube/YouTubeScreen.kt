@@ -1,6 +1,7 @@
 package com.cdvirtual.app.feature.youtube
 
 import android.content.ComponentName
+import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -90,6 +91,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
     var isVideoFullscreen by remember { mutableStateOf(false) }
+    var showFullscreenRestoreButton by remember { mutableStateOf(true) }
     var audioOnlyMode by remember { mutableStateOf(false) }
     var audioIsPlaying by remember { mutableStateOf(false) }
     var audioPositionMs by remember { mutableStateOf(0L) }
@@ -415,7 +417,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             modifier = Modifier.fillMaxSize()
                         )
                         Button(
-                            onClick = { isVideoFullscreen = true },
+                            onClick = { showFullscreenRestoreButton = true; isVideoFullscreen = true },
                             modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                         ) {
                             Text("⛶ Tela cheia")
@@ -576,17 +578,27 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         PlayerView(viewContext).apply {
                             player = mediaController
                             useController = true
+                            controllerShowTimeoutMs = 2_000
+                            setControllerVisibilityListener { visibility ->
+                                showFullscreenRestoreButton = visibility == View.VISIBLE
+                            }
+                            showController()
                         }
                     },
-                    update = { it.player = mediaController },
+                    update = {
+                        it.player = mediaController
+                        it.controllerShowTimeoutMs = 2_000
+                    },
                     onRelease = { it.player = null },
                     modifier = Modifier.fillMaxSize()
                 )
-                Button(
-                    onClick = { isVideoFullscreen = false },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-                ) {
-                    Text("Restaurar")
+                if (showFullscreenRestoreButton) {
+                    Button(
+                        onClick = { isVideoFullscreen = false },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                    ) {
+                        Text("Restaurar")
+                    }
                 }
             }
         }
