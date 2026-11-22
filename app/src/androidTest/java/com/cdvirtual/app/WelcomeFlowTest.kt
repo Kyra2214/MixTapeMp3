@@ -31,6 +31,7 @@ class WelcomeFlowTest {
             composeRule.onAllNodesWithText("Seu som. Seu jeito.").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithText("Central de Vídeos YT").performClick()
+        composeRule.onNodeWithText("Buscar").performClick()
         composeRule.waitUntil(timeoutMillis = 10_000) {
             composeRule.onAllNodesWithText("Pesquisar vídeos").fetchSemanticsNodes().isNotEmpty()
         }
