@@ -579,9 +579,11 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             player = mediaController
                             useController = true
                             controllerShowTimeoutMs = 2_000
-                            setControllerVisibilityListener { visibility ->
-                                showFullscreenRestoreButton = visibility == View.VISIBLE
-                            }
+                            setControllerVisibilityListener(
+                                PlayerView.ControllerVisibilityListener { visibility ->
+                                    showFullscreenRestoreButton = visibility == View.VISIBLE
+                                }
+                            )
                             showController()
                         }
                     },
