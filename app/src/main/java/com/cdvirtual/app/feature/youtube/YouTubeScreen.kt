@@ -1,7 +1,10 @@
 package com.cdvirtual.app.feature.youtube
 
 import android.content.ComponentName
+import android.view.View
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,10 +43,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -80,6 +90,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var selectedVideoId by remember { mutableStateOf<String?>(null) }
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var isVideoFullscreen by remember { mutableStateOf(false) }
+    var showFullscreenRestoreButton by remember { mutableStateOf(true) }
     var audioOnlyMode by remember { mutableStateOf(false) }
     var audioIsPlaying by remember { mutableStateOf(false) }
     var audioPositionMs by remember { mutableStateOf(0L) }
@@ -394,12 +406,23 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             }
                         }
                     }
-                } else {
-                    AndroidView(
-                        factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
-                        update = { it.player = controller },
+                } else if (!isVideoFullscreen) {
+                    Box(
                         modifier = Modifier.fillMaxWidth().height(220.dp).padding(bottom = 4.dp)
-                    )
+                    ) {
+                        AndroidView(
+                            factory = { viewContext -> PlayerView(viewContext).apply { player = controller } },
+                            update = { it.player = controller },
+                            onRelease = { it.player = null },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Button(
+                            onClick = { showFullscreenRestoreButton = true; isVideoFullscreen = true },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                        ) {
+                            Text("⛶ Tela cheia")
+                        }
+                    }
                 }
             }
         }
@@ -513,6 +536,72 @@ fun YouTubeScreen(onBack: () -> Unit) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             listOf("Início", "Buscar", "Canais", "Biblioteca").forEach { destination ->
                 TextButton(onClick = { section = destination; selectedChannel = null }) { Text(destination, fontWeight = if (section == destination) FontWeight.Bold else FontWeight.Normal) }
+            }
+        }
+    }
+
+    if (isVideoFullscreen) {
+        Dialog(
+            onDismissRequest = { isVideoFullscreen = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            val dialogView = LocalView.current
+            val dialogWindow = (dialogView.parent as? DialogWindowProvider)?.window
+            DisposableEffect(dialogWindow) {
+                if (dialogWindow != null) {
+                    val insetsController = WindowInsetsControllerCompat(
+                        dialogWindow,
+                        dialogWindow.decorView
+                    )
+                    insetsController.hide(WindowInsetsCompat.Type.systemBars())
+                    insetsController.systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+                onDispose {
+                    if (dialogWindow != null) {
+                        WindowInsetsControllerCompat(
+                            dialogWindow,
+                            dialogWindow.decorView
+                        ).show(WindowInsetsCompat.Type.systemBars())
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color.Black)
+            ) {
+                AndroidView(
+                    factory = { viewContext ->
+                        PlayerView(viewContext).apply {
+                            player = mediaController
+                            useController = true
+                            controllerShowTimeoutMs = 2_000
+                            setControllerVisibilityListener(
+                                PlayerView.ControllerVisibilityListener { visibility ->
+                                    showFullscreenRestoreButton = visibility == View.VISIBLE
+                                }
+                            )
+                            showController()
+                        }
+                    },
+                    update = {
+                        it.player = mediaController
+                        it.controllerShowTimeoutMs = 2_000
+                    },
+                    onRelease = { it.player = null },
+                    modifier = Modifier.fillMaxSize()
+                )
+                if (showFullscreenRestoreButton) {
+                    Button(
+                        onClick = { isVideoFullscreen = false },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                    ) {
+                        Text("Restaurar")
+                    }
+                }
             }
         }
     }
