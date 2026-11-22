@@ -42,7 +42,7 @@ class YouTubeChannelDaoTest {
             addedAt = 100L
         )
 
-        assertEquals(-1L, dao.add(channel))
+        assertTrue(dao.add(channel) > 0L)
         assertTrue(dao.contains(channel.channelUrl))
         assertEquals("Canal exemplo", dao.observeAll().first().single().channelName)
 
