@@ -111,39 +111,83 @@ fun BrowserScreen(
                 syncAddress(view, url)
                 pageTitle = view.title?.takeIf { it.isNotBlank() } ?: title
                 progress = 1f
-                // Mantém o item selecionado da playlist do YouTube no início da área visível.
-                // A lista não é reordenada nem tem itens removidos.
+                // Acompanha a faixa atual e rola o CONTÊINER interno da playlist,
+                // não a página inteira. Não altera a ordem nem remove itens.
                 view.evaluateJavascript(
                     """
                     (function() {
                       if (window.__mixTapePlaylistFollowInstalled) return;
                       window.__mixTapePlaylistFollowInstalled = true;
                       var lastSelected = null;
-                      function followSelected() {
-                        var selected = document.querySelector(
+                      var scheduled = false;
+
+                      function findSelected() {
+                        return document.querySelector(
                           'ytd-playlist-panel-video-renderer[selected], ' +
                           'ytd-playlist-panel-video-renderer[aria-current="true"], ' +
-                          'ytd-playlist-panel-video-renderer[aria-selected="true"]'
+                          'ytd-playlist-panel-video-renderer[aria-selected="true"], ' +
+                          'ytd-playlist-panel-video-renderer[is-active]'
                         );
-                        if (!selected || selected === lastSelected) return;
-                        lastSelected = selected;
-                        selected.scrollIntoView({block: 'start', inline: 'nearest', behavior: 'smooth'});
                       }
-                      var observer = new MutationObserver(followSelected);
+
+                      function getScrollContainer(item) {
+                        var panel = item.closest('ytd-playlist-panel-renderer');
+                        var preferred = panel && (panel.querySelector('#items') ||
+                                                   panel.querySelector('#playlist-items'));
+                        if (preferred && preferred.scrollHeight > preferred.clientHeight) return preferred;
+
+                        var node = item.parentElement;
+                        while (node && node !== document.body) {
+                          var style = window.getComputedStyle(node);
+                          var overflow = style.overflowY;
+                          if ((overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') &&
+                              node.scrollHeight > node.clientHeight) return node;
+                          node = node.parentElement;
+                        }
+                        return null;
+                      }
+
+                      function followSelected(force) {
+                        scheduled = false;
+                        var item = findSelected();
+                        if (!item) return;
+                        if (!force && item === lastSelected) return;
+                        lastSelected = item;
+
+                        var container = getScrollContainer(item);
+                        if (container) {
+                          var itemTop = item.getBoundingClientRect().top;
+                          var containerTop = container.getBoundingClientRect().top;
+                          var target = container.scrollTop + itemTop - containerTop - 8;
+                          container.scrollTo({top: Math.max(0, target), behavior: 'smooth'});
+                        } else {
+                          item.scrollIntoView({block: 'start', inline: 'nearest', behavior: 'smooth'});
+                        }
+                      }
+
+                      function scheduleFollow(force) {
+                        if (scheduled) return;
+                        scheduled = true;
+                        window.requestAnimationFrame(function() { followSelected(!!force); });
+                      }
+
+                      var observer = new MutationObserver(function() { scheduleFollow(false); });
                       observer.observe(document.documentElement, {
                         subtree: true, childList: true, attributes: true,
-                        attributeFilter: ['selected', 'aria-current', 'aria-selected']
+                        attributeFilter: ['selected', 'aria-current', 'aria-selected', 'is-active']
                       });
+
                       document.addEventListener('click', function(event) {
                         if (event.target && event.target.closest &&
                             event.target.closest('ytd-playlist-panel-video-renderer')) {
-                          window.setTimeout(function() {
-                            lastSelected = null;
-                            followSelected();
-                          }, 250);
+                          window.setTimeout(function() { scheduleFollow(true); }, 400);
                         }
                       }, true);
-                      followSelected();
+
+                      // O YouTube atualiza a faixa por navegação SPA; a verificação periódica
+                      // cobre mudanças que não disparam mutação nos atributos observados.
+                      window.setInterval(function() { scheduleFollow(false); }, 1000);
+                      scheduleFollow(true);
                     })();
                     """.trimIndent(),
                     null
