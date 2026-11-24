@@ -82,7 +82,7 @@ fun BrowserScreen(
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
-        webView.settings.textZoom = 85
+        webView.settings.textZoom = 95
         webView.setInitialScale(90)
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.settings.setSupportMultipleWindows(false)
@@ -111,6 +111,43 @@ fun BrowserScreen(
                 syncAddress(view, url)
                 pageTitle = view.title?.takeIf { it.isNotBlank() } ?: title
                 progress = 1f
+                // Mantém o item selecionado da playlist do YouTube no início da área visível.
+                // A lista não é reordenada nem tem itens removidos.
+                view.evaluateJavascript(
+                    """
+                    (function() {
+                      if (window.__mixTapePlaylistFollowInstalled) return;
+                      window.__mixTapePlaylistFollowInstalled = true;
+                      var lastSelected = null;
+                      function followSelected() {
+                        var selected = document.querySelector(
+                          'ytd-playlist-panel-video-renderer[selected], ' +
+                          'ytd-playlist-panel-video-renderer[aria-current="true"], ' +
+                          'ytd-playlist-panel-video-renderer[aria-selected="true"]'
+                        );
+                        if (!selected || selected === lastSelected) return;
+                        lastSelected = selected;
+                        selected.scrollIntoView({block: 'start', inline: 'nearest', behavior: 'smooth'});
+                      }
+                      var observer = new MutationObserver(followSelected);
+                      observer.observe(document.documentElement, {
+                        subtree: true, childList: true, attributes: true,
+                        attributeFilter: ['selected', 'aria-current', 'aria-selected']
+                      });
+                      document.addEventListener('click', function(event) {
+                        if (event.target && event.target.closest &&
+                            event.target.closest('ytd-playlist-panel-video-renderer')) {
+                          window.setTimeout(function() {
+                            lastSelected = null;
+                            followSelected();
+                          }, 250);
+                        }
+                      }, true);
+                      followSelected();
+                    })();
+                    """.trimIndent(),
+                    null
+                )
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
