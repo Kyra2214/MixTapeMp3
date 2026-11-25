@@ -9,7 +9,6 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import com.cdvirtual.app.BuildConfig
 import com.cdvirtual.app.media.browser.BrowserMediaPlaybackService
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import androidx.activity.compose.BackHandler
@@ -163,7 +162,9 @@ fun BrowserScreen(
             },
             "MixTapeMediaBridge"
         )
-        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
+        if (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
