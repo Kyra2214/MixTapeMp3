@@ -111,82 +111,123 @@ fun BrowserScreen(
                 syncAddress(view, url)
                 pageTitle = view.title?.takeIf { it.isNotBlank() } ?: title
                 progress = 1f
-                // Acompanha a faixa atual e rola o CONTÊINER interno da playlist,
-                // não a página inteira. Não altera a ordem nem remove itens.
+                // Acompanha a faixa pelo videoId da URL (mais confiável que atributos
+                // selected, que o YouTube nem sempre atualiza no mesmo nó).
                 view.evaluateJavascript(
                     """
                     (function() {
-                      if (window.__mixTapePlaylistFollowInstalled) return;
-                      window.__mixTapePlaylistFollowInstalled = true;
-                      var lastSelected = null;
+                      if (window.__mixTapePlaylistFollowV2) return;
+                      window.__mixTapePlaylistFollowV2 = true;
+
+                      var lastHandledKey = null;
+                      var forcePending = false;
                       var scheduled = false;
 
-                      function findSelected() {
-                        return document.querySelector(
+                      function currentVideoId() {
+                        try { return new URL(location.href).searchParams.get('v'); }
+                        catch (_) { return null; }
+                      }
+
+                      function findCurrentItem() {
+                        var panel = document.querySelector('ytd-playlist-panel-renderer');
+                        if (!panel) return null;
+                        var videoId = currentVideoId();
+
+                        if (videoId) {
+                          var renderers = panel.querySelectorAll('ytd-playlist-panel-video-renderer');
+                          for (var i = 0; i < renderers.length; i++) {
+                            var links = renderers[i].querySelectorAll('a[href]');
+                            for (var j = 0; j < links.length; j++) {
+                              try {
+                                var linkId = new URL(links[j].href, location.href).searchParams.get('v');
+                                if (linkId === videoId) return {item: renderers[i], key: videoId};
+                              } catch (_) {}
+                            }
+                          }
+                        }
+
+                        var selected = panel.querySelector(
                           'ytd-playlist-panel-video-renderer[selected], ' +
                           'ytd-playlist-panel-video-renderer[aria-current="true"], ' +
                           'ytd-playlist-panel-video-renderer[aria-selected="true"], ' +
                           'ytd-playlist-panel-video-renderer[is-active]'
                         );
+                        return selected ? {item: selected, key: selected} : null;
                       }
 
                       function getScrollContainer(item) {
                         var panel = item.closest('ytd-playlist-panel-renderer');
                         var preferred = panel && (panel.querySelector('#items') ||
                                                    panel.querySelector('#playlist-items'));
-                        if (preferred && preferred.scrollHeight > preferred.clientHeight) return preferred;
+                        if (preferred && preferred.scrollHeight > preferred.clientHeight + 2) return preferred;
 
                         var node = item.parentElement;
                         while (node && node !== document.body) {
-                          var style = window.getComputedStyle(node);
-                          var overflow = style.overflowY;
-                          if ((overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') &&
-                              node.scrollHeight > node.clientHeight) return node;
+                          var style = getComputedStyle(node);
+                          if (/(auto|scroll|overlay)/.test(style.overflowY) &&
+                              node.scrollHeight > node.clientHeight + 2) return node;
                           node = node.parentElement;
                         }
                         return null;
                       }
 
-                      function followSelected(force) {
+                      function followCurrent(force) {
                         scheduled = false;
-                        var item = findSelected();
-                        if (!item) return;
-                        if (!force && item === lastSelected) return;
-                        lastSelected = item;
+                        var current = findCurrentItem();
+                        if (!current) return;
+                        if (!force && current.key === lastHandledKey) return;
 
-                        var container = getScrollContainer(item);
-                        if (container) {
-                          var itemTop = item.getBoundingClientRect().top;
-                          var containerTop = container.getBoundingClientRect().top;
-                          var target = container.scrollTop + itemTop - containerTop - 8;
-                          container.scrollTo({top: Math.max(0, target), behavior: 'smooth'});
-                        } else {
-                          item.scrollIntoView({block: 'start', inline: 'nearest', behavior: 'smooth'});
+                        var container = getScrollContainer(current.item);
+                        if (!container) return;
+
+                        var itemRect = current.item.getBoundingClientRect();
+                        var containerRect = container.getBoundingClientRect();
+                        var target = Math.max(0, container.scrollTop + itemRect.top - containerRect.top - 6);
+
+                        lastHandledKey = current.key;
+                        if (Math.abs(container.scrollTop - target) > 18) {
+                          container.scrollTo({top: target, behavior: 'smooth'});
                         }
                       }
 
                       function scheduleFollow(force) {
+                        forcePending = forcePending || !!force;
                         if (scheduled) return;
                         scheduled = true;
-                        window.requestAnimationFrame(function() { followSelected(!!force); });
+                        requestAnimationFrame(function() {
+                          var shouldForce = forcePending;
+                          forcePending = false;
+                          followCurrent(shouldForce);
+                        });
                       }
 
                       var observer = new MutationObserver(function() { scheduleFollow(false); });
                       observer.observe(document.documentElement, {
-                        subtree: true, childList: true, attributes: true,
-                        attributeFilter: ['selected', 'aria-current', 'aria-selected', 'is-active']
+                        subtree: true,
+                        childList: true,
+                        attributes: true,
+                        attributeFilter: ['selected', 'aria-current', 'aria-selected', 'is-active', 'href']
                       });
 
                       document.addEventListener('click', function(event) {
                         if (event.target && event.target.closest &&
                             event.target.closest('ytd-playlist-panel-video-renderer')) {
-                          window.setTimeout(function() { scheduleFollow(true); }, 400);
+                          setTimeout(function() { scheduleFollow(true); }, 500);
+                          setTimeout(function() { scheduleFollow(true); }, 1100);
                         }
                       }, true);
 
-                      // O YouTube atualiza a faixa por navegação SPA; a verificação periódica
-                      // cobre mudanças que não disparam mutação nos atributos observados.
-                      window.setInterval(function() { scheduleFollow(false); }, 1000);
+                      window.addEventListener('yt-navigate-finish', function() {
+                        lastHandledKey = null;
+                        scheduleFollow(true);
+                      });
+                      window.addEventListener('yt-page-data-updated', function() {
+                        scheduleFollow(true);
+                      });
+
+                      // O ID atual vem da URL do player; isso também detecta mudanças SPA
+                      // quando o YouTube reutiliza o mesmo elemento do DOM.
+                      window.setInterval(function() { scheduleFollow(false); }, 700);
                       scheduleFollow(true);
                     })();
                     """.trimIndent(),
