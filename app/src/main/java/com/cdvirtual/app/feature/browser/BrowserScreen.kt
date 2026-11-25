@@ -10,6 +10,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.cdvirtual.app.media.browser.BrowserMediaPlaybackService
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
+import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
 import androidx.activity.compose.BackHandler
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
@@ -131,6 +132,7 @@ fun BrowserScreen(
             val normalized = videoId?.trim()?.takeIf {
                 it.matches(Regex("^[A-Za-z0-9_-]{11}$"))
             } ?: return
+            android.util.Log.i("MixTapeBrowser", "Transferindo vídeo $normalized para Media3")
             BrowserMediaPlaybackService.update(context.applicationContext, false, null)
             YouTubePlaybackService.play(context.applicationContext, normalized, audioOnly = false)
         }
@@ -531,6 +533,7 @@ fun BrowserScreen(
     }
     BackHandler(enabled = canGoBack) { webView.goBack() }
     val queue by vm.state.collectAsStateWithLifecycle()
+    val playbackError by YouTubePlaybackStatus.error.collectAsStateWithLifecycle()
     var sendMessage by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 7.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -583,6 +586,13 @@ fun BrowserScreen(
             }
         }
         if (progress < 1f) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        playbackError?.let {
+            Text(
+                "Falha no player do YouTube: $it",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         if (!formatConfigured) {
             Card(
                 Modifier.fillMaxWidth(),
