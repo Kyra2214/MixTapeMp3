@@ -3,6 +3,7 @@ package com.cdvirtual.app.feature.browser
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ComponentName
+import android.net.Uri
 import android.os.Build
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -129,6 +130,25 @@ fun BrowserScreen(
     var canGoForward by remember(webView) { mutableStateOf(webView.canGoForward()) }
 
     DisposableEffect(webView) {
+        fun startNativeYouTubePlayback(videoId: String?) {
+            val normalized = videoId?.trim()?.takeIf {
+                it.matches(Regex("^[A-Za-z0-9_-]{11}$"))
+            } ?: return
+            BrowserMediaPlaybackService.update(context.applicationContext, false, null)
+            YouTubePlaybackService.play(context.applicationContext, normalized, audioOnly = false)
+        }
+
+        fun startNativePlaybackFromUrl(rawUrl: String?) {
+            val uri = runCatching { Uri.parse(rawUrl ?: return) }.getOrNull() ?: return
+            val host = uri.host?.lowercase().orEmpty()
+            val videoId = when {
+                host == "youtu.be" -> uri.lastPathSegment
+                host == "youtube.com" || host.endsWith(".youtube.com") -> uri.getQueryParameter("v")
+                else -> null
+            }
+            startNativeYouTubePlayback(videoId)
+        }
+
         webView.addJavascriptInterface(
             object {
                 @JavascriptInterface
@@ -138,10 +158,7 @@ fun BrowserScreen(
 
                 @JavascriptInterface
                 fun onYouTubeVideoSelected(videoId: String) {
-                    val normalized = videoId.trim()
-                    if (!normalized.matches(Regex("^[A-Za-z0-9_-]{11}$"))) return
-                    BrowserMediaPlaybackService.update(context.applicationContext, false, null)
-                    YouTubePlaybackService.play(context.applicationContext, normalized, audioOnly = false)
+                    startNativeYouTubePlayback(videoId)
                 }
 
                 @JavascriptInterface
@@ -158,8 +175,7 @@ fun BrowserScreen(
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
-        webView.settings.textZoom = 95
-        webView.setInitialScale(90)
+        webView.settings.textZoom = 110
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.settings.setSupportMultipleWindows(false)
         webView.settings.allowFileAccess = false
@@ -174,9 +190,13 @@ fun BrowserScreen(
                 canGoBack = view.canGoBack()
                 canGoForward = view.canGoForward()
             }
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                startNativePlaybackFromUrl(request.url.toString())
+                return false
+            }
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 syncAddress(view, url)
+                startNativePlaybackFromUrl(url)
                 progress = 0f
             }
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
@@ -401,6 +421,46 @@ fun BrowserScreen(
                       window.__mixTapeBrowserMediaMonitor = true;
                       var lastPlaying = null;
                       var lastTitle = '';
+                      var lastNativeVideoId = null;
+
+                      function handoffYouTubeVideo() {
+                        var host = location.hostname.toLowerCase();
+                        if (host !== 'youtube.com' && !host.endsWith('.youtube.com')) return;
+                        var videoId = null;
+                        try { videoId = new URL(location.href).searchParams.get('v'); } catch (_) {}
+                        if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) return;
+                        if (videoId !== lastNativeVideoId) {
+                          lastNativeVideoId = videoId;
+                          try {
+                            if (window.MixTapeMediaBridge) {
+                              window.MixTapeMediaBridge.onYouTubeVideoSelected(videoId);
+                            }
+                          } catch (_) {}
+                        }
+                        window.setTimeout(function() {
+                          document.querySelectorAll('video').forEach(function(video) {
+                            try { if (!video.paused) video.pause(); } catch (_) {}
+                          });
+                        }, 180);
+                      }
+
+                      window.addEventListener('yt-navigate-finish', function() {
+                        window.setTimeout(handoffYouTubeVideo, 250);
+                      });
+                      window.addEventListener('yt-page-data-updated', function() {
+                        window.setTimeout(handoffYouTubeVideo, 250);
+                      });
+                      document.addEventListener('playing', function(event) {
+                        if (event.target && event.target.tagName === 'VIDEO') {
+                          handoffYouTubeVideo();
+                          window.setTimeout(function() {
+                            try { event.target.pause(); } catch (_) {}
+                          }, 120);
+                        }
+                      }, true);
+                      window.setTimeout(handoffYouTubeVideo, 700);
+                      window.setInterval(handoffYouTubeVideo, 1200);
+
                       function syncMediaState() {
                         var elements = document.querySelectorAll('video, audio');
                         var active = false;
