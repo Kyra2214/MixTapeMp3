@@ -1,7 +1,7 @@
 package com.cdvirtual.app.feature.browser
 
 import org.junit.Assert.assertEquals
-import org.junit.AssertNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BrowserYouTubeUrlTest {
