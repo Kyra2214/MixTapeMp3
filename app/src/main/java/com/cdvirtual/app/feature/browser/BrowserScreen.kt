@@ -2,13 +2,23 @@ package com.cdvirtual.app.feature.browser
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.ComponentName
+import android.os.Build
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.cdvirtual.app.BuildConfig
 import com.cdvirtual.app.media.browser.BrowserMediaPlaybackService
+import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import androidx.activity.compose.BackHandler
+import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import androidx.media3.ui.PlayerView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,6 +80,43 @@ fun BrowserScreen(
     title: String = "Navegador"
 ) {
     val context = LocalContext.current
+    var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var nativeVideoId by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(context) {
+        val token = SessionToken(context, ComponentName(context, YouTubePlaybackService::class.java))
+        val future = MediaController.Builder(context, token).buildAsync()
+        var active = true
+        future.addListener({
+            val connected = runCatching { future.get() }.getOrNull()
+            if (active && connected != null) {
+                mediaController = connected
+                nativeVideoId = connected.currentMediaItem?.mediaId
+            }
+        }, ContextCompat.getMainExecutor(context))
+        onDispose {
+            active = false
+            MediaController.releaseFuture(future)
+            mediaController = null
+            nativeVideoId = null
+        }
+    }
+
+    DisposableEffect(mediaController) {
+        val controller = mediaController
+        if (controller == null) {
+            onDispose { }
+        } else {
+            val listener = object : Player.Listener {
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    nativeVideoId = mediaItem?.mediaId
+                }
+            }
+            nativeVideoId = controller.currentMediaItem?.mediaId
+            controller.addListener(listener)
+            onDispose { controller.removeListener(listener) }
+        }
+    }
     val preferences = remember { context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE) }
     var preferredFormat by remember { mutableStateOf(preferences.getString(FORMAT_KEY, "BEST") ?: "BEST") }
     var showFormatDialog by remember { mutableStateOf(false) }
@@ -88,9 +135,26 @@ fun BrowserScreen(
                 fun onMediaStateChanged(playing: Boolean, title: String?) {
                     BrowserMediaPlaybackService.update(context.applicationContext, playing, title)
                 }
+
+                @JavascriptInterface
+                fun onYouTubeVideoSelected(videoId: String) {
+                    val normalized = videoId.trim()
+                    if (!normalized.matches(Regex("^[A-Za-z0-9_-]{11}$"))) return
+                    BrowserMediaPlaybackService.update(context.applicationContext, false, null)
+                    YouTubePlaybackService.play(context.applicationContext, normalized, audioOnly = false)
+                }
+
+                @JavascriptInterface
+                fun onPlaylistDiagnostic(host: String, panel: String, item: String, scroller: String) {
+                    android.util.Log.i(
+                        "MixTapePlaylist",
+                        "host=$host panel=$panel item=$item scroller=$scroller"
+                    )
+                }
             },
             "MixTapeMediaBridge"
         )
+        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
@@ -397,6 +461,31 @@ fun BrowserScreen(
                             LinearProgressIndicator(progress = { entry.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                         }
                     }
+                }
+            }
+        }
+        val controller = mediaController
+        if (nativeVideoId != null && controller != null) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "PLAYER DO YOUTUBE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 10.dp, top = 6.dp)
+                    )
+                    AndroidView(
+                        factory = { viewContext ->
+                            PlayerView(viewContext).apply {
+                                player = controller
+                                useController = true
+                                controllerShowTimeoutMs = 2500
+                            }
+                        },
+                        update = { it.player = controller },
+                        onRelease = { it.player = null },
+                        modifier = Modifier.fillMaxWidth().height(190.dp)
+                    )
                 }
             }
         }
