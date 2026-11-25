@@ -3,7 +3,6 @@ package com.cdvirtual.app.feature.browser
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ComponentName
-import android.net.Uri
 import android.os.Build
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -139,14 +138,7 @@ fun BrowserScreen(
         }
 
         fun startNativePlaybackFromUrl(rawUrl: String?) {
-            val uri = runCatching { Uri.parse(rawUrl ?: return) }.getOrNull() ?: return
-            val host = uri.host?.lowercase().orEmpty()
-            val videoId = when {
-                host == "youtu.be" -> uri.lastPathSegment
-                host == "youtube.com" || host.endsWith(".youtube.com") -> uri.getQueryParameter("v")
-                else -> null
-            }
-            startNativeYouTubePlayback(videoId)
+            startNativeYouTubePlayback(BrowserYouTubeUrl.extractVideoId(rawUrl))
         }
 
         webView.addJavascriptInterface(
