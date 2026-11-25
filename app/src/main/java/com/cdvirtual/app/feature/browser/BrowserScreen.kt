@@ -217,6 +217,27 @@ fun BrowserScreen(
                         catch (_) { return null; }
                       }
 
+                      function queryAllDeep(root, selector) {
+                        var matches = [];
+                        try { matches = matches.concat(Array.from(root.querySelectorAll(selector))); }
+                        catch (_) { return matches; }
+                        var descendants = [];
+                        try { descendants = root.querySelectorAll('*'); } catch (_) {}
+                        descendants.forEach(function(node) {
+                          if (node.shadowRoot) {
+                            matches = matches.concat(queryAllDeep(node.shadowRoot, selector));
+                          }
+                        });
+                        return matches;
+                      }
+
+                      function composedParent(node) {
+                        if (!node) return null;
+                        if (node.parentElement) return node.parentElement;
+                        var root = node.getRootNode && node.getRootNode();
+                        return root && root.host ? root.host : null;
+                      }
+
                       function report(panel, item, scroller) {
                         var state = [
                           location.host,
@@ -240,10 +261,12 @@ fun BrowserScreen(
                       function findCurrentItem() {
                         var id = videoIdFromUrl(location.href);
                         if (!id) return null;
-                        var panel = document.querySelector(
+                        var panels = queryAllDeep(
+                          document,
                           'ytd-playlist-panel-renderer, ytm-playlist-panel-renderer, ' +
                           'ytm-playlist-video-list-renderer, ytd-playlist-video-list-renderer'
                         );
+                        var panel = panels.length ? panels[0] : null;
                         var selectors = [
                           'ytd-playlist-panel-video-renderer',
                           'ytm-playlist-video-renderer',
@@ -253,13 +276,13 @@ fun BrowserScreen(
                         var renderers = [];
                         if (panel) {
                           selectors.forEach(function(selector) {
-                            panel.querySelectorAll(selector).forEach(function(node) {
+                            queryAllDeep(panel, selector).forEach(function(node) {
                               renderers.push(node);
                             });
                           });
                         }
                         for (var i = 0; i < renderers.length; i++) {
-                          var links = renderers[i].querySelectorAll('a[href]');
+                          var links = queryAllDeep(renderers[i], 'a[href]');
                           for (var j = 0; j < links.length; j++) {
                             if (videoIdFromUrl(links[j].href) === id) {
                               return { item: renderers[i], panel: panel, key: id };
@@ -280,14 +303,16 @@ fun BrowserScreen(
                       }
 
                       function findScrollContainer(item, panel) {
-                        var preferred = panel && panel.querySelector(
+                        var preferredNodes = panel ? queryAllDeep(
+                          panel,
                           '#items, #items-container, #playlist-items, .playlist-items'
-                        );
+                        ) : [];
+                        var preferred = preferredNodes.find(isScrollable) || null;
                         if (isScrollable(preferred)) return preferred;
                         var node = item;
                         while (node && node !== document.body) {
                           if (isScrollable(node)) return node;
-                          node = node.parentElement;
+                          node = composedParent(node);
                         }
                         node = panel;
                         while (node && node !== document.body) {
