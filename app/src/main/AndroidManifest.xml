@@ -28,6 +28,10 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <service
+            android:name=".media.browser.BrowserMediaPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <service
             android:name=".media.playback.PlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />

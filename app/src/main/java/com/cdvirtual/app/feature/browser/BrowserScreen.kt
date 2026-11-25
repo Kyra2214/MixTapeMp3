@@ -1,10 +1,13 @@
 package com.cdvirtual.app.feature.browser
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.cdvirtual.app.media.browser.BrowserMediaPlaybackService
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -79,6 +82,15 @@ fun BrowserScreen(
     var canGoForward by remember(webView) { mutableStateOf(webView.canGoForward()) }
 
     DisposableEffect(webView) {
+        webView.addJavascriptInterface(
+            object {
+                @JavascriptInterface
+                fun onMediaStateChanged(playing: Boolean, title: String?) {
+                    BrowserMediaPlaybackService.update(context.applicationContext, playing, title)
+                }
+            },
+            "MixTapeMediaBridge"
+        )
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
@@ -229,6 +241,54 @@ fun BrowserScreen(
                       // quando o YouTube reutiliza o mesmo elemento do DOM.
                       window.setInterval(function() { scheduleFollow(false); }, 700);
                       scheduleFollow(true);
+                    })();
+                    """.trimIndent(),
+                    null
+                )
+                // Monitora elementos HTML5 de áudio/vídeo. O serviço foreground mantém
+                // o processo apto a continuar a mídia quando o app vai para segundo plano.
+                view.evaluateJavascript(
+                    """
+                    (function() {
+                      if (window.__mixTapeBrowserMediaMonitor) return;
+                      window.__mixTapeBrowserMediaMonitor = true;
+                      var lastPlaying = null;
+                      var lastTitle = '';
+                      function syncMediaState() {
+                        var elements = document.querySelectorAll('video, audio');
+                        var active = false;
+                        for (var i = 0; i < elements.length; i++) {
+                          var media = elements[i];
+                          if (!media.paused && !media.ended && media.readyState >= 2) {
+                            active = true;
+                            break;
+                          }
+                        }
+                        var title = (document.title || 'Mídia do navegador').slice(0, 120);
+                        if (active !== lastPlaying || title !== lastTitle) {
+                          lastPlaying = active;
+                          lastTitle = title;
+                          try {
+                            if (window.MixTapeMediaBridge) {
+                              window.MixTapeMediaBridge.onMediaStateChanged(active, title);
+                            }
+                          } catch (_) {}
+                        }
+                      }
+                      document.addEventListener('play', syncMediaState, true);
+                      document.addEventListener('playing', syncMediaState, true);
+                      document.addEventListener('pause', function() { setTimeout(syncMediaState, 150); }, true);
+                      document.addEventListener('ended', syncMediaState, true);
+                      document.addEventListener('emptied', syncMediaState, true);
+                      window.addEventListener('pagehide', function() {
+                        try {
+                          if (window.MixTapeMediaBridge) {
+                            window.MixTapeMediaBridge.onMediaStateChanged(false, '');
+                          }
+                        } catch (_) {}
+                      });
+                      window.setInterval(syncMediaState, 1000);
+                      syncMediaState();
                     })();
                     """.trimIndent(),
                     null
