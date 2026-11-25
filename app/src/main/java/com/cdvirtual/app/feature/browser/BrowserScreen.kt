@@ -187,61 +187,99 @@ fun BrowserScreen(
                 syncAddress(view, url)
                 pageTitle = view.title?.takeIf { it.isNotBlank() } ?: title
                 progress = 1f
-                // Acompanha a faixa pelo videoId da URL (mais confiável que atributos
-                // selected, que o YouTube nem sempre atualiza no mesmo nó).
+                // Acompanha a playlist em layouts desktop e mobile. A conclusão só é
+                // registrada depois de confirmar que o item realmente chegou ao topo.
                 view.evaluateJavascript(
                     """
                     (function() {
-                      if (window.__mixTapePlaylistFollowV2) return;
-                      window.__mixTapePlaylistFollowV2 = true;
-
-                      var lastHandledKey = null;
-                      var forcePending = false;
+                      if (window.__mixTapePlaylistFollowV3) return;
+                      window.__mixTapePlaylistFollowV3 = true;
+                      var lastCompletedKey = null;
+                      var retryKey = null;
+                      var retries = 0;
                       var scheduled = false;
+                      var lastDiagnostic = '';
 
-                      function currentVideoId() {
-                        try { return new URL(location.href).searchParams.get('v'); }
+                      function videoIdFromUrl(value) {
+                        try { return new URL(value, location.href).searchParams.get('v'); }
                         catch (_) { return null; }
                       }
 
-                      function findCurrentItem() {
-                        var panel = document.querySelector('ytd-playlist-panel-renderer');
-                        if (!panel) return null;
-                        var videoId = currentVideoId();
-
-                        if (videoId) {
-                          var renderers = panel.querySelectorAll('ytd-playlist-panel-video-renderer');
-                          for (var i = 0; i < renderers.length; i++) {
-                            var links = renderers[i].querySelectorAll('a[href]');
-                            for (var j = 0; j < links.length; j++) {
-                              try {
-                                var linkId = new URL(links[j].href, location.href).searchParams.get('v');
-                                if (linkId === videoId) return {item: renderers[i], key: videoId};
-                              } catch (_) {}
-                            }
-                          }
-                        }
-
-                        var selected = panel.querySelector(
-                          'ytd-playlist-panel-video-renderer[selected], ' +
-                          'ytd-playlist-panel-video-renderer[aria-current="true"], ' +
-                          'ytd-playlist-panel-video-renderer[aria-selected="true"], ' +
-                          'ytd-playlist-panel-video-renderer[is-active]'
-                        );
-                        return selected ? {item: selected, key: selected} : null;
+                      function report(panel, item, scroller) {
+                        var state = [
+                          location.host,
+                          panel ? panel.tagName.toLowerCase() : 'no-panel',
+                          item ? item.tagName.toLowerCase() : 'no-item',
+                          scroller ? (scroller.id || scroller.tagName.toLowerCase()) : 'no-scroll'
+                        ].join('|');
+                        if (state === lastDiagnostic) return;
+                        lastDiagnostic = state;
+                        try {
+                          window.MixTapeMediaBridge &&
+                            window.MixTapeMediaBridge.onPlaylistDiagnostic(
+                              location.host,
+                              panel ? panel.tagName.toLowerCase() : 'none',
+                              item ? item.tagName.toLowerCase() : 'none',
+                              scroller ? (scroller.id || scroller.tagName.toLowerCase()) : 'none'
+                            );
+                        } catch (_) {}
                       }
 
-                      function getScrollContainer(item) {
-                        var panel = item.closest('ytd-playlist-panel-renderer');
-                        var preferred = panel && (panel.querySelector('#items') ||
-                                                   panel.querySelector('#playlist-items'));
-                        if (preferred && preferred.scrollHeight > preferred.clientHeight + 2) return preferred;
+                      function findCurrentItem() {
+                        var id = videoIdFromUrl(location.href);
+                        if (!id) return null;
+                        var panel = document.querySelector(
+                          'ytd-playlist-panel-renderer, ytm-playlist-panel-renderer, ' +
+                          'ytm-playlist-video-list-renderer, ytd-playlist-video-list-renderer'
+                        );
+                        var selectors = [
+                          'ytd-playlist-panel-video-renderer',
+                          'ytm-playlist-video-renderer',
+                          'ytm-playlist-panel-video-renderer',
+                          'ytd-playlist-video-renderer'
+                        ];
+                        var renderers = [];
+                        if (panel) {
+                          selectors.forEach(function(selector) {
+                            panel.querySelectorAll(selector).forEach(function(node) {
+                              renderers.push(node);
+                            });
+                          });
+                        }
+                        for (var i = 0; i < renderers.length; i++) {
+                          var links = renderers[i].querySelectorAll('a[href]');
+                          for (var j = 0; j < links.length; j++) {
+                            if (videoIdFromUrl(links[j].href) === id) {
+                              return { item: renderers[i], panel: panel, key: id };
+                            }
+                          }
+                          if (renderers[i].getAttribute('data-video-id') === id) {
+                            return { item: renderers[i], panel: panel, key: id };
+                          }
+                        }
+                        return { item: null, panel: panel, key: id };
+                      }
 
-                        var node = item.parentElement;
+                      function isScrollable(node) {
+                        if (!node || node === document.body || node === document.documentElement) return false;
+                        var style = getComputedStyle(node);
+                        return /(auto|scroll|overlay)/.test(style.overflowY) &&
+                          node.scrollHeight > node.clientHeight + 3 && node.clientHeight > 60;
+                      }
+
+                      function findScrollContainer(item, panel) {
+                        var preferred = panel && panel.querySelector(
+                          '#items, #items-container, #playlist-items, .playlist-items'
+                        );
+                        if (isScrollable(preferred)) return preferred;
+                        var node = item;
                         while (node && node !== document.body) {
-                          var style = getComputedStyle(node);
-                          if (/(auto|scroll|overlay)/.test(style.overflowY) &&
-                              node.scrollHeight > node.clientHeight + 2) return node;
+                          if (isScrollable(node)) return node;
+                          node = node.parentElement;
+                        }
+                        node = panel;
+                        while (node && node !== document.body) {
+                          if (isScrollable(node)) return node;
                           node = node.parentElement;
                         }
                         return null;
@@ -251,60 +289,105 @@ fun BrowserScreen(
                         scheduled = false;
                         var current = findCurrentItem();
                         if (!current) return;
-                        if (!force && current.key === lastHandledKey) return;
-
-                        var container = getScrollContainer(current.item);
-                        if (!container) return;
-
-                        var itemRect = current.item.getBoundingClientRect();
-                        var containerRect = container.getBoundingClientRect();
-                        var target = Math.max(0, container.scrollTop + itemRect.top - containerRect.top - 6);
-
-                        lastHandledKey = current.key;
-                        if (Math.abs(container.scrollTop - target) > 18) {
-                          container.scrollTo({top: target, behavior: 'smooth'});
+                        if (current.key !== retryKey) {
+                          retryKey = current.key;
+                          retries = 0;
+                          lastCompletedKey = null;
+                        }
+                        if (!current.item) {
+                          report(current.panel, null, null);
+                          retry();
+                          return;
+                        }
+                        var scroller = findScrollContainer(current.item, current.panel);
+                        report(current.panel, current.item, scroller);
+                        if (scroller) {
+                          var itemRect = current.item.getBoundingClientRect();
+                          var box = scroller.getBoundingClientRect();
+                          var delta = itemRect.top - box.top - 8;
+                          if (Math.abs(delta) > 14) {
+                            scroller.scrollTo({
+                              top: Math.max(0, scroller.scrollTop + delta),
+                              behavior: 'smooth'
+                            });
+                          }
+                          window.setTimeout(function() {
+                            var after = current.item.getBoundingClientRect();
+                            var visible = after.top >= box.top - 3 && after.top < box.bottom;
+                            var aligned = Math.abs(after.top - box.top - 8) < 28;
+                            if (visible && aligned) {
+                              lastCompletedKey = current.key;
+                              retries = 0;
+                            } else {
+                              retry();
+                            }
+                          }, 260);
+                        } else {
+                          current.item.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                          window.setTimeout(function() {
+                            var rect = current.item.getBoundingClientRect();
+                            if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                              lastCompletedKey = current.key;
+                              retries = 0;
+                            } else {
+                              retry();
+                            }
+                          }, 300);
                         }
                       }
 
-                      function scheduleFollow(force) {
-                        forcePending = forcePending || !!force;
-                        if (scheduled) return;
-                        scheduled = true;
-                        requestAnimationFrame(function() {
-                          var shouldForce = forcePending;
-                          forcePending = false;
-                          followCurrent(shouldForce);
-                        });
+                      function retry() {
+                        if (retries >= 15) return;
+                        retries++;
+                        window.setTimeout(function() { schedule(true); }, 450);
                       }
 
-                      var observer = new MutationObserver(function() { scheduleFollow(false); });
+                      function schedule(force) {
+                        if (scheduled) return;
+                        if (!force && retryKey === lastCompletedKey) return;
+                        scheduled = true;
+                        requestAnimationFrame(function() { followCurrent(!!force); });
+                      }
+
+                      var observer = new MutationObserver(function() {
+                        if (retryKey !== lastCompletedKey) schedule(false);
+                      });
                       observer.observe(document.documentElement, {
                         subtree: true,
                         childList: true,
                         attributes: true,
-                        attributeFilter: ['selected', 'aria-current', 'aria-selected', 'is-active', 'href']
+                        attributeFilter: ['selected', 'aria-current', 'aria-selected', 'is-active', 'href', 'data-video-id']
                       });
-
-                      document.addEventListener('click', function(event) {
-                        if (event.target && event.target.closest &&
-                            event.target.closest('ytd-playlist-panel-video-renderer')) {
-                          setTimeout(function() { scheduleFollow(true); }, 500);
-                          setTimeout(function() { scheduleFollow(true); }, 1100);
-                        }
-                      }, true);
-
                       window.addEventListener('yt-navigate-finish', function() {
-                        lastHandledKey = null;
-                        scheduleFollow(true);
+                        retryKey = null;
+                        lastCompletedKey = null;
+                        retries = 0;
+                        schedule(true);
                       });
                       window.addEventListener('yt-page-data-updated', function() {
-                        scheduleFollow(true);
+                        retryKey = null;
+                        lastCompletedKey = null;
+                        retries = 0;
+                        schedule(true);
                       });
-
-                      // O ID atual vem da URL do player; isso também detecta mudanças SPA
-                      // quando o YouTube reutiliza o mesmo elemento do DOM.
-                      window.setInterval(function() { scheduleFollow(false); }, 700);
-                      scheduleFollow(true);
+                      document.addEventListener('click', function(event) {
+                        var target = event.target;
+                        if (target && target.closest &&
+                            target.closest('ytd-playlist-panel-video-renderer, ytm-playlist-video-renderer, ytm-playlist-panel-video-renderer')) {
+                          lastCompletedKey = null;
+                          retries = 0;
+                          window.setTimeout(function() { schedule(true); }, 350);
+                          window.setTimeout(function() { schedule(true); }, 900);
+                        }
+                      }, true);
+                      window.setInterval(function() {
+                        if (retryKey !== lastCompletedKey) schedule(false);
+                        else {
+                          var current = findCurrentItem();
+                          if (current && current.key !== lastCompletedKey) schedule(true);
+                        }
+                      }, 650);
+                      schedule(true);
                     })();
                     """.trimIndent(),
                     null
