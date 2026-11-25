@@ -3,7 +3,6 @@ package com.cdvirtual.app.feature.browser
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ComponentName
-import android.os.Build
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -405,8 +404,8 @@ fun BrowserScreen(
                     """.trimIndent(),
                     null
                 )
-                // Monitora elementos HTML5 de áudio/vídeo. O serviço foreground mantém
-                // o processo apto a continuar a mídia quando o app vai para segundo plano.
+                // Monitora mídia HTML5 de outros sites. Vídeos do YouTube são transferidos
+                // ao Media3, que possui sessão e serviço próprios para segundo plano.
                 view.evaluateJavascript(
                     """
                     (function() {
