@@ -12,9 +12,10 @@ import android.os.IBinder
 import androidx.core.content.ContextCompat
 
 /**
- * Mantém o processo do WebView elegível para reprodução de mídia em segundo plano.
- * O áudio continua sendo decodificado pelo elemento HTML5 da página; este serviço
- * fornece o ciclo de vida foreground exigido pelo Android enquanto há mídia ativa.
+ * Serviço de apoio para mídia HTML5 de sites externos ao YouTube.
+ * Ele eleva a prioridade do processo enquanto há mídia ativa, mas não substitui
+ * uma MediaSession nem garante que o WebView continue tocando após ser ocultado.
+ * A reprodução do YouTube usa YouTubePlaybackService/Media3.
  */
 class BrowserMediaPlaybackService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null

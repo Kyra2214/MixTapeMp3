@@ -2,13 +2,22 @@ package com.cdvirtual.app.feature.browser
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.ComponentName
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.cdvirtual.app.media.browser.BrowserMediaPlaybackService
+import com.cdvirtual.app.media.youtube.YouTubePlaybackService
+import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
 import androidx.activity.compose.BackHandler
+import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import androidx.media3.ui.PlayerView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,6 +79,43 @@ fun BrowserScreen(
     title: String = "Navegador"
 ) {
     val context = LocalContext.current
+    var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    var nativeVideoId by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(context) {
+        val token = SessionToken(context, ComponentName(context, YouTubePlaybackService::class.java))
+        val future = MediaController.Builder(context, token).buildAsync()
+        var active = true
+        future.addListener({
+            val connected = runCatching { future.get() }.getOrNull()
+            if (active && connected != null) {
+                mediaController = connected
+                nativeVideoId = connected.currentMediaItem?.mediaId
+            }
+        }, ContextCompat.getMainExecutor(context))
+        onDispose {
+            active = false
+            MediaController.releaseFuture(future)
+            mediaController = null
+            nativeVideoId = null
+        }
+    }
+
+    DisposableEffect(mediaController) {
+        val controller = mediaController
+        if (controller == null) {
+            onDispose { }
+        } else {
+            val listener = object : Player.Listener {
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    nativeVideoId = mediaItem?.mediaId
+                }
+            }
+            nativeVideoId = controller.currentMediaItem?.mediaId
+            controller.addListener(listener)
+            onDispose { controller.removeListener(listener) }
+        }
+    }
     val preferences = remember { context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE) }
     var preferredFormat by remember { mutableStateOf(preferences.getString(FORMAT_KEY, "BEST") ?: "BEST") }
     var showFormatDialog by remember { mutableStateOf(false) }
@@ -82,20 +128,48 @@ fun BrowserScreen(
     var canGoForward by remember(webView) { mutableStateOf(webView.canGoForward()) }
 
     DisposableEffect(webView) {
+        fun startNativeYouTubePlayback(videoId: String?) {
+            val normalized = videoId?.trim()?.takeIf {
+                it.matches(Regex("^[A-Za-z0-9_-]{11}$"))
+            } ?: return
+            android.util.Log.i("MixTapeBrowser", "Transferindo vídeo $normalized para Media3")
+            BrowserMediaPlaybackService.update(context.applicationContext, false, null)
+            YouTubePlaybackService.play(context.applicationContext, normalized, audioOnly = false)
+        }
+
+        fun startNativePlaybackFromUrl(rawUrl: String?) {
+            startNativeYouTubePlayback(BrowserYouTubeUrl.extractVideoId(rawUrl))
+        }
+
         webView.addJavascriptInterface(
             object {
                 @JavascriptInterface
                 fun onMediaStateChanged(playing: Boolean, title: String?) {
                     BrowserMediaPlaybackService.update(context.applicationContext, playing, title)
                 }
+
+                @JavascriptInterface
+                fun onYouTubeVideoSelected(videoId: String) {
+                    startNativeYouTubePlayback(videoId)
+                }
+
+                @JavascriptInterface
+                fun onPlaylistDiagnostic(host: String, panel: String, item: String, scroller: String) {
+                    android.util.Log.i(
+                        "MixTapePlaylist",
+                        "host=$host panel=$panel item=$item scroller=$scroller"
+                    )
+                }
             },
             "MixTapeMediaBridge"
         )
+        if (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.loadsImagesAutomatically = true
-        webView.settings.textZoom = 95
-        webView.setInitialScale(90)
+        webView.settings.textZoom = 110
         webView.settings.javaScriptCanOpenWindowsAutomatically = false
         webView.settings.setSupportMultipleWindows(false)
         webView.settings.allowFileAccess = false
@@ -110,9 +184,13 @@ fun BrowserScreen(
                 canGoBack = view.canGoBack()
                 canGoForward = view.canGoForward()
             }
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                startNativePlaybackFromUrl(request.url.toString())
+                return false
+            }
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 syncAddress(view, url)
+                startNativePlaybackFromUrl(url)
                 progress = 0f
             }
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
@@ -123,61 +201,124 @@ fun BrowserScreen(
                 syncAddress(view, url)
                 pageTitle = view.title?.takeIf { it.isNotBlank() } ?: title
                 progress = 1f
-                // Acompanha a faixa pelo videoId da URL (mais confiável que atributos
-                // selected, que o YouTube nem sempre atualiza no mesmo nó).
+                // Acompanha a playlist em layouts desktop e mobile. A conclusão só é
+                // registrada depois de confirmar que o item realmente chegou ao topo.
                 view.evaluateJavascript(
                     """
                     (function() {
-                      if (window.__mixTapePlaylistFollowV2) return;
-                      window.__mixTapePlaylistFollowV2 = true;
-
-                      var lastHandledKey = null;
-                      var forcePending = false;
+                      if (window.__mixTapePlaylistFollowV3) return;
+                      window.__mixTapePlaylistFollowV3 = true;
+                      var lastCompletedKey = null;
+                      var retryKey = null;
+                      var retries = 0;
                       var scheduled = false;
+                      var lastDiagnostic = '';
 
-                      function currentVideoId() {
-                        try { return new URL(location.href).searchParams.get('v'); }
+                      function videoIdFromUrl(value) {
+                        try { return new URL(value, location.href).searchParams.get('v'); }
                         catch (_) { return null; }
                       }
 
-                      function findCurrentItem() {
-                        var panel = document.querySelector('ytd-playlist-panel-renderer');
-                        if (!panel) return null;
-                        var videoId = currentVideoId();
-
-                        if (videoId) {
-                          var renderers = panel.querySelectorAll('ytd-playlist-panel-video-renderer');
-                          for (var i = 0; i < renderers.length; i++) {
-                            var links = renderers[i].querySelectorAll('a[href]');
-                            for (var j = 0; j < links.length; j++) {
-                              try {
-                                var linkId = new URL(links[j].href, location.href).searchParams.get('v');
-                                if (linkId === videoId) return {item: renderers[i], key: videoId};
-                              } catch (_) {}
-                            }
+                      function queryAllDeep(root, selector) {
+                        var matches = [];
+                        try { matches = matches.concat(Array.from(root.querySelectorAll(selector))); }
+                        catch (_) { return matches; }
+                        var descendants = [];
+                        try { descendants = root.querySelectorAll('*'); } catch (_) {}
+                        descendants.forEach(function(node) {
+                          if (node.shadowRoot) {
+                            matches = matches.concat(queryAllDeep(node.shadowRoot, selector));
                           }
-                        }
-
-                        var selected = panel.querySelector(
-                          'ytd-playlist-panel-video-renderer[selected], ' +
-                          'ytd-playlist-panel-video-renderer[aria-current="true"], ' +
-                          'ytd-playlist-panel-video-renderer[aria-selected="true"], ' +
-                          'ytd-playlist-panel-video-renderer[is-active]'
-                        );
-                        return selected ? {item: selected, key: selected} : null;
+                        });
+                        return matches;
                       }
 
-                      function getScrollContainer(item) {
-                        var panel = item.closest('ytd-playlist-panel-renderer');
-                        var preferred = panel && (panel.querySelector('#items') ||
-                                                   panel.querySelector('#playlist-items'));
-                        if (preferred && preferred.scrollHeight > preferred.clientHeight + 2) return preferred;
+                      function composedParent(node) {
+                        if (!node) return null;
+                        if (node.parentElement) return node.parentElement;
+                        var root = node.getRootNode && node.getRootNode();
+                        return root && root.host ? root.host : null;
+                      }
 
-                        var node = item.parentElement;
+                      function report(panel, item, scroller) {
+                        var state = [
+                          location.host,
+                          panel ? panel.tagName.toLowerCase() : 'no-panel',
+                          item ? item.tagName.toLowerCase() : 'no-item',
+                          scroller ? (scroller.id || scroller.tagName.toLowerCase()) : 'no-scroll'
+                        ].join('|');
+                        if (state === lastDiagnostic) return;
+                        lastDiagnostic = state;
+                        try {
+                          window.MixTapeMediaBridge &&
+                            window.MixTapeMediaBridge.onPlaylistDiagnostic(
+                              location.host,
+                              panel ? panel.tagName.toLowerCase() : 'none',
+                              item ? item.tagName.toLowerCase() : 'none',
+                              scroller ? (scroller.id || scroller.tagName.toLowerCase()) : 'none'
+                            );
+                        } catch (_) {}
+                      }
+
+                      function findCurrentItem() {
+                        var id = videoIdFromUrl(location.href);
+                        if (!id) return null;
+                        var panels = queryAllDeep(
+                          document,
+                          'ytd-playlist-panel-renderer, ytm-playlist-panel-renderer, ' +
+                          'ytm-playlist-video-list-renderer, ytd-playlist-video-list-renderer'
+                        );
+                        var panel = panels.length ? panels[0] : null;
+                        var selectors = [
+                          'ytd-playlist-panel-video-renderer',
+                          'ytm-playlist-video-renderer',
+                          'ytm-playlist-panel-video-renderer',
+                          'ytd-playlist-video-renderer'
+                        ];
+                        var renderers = [];
+                        if (panel) {
+                          selectors.forEach(function(selector) {
+                            queryAllDeep(panel, selector).forEach(function(node) {
+                              renderers.push(node);
+                            });
+                          });
+                        }
+                        for (var i = 0; i < renderers.length; i++) {
+                          var links = queryAllDeep(renderers[i], 'a[href]');
+                          for (var j = 0; j < links.length; j++) {
+                            if (videoIdFromUrl(links[j].href) === id) {
+                              return { item: renderers[i], panel: panel, key: id };
+                            }
+                          }
+                          if (renderers[i].getAttribute('data-video-id') === id) {
+                            return { item: renderers[i], panel: panel, key: id };
+                          }
+                        }
+                        return { item: null, panel: panel, key: id };
+                      }
+
+                      function isScrollable(node) {
+                        if (!node || node === document.body || node === document.documentElement) return false;
+                        var style = getComputedStyle(node);
+                        return /(auto|scroll|overlay)/.test(style.overflowY) &&
+                          node.scrollHeight > node.clientHeight + 3 && node.clientHeight > 60;
+                      }
+
+                      function findScrollContainer(item, panel) {
+                        var preferredNodes = panel ? queryAllDeep(
+                          panel,
+                          '#items, #items-container, #playlist-items, .playlist-items'
+                        ) : [];
+                        var preferred = preferredNodes.find(isScrollable) || null;
+                        if (isScrollable(preferred)) return preferred;
+                        var node = item;
                         while (node && node !== document.body) {
-                          var style = getComputedStyle(node);
-                          if (/(auto|scroll|overlay)/.test(style.overflowY) &&
-                              node.scrollHeight > node.clientHeight + 2) return node;
+                          if (isScrollable(node)) return node;
+                          node = composedParent(node);
+                        }
+                        node = panel;
+                        while (node && node !== document.body) {
+                          if (isScrollable(node)) return node;
                           node = node.parentElement;
                         }
                         return null;
@@ -187,66 +328,111 @@ fun BrowserScreen(
                         scheduled = false;
                         var current = findCurrentItem();
                         if (!current) return;
-                        if (!force && current.key === lastHandledKey) return;
-
-                        var container = getScrollContainer(current.item);
-                        if (!container) return;
-
-                        var itemRect = current.item.getBoundingClientRect();
-                        var containerRect = container.getBoundingClientRect();
-                        var target = Math.max(0, container.scrollTop + itemRect.top - containerRect.top - 6);
-
-                        lastHandledKey = current.key;
-                        if (Math.abs(container.scrollTop - target) > 18) {
-                          container.scrollTo({top: target, behavior: 'smooth'});
+                        if (current.key !== retryKey) {
+                          retryKey = current.key;
+                          retries = 0;
+                          lastCompletedKey = null;
+                        }
+                        if (!current.item) {
+                          report(current.panel, null, null);
+                          retry();
+                          return;
+                        }
+                        var scroller = findScrollContainer(current.item, current.panel);
+                        report(current.panel, current.item, scroller);
+                        if (scroller) {
+                          var itemRect = current.item.getBoundingClientRect();
+                          var box = scroller.getBoundingClientRect();
+                          var delta = itemRect.top - box.top - 8;
+                          if (Math.abs(delta) > 14) {
+                            scroller.scrollTo({
+                              top: Math.max(0, scroller.scrollTop + delta),
+                              behavior: 'smooth'
+                            });
+                          }
+                          window.setTimeout(function() {
+                            var after = current.item.getBoundingClientRect();
+                            var visible = after.top >= box.top - 3 && after.top < box.bottom;
+                            var aligned = Math.abs(after.top - box.top - 8) < 28;
+                            if (visible && aligned) {
+                              lastCompletedKey = current.key;
+                              retries = 0;
+                            } else {
+                              retry();
+                            }
+                          }, 260);
+                        } else {
+                          current.item.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                          window.setTimeout(function() {
+                            var rect = current.item.getBoundingClientRect();
+                            if (rect.bottom > 0 && rect.top < window.innerHeight) {
+                              lastCompletedKey = current.key;
+                              retries = 0;
+                            } else {
+                              retry();
+                            }
+                          }, 300);
                         }
                       }
 
-                      function scheduleFollow(force) {
-                        forcePending = forcePending || !!force;
-                        if (scheduled) return;
-                        scheduled = true;
-                        requestAnimationFrame(function() {
-                          var shouldForce = forcePending;
-                          forcePending = false;
-                          followCurrent(shouldForce);
-                        });
+                      function retry() {
+                        if (retries >= 15) return;
+                        retries++;
+                        window.setTimeout(function() { schedule(true); }, 450);
                       }
 
-                      var observer = new MutationObserver(function() { scheduleFollow(false); });
+                      function schedule(force) {
+                        if (scheduled) return;
+                        if (!force && retryKey === lastCompletedKey) return;
+                        scheduled = true;
+                        requestAnimationFrame(function() { followCurrent(!!force); });
+                      }
+
+                      var observer = new MutationObserver(function() {
+                        if (retryKey !== lastCompletedKey) schedule(false);
+                      });
                       observer.observe(document.documentElement, {
                         subtree: true,
                         childList: true,
                         attributes: true,
-                        attributeFilter: ['selected', 'aria-current', 'aria-selected', 'is-active', 'href']
+                        attributeFilter: ['selected', 'aria-current', 'aria-selected', 'is-active', 'href', 'data-video-id']
                       });
-
-                      document.addEventListener('click', function(event) {
-                        if (event.target && event.target.closest &&
-                            event.target.closest('ytd-playlist-panel-video-renderer')) {
-                          setTimeout(function() { scheduleFollow(true); }, 500);
-                          setTimeout(function() { scheduleFollow(true); }, 1100);
-                        }
-                      }, true);
-
                       window.addEventListener('yt-navigate-finish', function() {
-                        lastHandledKey = null;
-                        scheduleFollow(true);
+                        retryKey = null;
+                        lastCompletedKey = null;
+                        retries = 0;
+                        schedule(true);
                       });
                       window.addEventListener('yt-page-data-updated', function() {
-                        scheduleFollow(true);
+                        retryKey = null;
+                        lastCompletedKey = null;
+                        retries = 0;
+                        schedule(true);
                       });
-
-                      // O ID atual vem da URL do player; isso também detecta mudanças SPA
-                      // quando o YouTube reutiliza o mesmo elemento do DOM.
-                      window.setInterval(function() { scheduleFollow(false); }, 700);
-                      scheduleFollow(true);
+                      document.addEventListener('click', function(event) {
+                        var target = event.target;
+                        if (target && target.closest &&
+                            target.closest('ytd-playlist-panel-video-renderer, ytm-playlist-video-renderer, ytm-playlist-panel-video-renderer')) {
+                          lastCompletedKey = null;
+                          retries = 0;
+                          window.setTimeout(function() { schedule(true); }, 350);
+                          window.setTimeout(function() { schedule(true); }, 900);
+                        }
+                      }, true);
+                      window.setInterval(function() {
+                        if (retryKey !== lastCompletedKey) schedule(false);
+                        else {
+                          var current = findCurrentItem();
+                          if (current && current.key !== lastCompletedKey) schedule(true);
+                        }
+                      }, 650);
+                      schedule(true);
                     })();
                     """.trimIndent(),
                     null
                 )
-                // Monitora elementos HTML5 de áudio/vídeo. O serviço foreground mantém
-                // o processo apto a continuar a mídia quando o app vai para segundo plano.
+                // Monitora mídia HTML5 de outros sites. Vídeos do YouTube são transferidos
+                // ao Media3, que possui sessão e serviço próprios para segundo plano.
                 view.evaluateJavascript(
                     """
                     (function() {
@@ -254,6 +440,46 @@ fun BrowserScreen(
                       window.__mixTapeBrowserMediaMonitor = true;
                       var lastPlaying = null;
                       var lastTitle = '';
+                      var lastNativeVideoId = null;
+
+                      function handoffYouTubeVideo() {
+                        var host = location.hostname.toLowerCase();
+                        if (host !== 'youtube.com' && !host.endsWith('.youtube.com')) return;
+                        var videoId = null;
+                        try { videoId = new URL(location.href).searchParams.get('v'); } catch (_) {}
+                        if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) return;
+                        if (videoId !== lastNativeVideoId) {
+                          lastNativeVideoId = videoId;
+                          try {
+                            if (window.MixTapeMediaBridge) {
+                              window.MixTapeMediaBridge.onYouTubeVideoSelected(videoId);
+                            }
+                          } catch (_) {}
+                        }
+                        window.setTimeout(function() {
+                          document.querySelectorAll('video').forEach(function(video) {
+                            try { if (!video.paused) video.pause(); } catch (_) {}
+                          });
+                        }, 180);
+                      }
+
+                      window.addEventListener('yt-navigate-finish', function() {
+                        window.setTimeout(handoffYouTubeVideo, 250);
+                      });
+                      window.addEventListener('yt-page-data-updated', function() {
+                        window.setTimeout(handoffYouTubeVideo, 250);
+                      });
+                      document.addEventListener('playing', function(event) {
+                        if (event.target && event.target.tagName === 'VIDEO') {
+                          handoffYouTubeVideo();
+                          window.setTimeout(function() {
+                            try { event.target.pause(); } catch (_) {}
+                          }, 120);
+                        }
+                      }, true);
+                      window.setTimeout(handoffYouTubeVideo, 700);
+                      window.setInterval(handoffYouTubeVideo, 1200);
+
                       function syncMediaState() {
                         var elements = document.querySelectorAll('video, audio');
                         var active = false;
@@ -307,6 +533,7 @@ fun BrowserScreen(
     }
     BackHandler(enabled = canGoBack) { webView.goBack() }
     val queue by vm.state.collectAsStateWithLifecycle()
+    val playbackError by YouTubePlaybackStatus.error.collectAsStateWithLifecycle()
     var sendMessage by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 7.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -359,6 +586,13 @@ fun BrowserScreen(
             }
         }
         if (progress < 1f) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        playbackError?.let {
+            Text(
+                "Falha no player do YouTube: $it",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
         if (!formatConfigured) {
             Card(
                 Modifier.fillMaxWidth(),
@@ -397,6 +631,31 @@ fun BrowserScreen(
                             LinearProgressIndicator(progress = { entry.progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                         }
                     }
+                }
+            }
+        }
+        val controller = mediaController
+        if (nativeVideoId != null && controller != null) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "PLAYER DO YOUTUBE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 10.dp, top = 6.dp)
+                    )
+                    AndroidView(
+                        factory = { viewContext ->
+                            PlayerView(viewContext).apply {
+                                player = controller
+                                useController = true
+                                controllerShowTimeoutMs = 2500
+                            }
+                        },
+                        update = { it.player = controller },
+                        onRelease = { it.player = null },
+                        modifier = Modifier.fillMaxWidth().height(190.dp)
+                    )
                 }
             }
         }
