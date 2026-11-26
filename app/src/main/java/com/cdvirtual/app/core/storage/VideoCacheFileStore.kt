@@ -28,6 +28,23 @@ class VideoCacheFileStore(context: Context) {
     }
 
     /**
+     * Retorna o parcial existente para retomada ou cria um novo arquivo.
+     * O arquivo permanece restrito ao diretório exclusivo de vídeos.
+     */
+    fun getOrCreatePartialFile(cacheId: String): File {
+        requireSafeId(cacheId)
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw IOException("Não foi possível criar o diretório do cache de vídeos.")
+        }
+        val partial = File(directory, "$cacheId.part").canonicalFile
+        requireManaged(partial)
+        if (partial.exists() && !partial.isFile) {
+            throw IOException("O caminho parcial já existe e não é um arquivo regular.")
+        }
+        return partial
+    }
+
+    /**
      * Publica um arquivo .part somente após confirmar tamanho não vazio e tamanho esperado,
      * usando rename no mesmo diretório para evitar expor arquivos incompletos.
      */
