@@ -99,7 +99,7 @@ class VideoCacheManager(
         try {
             // Depois do rename, concluir a gravação do estado sem deixar uma janela
             // de cancelamento entre o arquivo publicado e o registro READY.
-            withContext(NonCancellable) {
+            withContext(NonCancellable + Dispatchers.IO) {
                 repository.markReadyAfterPromotion(cacheId, published)
             }
         } catch (failure: Throwable) {
