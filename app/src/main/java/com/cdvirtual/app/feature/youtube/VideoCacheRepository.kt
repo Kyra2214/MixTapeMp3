@@ -21,6 +21,8 @@ class VideoCacheRepository(
 ) {
     val items: Flow<List<VideoCacheEntity>> = dao.observeAll()
 
+    suspend fun all(): List<VideoCacheEntity> = dao.getAll()
+
     suspend fun find(cacheId: String): VideoCacheEntity? = dao.find(cacheId)
 
     suspend fun findBySource(sourceId: String, sourceVideoId: String): VideoCacheEntity? =
