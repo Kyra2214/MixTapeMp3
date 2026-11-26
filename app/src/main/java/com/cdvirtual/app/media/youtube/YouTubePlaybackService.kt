@@ -305,8 +305,14 @@ class YouTubePlaybackService : MediaSessionService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         if (intent?.action == ACTION_PLAY_CACHED) {
+            YouTubePlaybackStatus.clearError()
             val cacheId = intent.getStringExtra(EXTRA_CACHE_ID)?.takeIf { it.isNotBlank() }
-            if (cacheId != null) scope.launch { loadAndPlayCached(cacheId) }
+            if (cacheId != null) {
+                player.pause()
+                loadingVideoId = null
+                ++playbackRequestId
+                scope.launch { loadAndPlayCached(cacheId) }
+            }
         } else if (intent?.action == ACTION_PLAY) {
             YouTubePlaybackStatus.clearError()
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
