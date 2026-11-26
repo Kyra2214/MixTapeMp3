@@ -58,6 +58,8 @@ class YouTubePlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var loadingVideoId: String? = null
     private var loadingAudioOnly = false
+    private var loadingRecordHistory = true
+    private var currentRecordHistory = true
     private var playbackRequestId = 0L
     private var playbackMonitorJob: Job? = null
     private var sponsorSegments: List<SponsorSegment> = emptyList()
@@ -94,7 +96,8 @@ class YouTubePlaybackService : MediaSessionService() {
                     val requestId = resumingRequestId
                     resumingVideoId = null
                     loadingVideoId = null
-                    startPlaybackMonitor(resumedId, requestId)
+                    currentRecordHistory = true
+                    startPlaybackMonitor(resumedId, requestId, recordHistory = true)
                     val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                         .getBoolean(KEY_SPONSOR_BLOCK, false)
                     if (sponsorEnabled) requestSponsorSegments(resumedId, requestId)
@@ -173,6 +176,8 @@ class YouTubePlaybackService : MediaSessionService() {
                     resumingRequestId = requestId
                     loadingVideoId = history.videoId
                     loadingAudioOnly = audioOnly
+                    loadingRecordHistory = true
+                    currentRecordHistory = true
                     result.set(
                         MediaSession.MediaItemsWithStartPosition(
                             listOf(itemBuilder.build()),
@@ -200,14 +205,18 @@ class YouTubePlaybackService : MediaSessionService() {
             YouTubePlaybackStatus.clearError()
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
             val audioOnly = intent.getBooleanExtra(EXTRA_AUDIO_ONLY, false)
-            getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_LAST_AUDIO_ONLY, audioOnly).apply()
+            val recordHistory = intent.getBooleanExtra(EXTRA_RECORD_HISTORY, true)
+            if (recordHistory) {
+                getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+                    .edit().putBoolean(KEY_LAST_AUDIO_ONLY, audioOnly).apply()
+            }
             if (videoId != null) {
                 val currentAudioOnly = player.currentMediaItem?.mediaMetadata?.extras
                     ?.getBoolean(EXTRA_AUDIO_ONLY, false) ?: false
                 if (
                     player.currentMediaItem?.mediaId == videoId &&
                     currentAudioOnly == audioOnly &&
+                    currentRecordHistory == recordHistory &&
                     player.playbackState != Player.STATE_IDLE
                 ) {
                     val requestId = ++playbackRequestId
@@ -218,20 +227,26 @@ class YouTubePlaybackService : MediaSessionService() {
                         skippedSponsorSegments.clear()
                         player.seekTo(0L)
                     }
+                    currentRecordHistory = recordHistory
                     player.play()
-                    startPlaybackMonitor(videoId, requestId)
+                    startPlaybackMonitor(videoId, requestId, recordHistory)
                     val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                         .getBoolean(KEY_SPONSOR_BLOCK, false)
                     if (sponsorEnabled && sponsorSegments.isEmpty()) {
                         requestSponsorSegments(videoId, requestId)
                     }
-                } else if (videoId != loadingVideoId || audioOnly != loadingAudioOnly) {
+                } else if (
+                    videoId != loadingVideoId ||
+                    audioOnly != loadingAudioOnly ||
+                    recordHistory != loadingRecordHistory
+                ) {
                     // Evita que o vídeo anterior continue tocando enquanto o novo stream é resolvido.
                     player.pause()
                     loadingVideoId = videoId
                     loadingAudioOnly = audioOnly
+                    loadingRecordHistory = recordHistory
                     val requestId = ++playbackRequestId
-                    scope.launch { loadAndPlay(videoId, audioOnly, requestId) }
+                    scope.launch { loadAndPlay(videoId, audioOnly, recordHistory, requestId) }
                 }
             }
         }
@@ -239,24 +254,24 @@ class YouTubePlaybackService : MediaSessionService() {
         return START_NOT_STICKY
     }
 
-    private suspend fun loadAndPlay(videoId: String, audioOnly: Boolean, requestId: Long) {
+    private suspend fun loadAndPlay(videoId: String, audioOnly: Boolean, recordHistory: Boolean, requestId: Long) {
         try {
             val info = YouTubePlaybackRepository.resolve(videoId)
-            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
+            if (!isCurrentRequest(videoId, audioOnly, recordHistory, requestId)) return
             sponsorSegments = emptyList()
             skippedSponsorSegments.clear()
             // O histórico é complementar: falha no Room não pode impedir a reprodução.
-            val historyDao = runCatching {
+            val historyDao = if (recordHistory) runCatching {
                 (application as CDVirtualApp).database.youtubeHistoryDao()
             }.onFailure { failure ->
                 android.util.Log.w(TAG, "Histórico indisponível; a reprodução continuará", failure)
-            }.getOrNull()
+            }.getOrNull() else null
             val previous = historyDao?.let { dao ->
                 runCatching { dao.find(videoId) }.onFailure { failure ->
                     android.util.Log.w(TAG, "Não foi possível consultar o histórico", failure)
                 }.getOrNull()
             }
-            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
+            if (!isCurrentRequest(videoId, audioOnly, recordHistory, requestId)) return
             historyDao?.let { dao ->
                 runCatching {
                     dao.save(
@@ -275,14 +290,14 @@ class YouTubePlaybackService : MediaSessionService() {
                     android.util.Log.w(TAG, "Não foi possível registrar o vídeo no histórico", failure)
                 }
             }
-            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
+            if (!isCurrentRequest(videoId, audioOnly, recordHistory, requestId)) return
             val metadata = MediaMetadata.Builder()
                 .setTitle(info.title)
                 .setArtist(info.uploader)
                 .setArtworkUri(info.thumbnailUrl?.let(android.net.Uri::parse))
                 .setExtras(Bundle().apply { putBoolean(EXTRA_AUDIO_ONLY, audioOnly) })
                 .build()
-            if (!isCurrentRequest(videoId, audioOnly, requestId)) return
+            if (!isCurrentRequest(videoId, audioOnly, recordHistory, requestId)) return
             val selectedUrl = if (audioOnly) info.audioStreamUrl
                 ?: throw YouTubeUnavailableException(YouTubeFailure.NoAudio) else info.streamUrl
             val selectedMimeType = if (audioOnly) info.audioMimeType else info.mimeType
@@ -294,22 +309,23 @@ class YouTubePlaybackService : MediaSessionService() {
                     .setMediaMetadata(metadata)
                     .build()
             )
+            currentRecordHistory = recordHistory
             player.prepare()
             if ((previous?.lastPositionMs ?: 0L) > 0L) {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
-            startPlaybackMonitor(videoId, requestId)
+            startPlaybackMonitor(videoId, requestId, recordHistory)
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
             if (sponsorEnabled) requestSponsorSegments(videoId, requestId)
-            if (isCurrentRequest(videoId, audioOnly, requestId)) loadingVideoId = null
+            if (isCurrentRequest(videoId, audioOnly, recordHistory, requestId)) loadingVideoId = null
         } catch (cancelled: CancellationException) {
             // Encerrar o serviço ou cancelar a tarefa não deve aparecer como erro ao usuário.
             throw cancelled
         } catch (failure: Exception) {
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
-            if (isCurrentRequest(videoId, audioOnly, requestId)) {
+            if (isCurrentRequest(videoId, audioOnly, recordHistory, requestId)) {
                 YouTubePlaybackStatus.reportError(failure.toYouTubePlaybackMessage())
                 loadingVideoId = null
             }
@@ -327,25 +343,28 @@ class YouTubePlaybackService : MediaSessionService() {
         }
     }
 
-    private fun startPlaybackMonitor(videoId: String, requestId: Long) {
+    private fun startPlaybackMonitor(videoId: String, requestId: Long, recordHistory: Boolean) {
         playbackMonitorJob?.cancel()
-        playbackMonitorJob = scope.launch { monitorPlayback(videoId, requestId) }
+        playbackMonitorJob = scope.launch { monitorPlayback(videoId, requestId, recordHistory) }
     }
 
     private fun persistCurrentPosition(resetToStart: Boolean = false) {
+        if (!currentRecordHistory) return
         val videoId = player.currentMediaItem?.mediaId ?: return
         val requestId = playbackRequestId
         val position = if (resetToStart) 0L else player.currentPosition.coerceAtLeast(0L)
         scope.launch {
-            persistPositionIfCurrent(videoId, position, requestId)
+            persistPositionIfCurrent(videoId, position, requestId, recordHistory = true)
         }
     }
 
     private suspend fun persistPositionIfCurrent(
         videoId: String,
         positionMs: Long,
-        requestId: Long
+        requestId: Long,
+        recordHistory: Boolean
     ) {
+        if (!recordHistory) return
         progressWriteMutex.withLock {
             // Eventos atrasados de uma reprodução anterior não podem sobrescrever
             // a posição de uma nova solicitação, mesmo quando o ID do vídeo é igual.
@@ -359,10 +378,11 @@ class YouTubePlaybackService : MediaSessionService() {
         }
     }
 
-    private fun isCurrentRequest(videoId: String, audioOnly: Boolean, requestId: Long): Boolean =
-        playbackRequestId == requestId && loadingVideoId == videoId && loadingAudioOnly == audioOnly
+    private fun isCurrentRequest(videoId: String, audioOnly: Boolean, recordHistory: Boolean, requestId: Long): Boolean =
+        playbackRequestId == requestId && loadingVideoId == videoId &&
+            loadingAudioOnly == audioOnly && loadingRecordHistory == recordHistory
 
-    private suspend fun monitorPlayback(videoId: String, requestId: Long) {
+    private suspend fun monitorPlayback(videoId: String, requestId: Long, recordHistory: Boolean) {
         var lastProgressWrite = SystemClock.elapsedRealtime()
         while (playbackRequestId == requestId && player.currentMediaItem?.mediaId == videoId) {
             delay(500)
@@ -390,11 +410,11 @@ class YouTubePlaybackService : MediaSessionService() {
 
             val now = SystemClock.elapsedRealtime()
             val ended = player.playbackState == androidx.media3.common.Player.STATE_ENDED
-            if (now - lastProgressWrite >= 5_000L || ended) {
+            if (recordHistory && (now - lastProgressWrite >= 5_000L || ended)) {
                 // Ao concluir, zera a posição para que Retomar recomece do início.
                 val savedPosition = if (ended) 0L else player.currentPosition.coerceAtLeast(0L)
                 if (playbackRequestId != requestId || player.currentMediaItem?.mediaId != videoId) break
-                persistPositionIfCurrent(videoId, savedPosition, requestId)
+                persistPositionIfCurrent(videoId, savedPosition, requestId, recordHistory = true)
                 lastProgressWrite = now
             }
             if (ended) break
@@ -404,7 +424,7 @@ class YouTubePlaybackService : MediaSessionService() {
     override fun onDestroy() {
         // Faz uma última tentativa de salvar o ponto atual em um escopo independente,
         // pois o escopo principal será cancelado logo abaixo.
-        player.currentMediaItem?.mediaId?.let { videoId ->
+        if (currentRecordHistory) player.currentMediaItem?.mediaId?.let { videoId ->
             val position = if (player.playbackState == Player.STATE_ENDED) {
                 0L
             } else {
@@ -436,11 +456,17 @@ class YouTubePlaybackService : MediaSessionService() {
         private const val ACTION_PLAY = "com.cdvirtual.app.youtube.PLAY"
         private const val EXTRA_VIDEO_ID = "youtube_video_id"
         const val EXTRA_AUDIO_ONLY = "youtube_audio_only"
+        private const val EXTRA_RECORD_HISTORY = "youtube_record_history"
         const val PREFERENCES = "youtube_preferences"
         const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
         private const val KEY_LAST_AUDIO_ONLY = "last_audio_only"
 
-        fun play(context: Context, videoId: String, audioOnly: Boolean = false) {
+        fun play(
+            context: Context,
+            videoId: String,
+            audioOnly: Boolean = false,
+            recordHistory: Boolean = true
+        ) {
             // Chamado pela interface enquanto o app está visível. O MediaSessionService
             // assume o foreground automaticamente quando a reprodução efetivamente começa.
             context.startService(
@@ -448,6 +474,7 @@ class YouTubePlaybackService : MediaSessionService() {
                     .setAction(ACTION_PLAY)
                     .putExtra(EXTRA_VIDEO_ID, videoId)
                     .putExtra(EXTRA_AUDIO_ONLY, audioOnly)
+                    .putExtra(EXTRA_RECORD_HISTORY, recordHistory)
             )
         }
     }

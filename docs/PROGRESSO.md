@@ -197,3 +197,5 @@
 - Percentual dos submódulos de implementação deste roadmap: 0%; não confundir auditoria concluída com implementação.
 - Bloqueio: não foi confirmada uma via autorizada para download/cache persistente de vídeos do YouTube. A implementação deve respeitar os mecanismos oficiais da fonte.
 - Nenhum teste, build ou validação foi executado nesta etapa.
+
+- 2026-11-26 — Fase 1.1 do roadmap de cache: a reprodução de prévia acionada na Central de Áudio agora chama o serviço com `recordHistory=false`; o serviço deixa de gravar histórico e posição para essa origem. O player continua compartilhado para preservar a reprodução nativa já existente. Validação transferida à fase final; nenhum teste/build executado.

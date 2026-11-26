@@ -352,3 +352,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Registradas as qualidades planejadas: 240p padrão, 360p e 480p; limite configurável e sem remoção automática para abrir vaga.
 - A validação funcional foi transferida para a fase final. Nenhum teste ou build foi executado nesta etapa.
 - A integração de cache persistente de vídeos do YouTube fica condicionada a uma via oficialmente autorizada; não será implementado contorno de restrições da fonte.
+
+- Corrigido o vazamento de histórico: vídeos abertos como prévia no navegador da Central de Áudio não são registrados nem têm progresso gravado na biblioteca/histórico da Central de Vídeos. Reproduções iniciadas pela Central de Vídeos mantêm o registro normal.

@@ -124,3 +124,5 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - O vídeo usado como origem para extração de áudio não é um item de vídeo da biblioteca musical; o item registrado na biblioteca é o arquivo de áudio importado.
 - Não foi encontrada consulta cruzada entre as tabelas de faixas e as tabelas YouTube na inspeção estática. A validação funcional permanece na fase final.
 - O Cache Offline deverá usar entidades, DAO, repositório e diretório próprios. A preparação offline só poderá integrar fontes que autorizem armazenamento local.
+
+- A prévia nativa de vídeo iniciada pela Central de Áudio usa `YouTubePlaybackService.play(..., recordHistory = false)`. A reprodução iniciada pela Central de Vídeos mantém `recordHistory = true`; assim a prévia usada como origem de extração não contamina o histórico de visualização.

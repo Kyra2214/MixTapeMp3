@@ -44,9 +44,10 @@
 ### 1.1 Domínios e responsabilidades
 - [x] Mapear destinos, telas, bancos, repositórios e serviços de reprodução.
 - [x] Confirmar que áudio e vídeo usam persistência e serviços distintos.
-- [ ] Documentar contratos e fronteiras dos dois domínios.
-- [ ] Garantir que o resultado de uma extração de áudio seja cadastrado somente como áudio.
-- [ ] Garantir que histórico/canais de vídeos nunca sejam consultados pela biblioteca MP3.
+- [x] Documentar contratos e fronteiras dos dois domínios.
+- [x] Garantir que o resultado de uma extração de áudio seja cadastrado somente como áudio.
+- [x] Garantir que a prévia de vídeo acionada no navegador da Central de Áudio não grave histórico/progresso na Central de Vídeos.
+- [x] Garantir que histórico/canais de vídeos nunca sejam consultados pela biblioteca MP3.
 - [ ] Transferir testes de regressão e validação funcional para a fase final.
 
 ### 1.2 Armazenamento
@@ -143,8 +144,9 @@
 ## Estado atual
 
 - Fase 0: concluída por inspeção estática.
-- Fase 1: parcialmente existente no código; documentação e consolidação pendentes.
+- Fase 1.1: implementada no código e documentada; validação funcional transferida para a fase final.
+- Fase 1.2 (armazenamento separado): pendente.
 - Fases 2–9: pendentes.
 - Fase 10: reservada exclusivamente à validação final.
-- Percentual de implementação deste roadmap: 0% dos submódulos de implementação; auditoria inicial concluída.
+- Percentual de implementação deste roadmap: Fase 1.1 concluída; fases seguintes pendentes. Validação final ainda não executada.
 - Bloqueio conhecido: não há via autorizada confirmada para baixar e armazenar permanentemente vídeos do YouTube fora dos recursos oficiais. Não contornar essa restrição.
