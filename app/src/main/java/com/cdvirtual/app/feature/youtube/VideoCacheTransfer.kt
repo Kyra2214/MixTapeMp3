@@ -35,6 +35,11 @@ data class VideoCacheTransferRequest(
         require(extension.lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS) {
             "Formato de vídeo não suportado. Use MP4 ou WebM."
         }
+        val normalizedMime = mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)
+        require(
+            (extension.equals("mp4", true) && normalizedMime == "video/mp4") ||
+                (extension.equals("webm", true) && normalizedMime in setOf("video/webm", "video/x-matroska"))
+        ) { "A extensão e o tipo MIME do vídeo não correspondem." }
         require(expectedBytes >= 0L) { "Tamanho esperado inválido." }
         headers.forEach { (name, value) ->
             require(name.isNotBlank() && value.isNotBlank()) { "Cabeçalho HTTP inválido." }
@@ -106,12 +111,13 @@ class VideoCacheTransfer(
                             if (requestedOffset > 0L && http.code != 200 && http.code != 206) {
                                 throw IOException("A fonte não aceitou a retomada do download.")
                             }
-                            if (append) {
+                            if (http.code == 206) {
                                 val rangeStart = http.header("Content-Range")
                                     ?.substringAfter("bytes ", "")
                                     ?.substringBefore('-')
                                     ?.toLongOrNull()
-                                if (rangeStart != requestedOffset) {
+                                val expectedStart = if (append) requestedOffset else 0L
+                                if (rangeStart != expectedStart) {
                                     throw IOException("A fonte retornou um intervalo incompatível com o parcial.")
                                 }
                             }
