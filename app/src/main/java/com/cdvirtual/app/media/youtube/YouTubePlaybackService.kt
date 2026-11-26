@@ -31,6 +31,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -205,18 +206,19 @@ class YouTubePlaybackService : MediaSessionService() {
             scope.launch {
                 try {
                     val app = application as CDVirtualApp
-                    val cached = app.videoCacheRepository.all()
+                    val cachedAndFile = app.videoCacheRepository.all()
                         .filter {
                             it.status == com.cdvirtual.app.core.database.VideoCacheStatus.PAUSED ||
                                 it.status == com.cdvirtual.app.core.database.VideoCacheStatus.READY
                         }
                         .sortedByDescending { it.updatedAt }
-                        .firstOrNull {
-                            app.videoCacheFileStore.resolveValidFile(it.filePath, it.sizeBytes) != null
+                        .firstNotNullOfOrNull { entry ->
+                            withContext(Dispatchers.IO) {
+                                app.videoCacheFileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
+                            }?.let { file -> entry to file }
                         }
-                    if (cached != null) {
-                        val file = app.videoCacheFileStore.resolveValidFile(cached.filePath, cached.sizeBytes)
-                            ?: throw IllegalStateException("O arquivo temporário não está disponível.")
+                    if (cachedAndFile != null) {
+                        val (cached, file) = cachedAndFile
                         val metadata = MediaMetadata.Builder()
                             .setTitle(cached.title)
                             .setArtist(cached.uploader)
@@ -426,8 +428,9 @@ class YouTubePlaybackService : MediaSessionService() {
             require(item.status == com.cdvirtual.app.core.database.VideoCacheStatus.READY ||
                 item.status == com.cdvirtual.app.core.database.VideoCacheStatus.PAUSED
             ) { "Este vídeo ainda não está pronto para reprodução." }
-            val file = app.videoCacheFileStore.resolveValidFile(item.filePath, item.sizeBytes)
-                ?: throw IllegalStateException("O arquivo temporário não está íntegro ou não existe.")
+            val file = withContext(Dispatchers.IO) {
+                app.videoCacheFileStore.resolveValidFile(item.filePath, item.sizeBytes)
+            } ?: throw IllegalStateException("O arquivo temporário não está íntegro ou não existe.")
 
             ++playbackRequestId
             loadingVideoId = null
