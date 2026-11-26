@@ -136,3 +136,6 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 
 - `feature/youtube/VideoCacheRepository` encapsula o DAO do cache e valida identificadores, qualidade (240/360/480), estado e valores não negativos. A remoção de registro só é exposta com o contrato `deleteRecordAfterFileRemoval`, para impedir que a camada de persistência apague o metadado antes do arquivo físico.
 - `CDVirtualApp.videoCacheRepository` fornece a instância compartilhada do repositório à Central de Vídeos.
+
+- `core/storage/VideoCacheFileStore` mantém os arquivos em `filesDir/video_cache`, aceita apenas IDs/formatos controlados, publica `.part` por rename no mesmo diretório e valida caminho canônico/tamanho antes da disponibilidade. A listagem de parciais não apaga nada automaticamente.
+- `VideoCacheStateMachine` restringe transições; `VideoCacheRepository.markReadyAfterPromotion` é o único caminho para definir `READY` e exige arquivo completo, não vazio e dentro do diretório do cache.
