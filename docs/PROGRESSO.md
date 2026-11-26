@@ -203,3 +203,5 @@
 - 2026-11-26 — Fase 1.2: criado `core/storage/MediaStorageLayout.kt`; importador e recuperação de áudio passaram a usar `audioImportsDir`, preservando o caminho existente para compatibilidade. Diretório de vídeo reservado em `videoCacheDir`. Nenhum teste/build executado; validação final pendente.
 
 - 2026-11-26 — Fase 2.1: entidade `VideoCacheEntity`, DAO `VideoCacheDao`, estados/qualidades e migração Room v13→v14 implementados. Schema 14 não foi gerado manualmente; depende do KSP no build da fase final. Nenhum teste/build executado.
+
+- 2026-11-26 — Fase 2.2: criado `VideoCacheRepository` e exposto em `CDVirtualApp`; valida qualidade/estado e separa persistência de manipulação de arquivos. Correção de sintaxe na SQL da migração v13→v14. Nenhum teste/build executado.
