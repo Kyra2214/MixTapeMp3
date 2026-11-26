@@ -61,10 +61,10 @@
 - [x] Criar `VideoCacheDao` exclusivo para consulta e persistência de metadados.
 - [x] Criar migração Room explícita v13→v14; exportação do schema 14 fica pendente para a fase final de build.
 - [x] Criar `VideoCacheRepository` próprio, exposto por `CDVirtualApp`, com validação de qualidade/estado e operações de metadados.
-- [ ] Persistir identificador da fonte, título, miniatura, duração, qualidade, tamanho, caminho, estado, posição e datas.
-- [ ] Modelar estados: aguardando, baixando, interrompido, pronto, em reprodução, pausado, concluído e removido.
+- [x] Persistir identificador da fonte, título, miniatura, duração, qualidade, tamanho, caminho, estado, posição e datas em `VideoCacheEntity`.
+- [x] Modelar estados: aguardando, baixando, interrompido, pronto, em reprodução, pausado, concluído e removido; `VideoCacheStateMachine` valida transições.
 - [ ] Garantir recuperação consistente após encerramento inesperado.
-- [ ] Não marcar conteúdo remoto como offline disponível antes da confirmação de arquivo completo e íntegro.
+- [x] Não marcar conteúdo remoto como offline disponível antes da confirmação de arquivo completo e íntegro: `VideoCacheFileStore` publica `.part` atomicamente e `markReadyAfterPromotion` valida o arquivo.
 
 ## FASE 3 — GERENCIADOR DE CACHE
 
@@ -149,7 +149,8 @@
 - Fase 1.2 (fronteiras de armazenamento): implementada; o cache ainda não cria arquivos até a fase do gerenciador.
 - Fase 2.1 (entidade, DAO e migração): implementada; exportação do schema 14 e build ficam para a fase final.
 - Fase 2.2 (repositório): implementada.
-- Fases 2.3–9: pendentes.
+- Fase 2.3 (integridade e estados): implementada; recuperação de arquivos ainda pendente.
+- Fases 2.4–9: pendentes.
 - Fase 10: reservada exclusivamente à validação final.
 - Percentual de implementação deste roadmap: Fase 1.1 concluída; fases seguintes pendentes. Validação final ainda não executada.
 - Bloqueio conhecido: não há via autorizada confirmada para baixar e armazenar permanentemente vídeos do YouTube fora dos recursos oficiais. Não contornar essa restrição.
