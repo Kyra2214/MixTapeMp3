@@ -12,6 +12,7 @@ import com.cdvirtual.app.feature.library.CoverStore
 import com.cdvirtual.app.feature.library.GenreBackfill
 import com.cdvirtual.app.feature.library.TrackImporter
 import com.cdvirtual.app.feature.library.TrackRepository
+import com.cdvirtual.app.feature.youtube.VideoCacheRepository
 import com.cdvirtual.app.media.connectors.ImportRecovery
 import com.cdvirtual.app.media.service.ExportRecovery
 
@@ -22,6 +23,7 @@ class CDVirtualApp : Application() {
     val cdRepository: CdRepository by lazy { CdRepository(database.cdDao(), trackRepository, CoverStore(this)) }
     val analysisRunner: AnalysisRunner by lazy { AnalysisRunner(this, trackRepository) }
     val trackImporter: TrackImporter by lazy { TrackImporter(this, trackRepository) { analysisRunner.kick() } }
+    val videoCacheRepository: VideoCacheRepository by lazy { VideoCacheRepository(database.videoCacheDao()) }
 
     override fun onCreate() {
         super.onCreate()
