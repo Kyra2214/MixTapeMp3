@@ -41,6 +41,12 @@ class VideoCacheDownloadCoordinator(
             else -> throw IllegalStateException("Este item não pode ser preparado novamente.")
         }
 
+        val requiredBytes = transfer.requiredFreeBytes(item.cacheId, source.transferRequest.expectedBytes)
+        val availableBytes = manager.capacity().availableBytes
+        if (requiredBytes > availableBytes) {
+            throw IllegalStateException("Espaço insuficiente: faltam ${requiredBytes - availableBytes} bytes para preparar este vídeo.")
+        }
+
         download(item.cacheId, source.transferRequest, onProgress)
         return manager.find(item.cacheId)
             ?: throw IllegalStateException("O item desapareceu após a preparação.")
