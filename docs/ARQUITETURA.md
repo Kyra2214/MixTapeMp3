@@ -139,3 +139,5 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 
 - `core/storage/VideoCacheFileStore` mantém os arquivos em `filesDir/video_cache`, aceita apenas IDs/formatos controlados, publica `.part` por rename no mesmo diretório e valida caminho canônico/tamanho antes da disponibilidade. A listagem de parciais não apaga nada automaticamente.
 - `VideoCacheStateMachine` restringe transições; `VideoCacheRepository.markReadyAfterPromotion` é o único caminho para definir `READY` e exige arquivo completo, não vazio e dentro do diretório do cache.
+
+- `feature/youtube/VideoCacheRecovery` reconcilia Room e arquivos na inicialização. Downloads em andamento viram INTERRUPTED, reprodução com arquivo íntegro vira PAUSED, arquivos ausentes são marcados como interrompidos e estados COMPLETED/REMOVED são finalizados quando o arquivo gerenciado pode ser removido. Parciais e arquivos publicados sem registro são apenas reportados, nunca apagados automaticamente.
