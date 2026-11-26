@@ -141,3 +141,6 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - `VideoCacheStateMachine` restringe transições; `VideoCacheRepository.markReadyAfterPromotion` é o único caminho para definir `READY` e exige arquivo completo, não vazio e dentro do diretório do cache.
 
 - `feature/youtube/VideoCacheRecovery` reconcilia Room e arquivos na inicialização. Downloads em andamento viram INTERRUPTED, reprodução com arquivo íntegro vira PAUSED, arquivos ausentes são marcados como interrompidos e estados COMPLETED/REMOVED são finalizados quando o arquivo gerenciado pode ser removido. Parciais e arquivos publicados sem registro são apenas reportados, nunca apagados automaticamente.
+
+- `feature/youtube/VideoCacheManager` coordena reserva de vaga, limite configurável (padrão 3, presets 1/2/3/5/10 e personalizado até 100), transições de download/reprodução, publicação, conclusão natural e remoção manual. Alterar o limite não remove itens existentes.
+- `VideoCacheSettingsStore` persiste o limite em SharedPreferences. O manager expõe capacidade (itens, limite, bytes usados e espaço disponível). A conclusão natural remove o arquivo e registro; pausa/interrupção preservam o cache.
