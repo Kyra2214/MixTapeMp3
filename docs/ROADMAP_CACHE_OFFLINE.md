@@ -60,7 +60,7 @@
 - [x] Criar entidade exclusiva `VideoCacheEntity` para itens de cache de vídeo, sem reutilizar `TrackEntity`.
 - [x] Criar `VideoCacheDao` exclusivo para consulta e persistência de metadados.
 - [x] Criar migração Room explícita v13→v14; exportação do schema 14 fica pendente para a fase final de build.
-- [ ] Criar repositório próprio para o domínio de cache.
+- [x] Criar `VideoCacheRepository` próprio, exposto por `CDVirtualApp`, com validação de qualidade/estado e operações de metadados.
 - [ ] Persistir identificador da fonte, título, miniatura, duração, qualidade, tamanho, caminho, estado, posição e datas.
 - [ ] Modelar estados: aguardando, baixando, interrompido, pronto, em reprodução, pausado, concluído e removido.
 - [ ] Garantir recuperação consistente após encerramento inesperado.
