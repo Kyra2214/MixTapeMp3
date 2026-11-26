@@ -220,3 +220,4 @@
 - Pendências: integração de fonte autorizada real; UI de progresso e seletor de qualidade; validação de contêiner/arquivo; tratamento adicional de concorrência e retomada da MediaSession; testes e builds na Fase 10.
 - Regra de escopo cumprida: nenhuma alteração em arquivos da Central de Áudio.
 - Nenhum teste, build ou validação executado.
+- Robustez adicional: retomada de itens locais via MediaSession; posição salva periodicamente; seek manual até o fim não apaga o vídeo e reinicia a posição; validação estrutural com `MediaExtractor`; rollback de promoção preserva o parcial quando a persistência Room falha.
