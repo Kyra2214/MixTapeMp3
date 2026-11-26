@@ -25,7 +25,7 @@ class CDVirtualApp : Application() {
     val analysisRunner: AnalysisRunner by lazy { AnalysisRunner(this, trackRepository) }
     val trackImporter: TrackImporter by lazy { TrackImporter(this, trackRepository) { analysisRunner.kick() } }
     val videoCacheFileStore: VideoCacheFileStore by lazy { VideoCacheFileStore(this) }
-    val videoCacheRepository: VideoCacheRepository by lazy { VideoCacheRepository(database.videoCacheDao()) }
+    val videoCacheRepository: VideoCacheRepository by lazy { VideoCacheRepository(database.videoCacheDao(), videoCacheFileStore) }
 
     override fun onCreate() {
         super.onCreate()
