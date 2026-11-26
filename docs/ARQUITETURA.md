@@ -157,3 +157,4 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - Regra inviolável de escopo: nenhum arquivo da Central de Áudio foi alterado nesta etapa.
 - O serviço `YouTubePlaybackService` também é utilizado pela prévia de vídeo da Central de Áudio, por isso a integração offline é isolada por `EXTRA_CACHE_ID`: somente itens locais do cache entram no novo caminho; a prévia somente áudio e seu histórico desativado continuam no caminho anterior. Nenhum arquivo da Central de Áudio foi alterado.
 - `VideoCacheFileStore` também usa `MediaExtractor` para exigir ao menos uma faixa `video/*` antes da promoção e ao resolver arquivos prontos; extensão `.mp4`/`.webm` isolada não basta para marcar READY.
+- Operações de arquivo, exclusão, promoção e inspeção por `MediaExtractor` são executadas em `Dispatchers.IO`; a interface não deve analisar contêineres nem manipular arquivos grandes na thread principal.
