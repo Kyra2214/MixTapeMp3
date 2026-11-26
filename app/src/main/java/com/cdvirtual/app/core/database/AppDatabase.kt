@@ -4,8 +4,6 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.cdvirtual.app.core.database.VideoCacheEntity
-import com.cdvirtual.app.core.database.VideoCacheDao
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
@@ -71,7 +69,7 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
-                    \"\"\"CREATE TABLE IF NOT EXISTS video_cache (
+                    """CREATE TABLE IF NOT EXISTS video_cache (
                         cacheId TEXT NOT NULL PRIMARY KEY,
                         sourceId TEXT NOT NULL,
                         sourceVideoId TEXT NOT NULL,
@@ -87,7 +85,7 @@ abstract class AppDatabase : RoomDatabase() {
                         createdAt INTEGER NOT NULL,
                         updatedAt INTEGER NOT NULL,
                         completedAt INTEGER
-                    )\"\"\"
+                    )"""
                 )
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_video_cache_status_createdAt ON video_cache(status, createdAt)"
