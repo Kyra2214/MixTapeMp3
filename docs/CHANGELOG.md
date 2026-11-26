@@ -379,3 +379,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Adicionada seção Cache à Central de Vídeos com estado, qualidade, tamanho, assistir/retomar e remoção manual.
 - Central de Áudio não foi modificada. Nenhum teste/build executado, conforme a regra de validação somente ao final.
 - Complemento da etapa: retomada de cache pela MediaSession; posição gravada durante reprodução; seek manual até o fim volta à posição inicial e preserva o arquivo; validação com `MediaExtractor` exige uma faixa `video/*`; falha ao gravar READY tenta reverter a promoção sem remover bytes já baixados.
+
+- Endurecimento do transporte: bloqueio de downgrade HTTPS, verificação de MIME de resposta e retomada Range validada pelo offset; operações de arquivo e parser MediaExtractor executados em Dispatchers.IO.
