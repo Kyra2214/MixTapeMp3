@@ -15,6 +15,8 @@ import com.cdvirtual.app.feature.library.TrackImporter
 import com.cdvirtual.app.feature.library.TrackRepository
 import com.cdvirtual.app.feature.youtube.VideoCacheRepository
 import com.cdvirtual.app.feature.youtube.VideoCacheRecovery
+import com.cdvirtual.app.feature.youtube.VideoCacheManager
+import com.cdvirtual.app.feature.youtube.VideoCacheSettingsStore
 import com.cdvirtual.app.media.connectors.ImportRecovery
 import com.cdvirtual.app.media.service.ExportRecovery
 
@@ -28,6 +30,8 @@ class CDVirtualApp : Application() {
     val videoCacheFileStore: VideoCacheFileStore by lazy { VideoCacheFileStore(this) }
     val videoCacheRepository: VideoCacheRepository by lazy { VideoCacheRepository(database.videoCacheDao(), videoCacheFileStore) }
     val videoCacheRecovery: VideoCacheRecovery by lazy { VideoCacheRecovery(videoCacheRepository, videoCacheFileStore) }
+    val videoCacheSettings: VideoCacheSettingsStore by lazy { VideoCacheSettingsStore(this) }
+    val videoCacheManager: VideoCacheManager by lazy { VideoCacheManager(videoCacheRepository, videoCacheFileStore, videoCacheSettings) }
 
     override fun onCreate() {
         super.onCreate()
