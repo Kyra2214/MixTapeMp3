@@ -205,3 +205,5 @@
 - 2026-11-26 — Fase 2.1: entidade `VideoCacheEntity`, DAO `VideoCacheDao`, estados/qualidades e migração Room v13→v14 implementados. Schema 14 não foi gerado manualmente; depende do KSP no build da fase final. Nenhum teste/build executado.
 
 - 2026-11-26 — Fase 2.2: criado `VideoCacheRepository` e exposto em `CDVirtualApp`; valida qualidade/estado e separa persistência de manipulação de arquivos. Correção de sintaxe na SQL da migração v13→v14. Nenhum teste/build executado.
+
+- 2026-11-26 — Fase 2.3: máquina de estados e armazenamento seguro do cache implementados. Arquivos `.part` só são publicados após validação; estado READY exige arquivo válido dentro de `video_cache`. Recuperação de parciais continua pendente. Nenhum teste/build executado.
