@@ -79,6 +79,7 @@ class VideoCacheTransfer(
         .readTimeout(45, TimeUnit.SECONDS)
         .writeTimeout(45, TimeUnit.SECONDS)
         .followRedirects(true)
+        .followSslRedirects(false)
         .build()
 ) {
     fun requiredFreeBytes(cacheId: String, expectedBytes: Long): Long {
@@ -113,6 +114,10 @@ class VideoCacheTransfer(
                                 throw IOException("A fonte recusou o download (HTTP ${http.code}).")
                             }
 
+                            if (!http.request.url.isHttps) {
+                                throw IOException("A fonte redirecionou o download para uma conexão insegura.")
+                            }
+
                             val append = requestedOffset > 0L && http.code == 206
                             if (requestedOffset > 0L && http.code != 200 && http.code != 206) {
                                 throw IOException("A fonte não aceitou a retomada do download.")
@@ -132,11 +137,13 @@ class VideoCacheTransfer(
                                 ?.substringBefore(';')
                                 ?.trim()
                                 ?.lowercase(Locale.ROOT)
-                            if (responseMime != null &&
-                                !responseMime.startsWith("video/") &&
-                                responseMime != "application/octet-stream"
-                            ) {
-                                throw IOException("A resposta HTTP não contém um arquivo de vídeo.")
+                            val requestedMime = request.mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)
+                            val mimeMatches = responseMime == null ||
+                                responseMime == "application/octet-stream" ||
+                                responseMime == requestedMime ||
+                                (requestedMime == "video/webm" && responseMime == "video/x-matroska")
+                            if (!mimeMatches) {
+                                throw IOException("O tipo MIME recebido não corresponde ao formato selecionado.")
                             }
 
                             val body = http.body ?: throw IOException("A fonte retornou um corpo vazio.")
