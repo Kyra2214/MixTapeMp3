@@ -100,9 +100,15 @@ class VideoCacheManager(
                 repository.markReadyAfterPromotion(cacheId, published)
             }
         } catch (failure: Throwable) {
-            // Se o Room falhar após o rename, devolver o arquivo a .part para
-            // que a retomada/reconciliação não perca um download já concluído.
-            runCatching { fileStore.rollbackPromotion(published, cacheId) }
+            // Diferenciar falha anterior ao commit de cancelamento ocorrido depois
+            // que Room já gravou READY. Nunca mover um arquivo que o banco referencia.
+            val readyWasPersisted = withContext(NonCancellable) {
+                runCatching { repository.find(cacheId)?.status == VideoCacheStatus.READY }
+                    .getOrDefault(false)
+            }
+            if (!readyWasPersisted) {
+                runCatching { fileStore.rollbackPromotion(published, cacheId) }
+            }
             throw failure
         }
         return repository.find(cacheId) ?: throw IllegalStateException("Registro do cache desapareceu.")
