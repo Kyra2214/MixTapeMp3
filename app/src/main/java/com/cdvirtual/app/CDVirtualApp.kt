@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import com.cdvirtual.app.core.database.AppDatabase
+import com.cdvirtual.app.core.storage.VideoCacheFileStore
 import com.cdvirtual.app.feature.cdeditor.CdRepository
 import com.cdvirtual.app.feature.library.AnalysisRunner
 import com.cdvirtual.app.feature.library.CoverStore
@@ -23,6 +24,7 @@ class CDVirtualApp : Application() {
     val cdRepository: CdRepository by lazy { CdRepository(database.cdDao(), trackRepository, CoverStore(this)) }
     val analysisRunner: AnalysisRunner by lazy { AnalysisRunner(this, trackRepository) }
     val trackImporter: TrackImporter by lazy { TrackImporter(this, trackRepository) { analysisRunner.kick() } }
+    val videoCacheFileStore: VideoCacheFileStore by lazy { VideoCacheFileStore(this) }
     val videoCacheRepository: VideoCacheRepository by lazy { VideoCacheRepository(database.videoCacheDao()) }
 
     override fun onCreate() {
