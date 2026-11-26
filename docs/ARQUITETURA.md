@@ -126,3 +126,6 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - O Cache Offline deverá usar entidades, DAO, repositório e diretório próprios. A preparação offline só poderá integrar fontes que autorizem armazenamento local.
 
 - A prévia nativa de vídeo iniciada pela Central de Áudio usa `YouTubePlaybackService.play(..., recordHistory = false)`. A reprodução iniciada pela Central de Vídeos mantém `recordHistory = true`; assim a prévia usada como origem de extração não contamina o histórico de visualização.
+
+- `core/storage/MediaStorageLayout` define `filesDir/imports` como diretório legado exclusivo de importações de áudio e `filesDir/video_cache` como diretório exclusivo reservado ao cache de vídeo permitido. O caminho de imports não muda para preservar URIs persistidos.
+- `ImportRecovery` e `ImporterViewModel` usam `MediaStorageLayout.audioImportsDir`; a recuperação de áudio não percorre o diretório de vídeos.

@@ -134,7 +134,7 @@ fun BrowserScreen(
             } ?: return
             android.util.Log.i("MixTapeBrowser", "Transferindo vídeo $normalized para Media3")
             BrowserMediaPlaybackService.update(context.applicationContext, false, null)
-            YouTubePlaybackService.play(context.applicationContext, normalized, audioOnly = false, recordHistory = false)
+            YouTubePlaybackService.play(context.applicationContext, normalized, audioOnly = false)
         }
 
         fun startNativePlaybackFromUrl(rawUrl: String?) {

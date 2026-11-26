@@ -2,6 +2,7 @@ package com.cdvirtual.app.media.connectors
 
 import android.content.Context
 import android.net.Uri
+import com.cdvirtual.app.core.storage.MediaStorageLayout
 import java.io.File
 
 /**
@@ -9,7 +10,7 @@ import java.io.File
  * filesDir/imports nunca são músicas válidas e são removidos ao abrir o app. Arquivos já importados não são tocados.
  */
 object ImportRecovery {
-    fun importsDir(context: Context) = File(context.filesDir, "imports")
+    fun importsDir(context: Context) = MediaStorageLayout.audioImportsDir(context)
 
     fun cleanPartials(context: Context) {
         importsDir(context).listFiles { f -> f.isFile && f.name.endsWith(".part") }?.forEach { it.delete() }

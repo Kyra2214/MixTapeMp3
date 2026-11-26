@@ -14,6 +14,7 @@ import com.cdvirtual.app.media.connectors.MediaOption
 import com.cdvirtual.app.media.connectors.Platform
 import com.cdvirtual.app.media.connectors.PlatformDetector
 import com.cdvirtual.app.media.connectors.SourceConnector
+import com.cdvirtual.app.core.storage.MediaStorageLayout
 import com.cdvirtual.app.media.connectors.toUserMessage
 import java.io.File
 import java.util.UUID
@@ -377,7 +378,7 @@ class ImporterViewModel(app: Application) : AndroidViewModel(app) {
             .trim()
             .take(90)
             .ifBlank { "audio-${item.id.take(8)}" }
-        val dir = File(app.filesDir, "imports").apply { mkdirs() }
+        val dir = MediaStorageLayout.audioImportsDir(app).apply { mkdirs() }
         val target = File(dir, "${safeName}-${item.id.take(8)}.${item.option.format.lowercase()}")
         try {
             item.connector.download(item.option, target) { done, total ->
