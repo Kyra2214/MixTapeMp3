@@ -530,11 +530,12 @@ class YouTubePlaybackService : MediaSessionService() {
         val cachedIdAtDestroy = currentCachedId()
         if (cachedIdAtDestroy != null) {
             val position = player.currentPosition.coerceAtLeast(0L)
+            val shouldPauseCachedItem = player.playbackState != Player.STATE_ENDED || currentCacheSeekedToEnd
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     val app = application as CDVirtualApp
                     app.videoCacheManager.updatePosition(cachedIdAtDestroy, position)
-                    if (player.playbackState != Player.STATE_ENDED) {
+                    if (shouldPauseCachedItem) {
                         app.videoCacheManager.pausePlayback(cachedIdAtDestroy)
                     }
                 }.onFailure { failure ->
