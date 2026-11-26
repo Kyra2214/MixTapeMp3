@@ -366,3 +366,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Adicionado `VideoCacheStateMachine` para restringir transições de estado e `VideoCacheFileStore` para manter arquivos em diretório isolado, publicar parciais atomicamente e validar integridade/caminho. `READY` agora exige `markReadyAfterPromotion` após validação do arquivo. Nenhuma rotina apaga parciais automaticamente.
 
 - Implementada recuperação inicial do Cache Offline: reconcilia estados do banco com arquivos, preserva parciais retomáveis, pausa reproduções interrompidas com arquivo válido e finaliza exclusões concluídas pendentes. Arquivos órfãos são identificados sem limpeza destrutiva.
+
+- Criado `VideoCacheManager` e `VideoCacheSettingsStore`: limite configurável (padrão 3), reservas sem sobrescrever itens, capacidade de armazenamento, remoção manual e conclusão natural com exclusão do arquivo. O gerenciador não resolve URLs nem baixa streams; essa integração fica condicionada a fonte autorizada.
