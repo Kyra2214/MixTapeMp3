@@ -155,3 +155,4 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - A conclusão natural do player remove arquivo e registro. Seek manual até o fim não conclui a visualização. Pausa, troca de tela, fechamento do app, reinicialização e perda de conexão preservam o arquivo.
 - O provedor YouTube permanece ausente até existir um mecanismo oficialmente autorizado para download/armazenamento local. A reprodução online existente não foi alterada.
 - Regra inviolável de escopo: nenhum arquivo da Central de Áudio foi alterado nesta etapa.
+- O serviço `YouTubePlaybackService` também é utilizado pela prévia de vídeo da Central de Áudio, por isso a integração offline é isolada por `EXTRA_CACHE_ID`: somente itens locais do cache entram no novo caminho; a prévia somente áudio e seu histórico desativado continuam no caminho anterior. Nenhum arquivo da Central de Áudio foi alterado.
