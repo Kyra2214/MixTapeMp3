@@ -151,7 +151,8 @@
 - Fase 2.2 (repositório): implementada.
 - Fase 2.3 (integridade e estados): implementada; recuperação de arquivos ainda pendente.
 - Fase 2.4 (recuperação e reconciliação): implementada; limpeza automática de órfãos continua proibida e não foi adicionada.
-- Fases 3–9: pendentes.
+- Fase 3.1 (gerenciador e capacidade): implementada; integração com provedor de mídia permanece para a Fase 4.
+- Fases 3.2–9: pendentes.
 - Fase 10: reservada exclusivamente à validação final.
 - Percentual de implementação deste roadmap: Fase 1.1 concluída; fases seguintes pendentes. Validação final ainda não executada.
 - Bloqueio conhecido: não há via autorizada confirmada para baixar e armazenar permanentemente vídeos do YouTube fora dos recursos oficiais. Não contornar essa restrição.
