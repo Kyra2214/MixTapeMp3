@@ -14,6 +14,9 @@ interface VideoCacheDao {
     @Upsert
     suspend fun upsert(item: VideoCacheEntity)
 
+    @Query("SELECT * FROM video_cache ORDER BY createdAt DESC")
+    suspend fun getAll(): List<VideoCacheEntity>
+
     @Query("SELECT * FROM video_cache WHERE cacheId = :cacheId LIMIT 1")
     suspend fun find(cacheId: String): VideoCacheEntity?
 
