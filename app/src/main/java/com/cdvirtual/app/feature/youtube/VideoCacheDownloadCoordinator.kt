@@ -18,7 +18,7 @@ class VideoCacheDownloadCoordinator(
         source: VideoCacheResolvedSource,
         onProgress: (VideoCacheTransferProgress) -> Unit = {}
     ): VideoCacheEntity {
-        val item = when (val reservation = manager.reserve(
+        val reservation = manager.reserve(
             sourceId = source.sourceId,
             sourceVideoId = source.sourceVideoId,
             title = source.title,
@@ -26,12 +26,14 @@ class VideoCacheDownloadCoordinator(
             thumbnailUrl = source.thumbnailUrl,
             durationMs = source.durationMs,
             qualityHeight = source.qualityHeight
-        )) {
+        )
+        val item = when (reservation) {
             is VideoCacheReserveResult.Reserved -> reservation.item
             is VideoCacheReserveResult.AlreadyExists -> reservation.item
             is VideoCacheReserveResult.LimitReached ->
                 throw IllegalStateException("Limite do cache atingido (${reservation.current}/${reservation.limit}). Remova um item manualmente para continuar.")
         }
+        val isNewReservation = reservation is VideoCacheReserveResult.Reserved
 
         when (item.status) {
             VideoCacheStatus.READY, VideoCacheStatus.PAUSED, VideoCacheStatus.PLAYING -> return item
@@ -44,6 +46,7 @@ class VideoCacheDownloadCoordinator(
         val requiredBytes = transfer.requiredFreeBytes(item.cacheId, source.transferRequest.expectedBytes)
         val availableBytes = manager.capacity().availableBytes
         if (requiredBytes > availableBytes) {
+            if (isNewReservation) manager.removeManually(item.cacheId)
             throw IllegalStateException("Espaço insuficiente: faltam ${requiredBytes - availableBytes} bytes para preparar este vídeo.")
         }
 
