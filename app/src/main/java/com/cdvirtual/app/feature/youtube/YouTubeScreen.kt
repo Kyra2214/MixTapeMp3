@@ -59,6 +59,7 @@ import coil.compose.AsyncImage
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.core.database.YouTubeChannelEntity
+import com.cdvirtual.app.core.database.VideoCacheStatus
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
 import com.cdvirtual.app.media.youtube.toYouTubePlaybackMessage
@@ -79,8 +80,13 @@ fun YouTubeScreen(onBack: () -> Unit) {
     val repository = remember { YouTubeSearchRepository() }
     val history by app.database.youtubeHistoryDao().observeAll().collectAsState(initial = emptyList())
     val savedChannels by app.database.youtubeChannelDao().observeAll().collectAsState(initial = emptyList())
+    val cachedVideos by app.videoCacheManager.items.collectAsState(initial = emptyList())
+    var cacheCapacity by remember { mutableStateOf<VideoCacheCapacity?>(null) }
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
     val scope = rememberCoroutineScope()
+    LaunchedEffect(cachedVideos) {
+        cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
+    }
     var query by remember { mutableStateOf("") }
     var activeQuery by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
@@ -431,6 +437,51 @@ fun YouTubeScreen(onBack: () -> Unit) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (section == "Cache") {
+                item {
+                    Text("Cache temporário", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Os vídeos ficam neste aparelho apenas para assistir. Pausar, minimizar ou sair da tela não apaga o arquivo; a exclusão automática ocorre ao terminar naturalmente.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "Itens: ${cacheCapacity?.currentItems ?: cachedVideos.size}/${cacheCapacity?.maxItems ?: app.videoCacheManager.maxItems()} • Ocupado: ${formatBytes(cacheCapacity?.usedBytes ?: cachedVideos.sumOf { it.sizeBytes })}",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+                if (cachedVideos.isEmpty()) {
+                    item { Text("Nenhum vídeo preparado para assistir offline.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+                items(cachedVideos, key = { it.cacheId }) { cached ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(cached.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${cached.qualityHeight}p • ${formatBytes(cached.sizeBytes)} • ${cacheStatusLabel(cached.status)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (cached.status == VideoCacheStatus.READY || cached.status == VideoCacheStatus.PAUSED) {
+                                    Button(onClick = { YouTubePlaybackService.playCached(context, cached.cacheId) }) {
+                                        Text(if (cached.lastPositionMs > 0L) "Retomar" else "Assistir")
+                                    }
+                                }
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        app.videoCacheManager.removeManually(cached.cacheId)
+                                        cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
+                                    }
+                                }) { Text("Apagar") }
+                            }
+                        }
+                    }
+                }
+            }
             if (section == "Início") {
                 item { Text("Sua seleção", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
                 if (savedChannels.isEmpty()) item { Text("Quando encontrar um canal de que goste, toque em + Canal para guardá-lo aqui.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -534,7 +585,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            listOf("Início", "Buscar", "Canais", "Biblioteca").forEach { destination ->
+            listOf("Início", "Buscar", "Canais", "Biblioteca", "Cache").forEach { destination ->
                 TextButton(onClick = { section = destination; selectedChannel = null }) { Text(destination, fontWeight = if (section == destination) FontWeight.Bold else FontWeight.Normal) }
             }
         }
@@ -677,6 +728,25 @@ private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onListen:
 
 private fun formatWatchedAt(timestamp: Long): String =
     SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> "%.1f GB".format(Locale.getDefault(), bytes / (1024.0 * 1024.0 * 1024.0))
+    bytes >= 1024L * 1024L -> "%.1f MB".format(Locale.getDefault(), bytes / (1024.0 * 1024.0))
+    bytes >= 1024L -> "%.0f KB".format(Locale.getDefault(), bytes / 1024.0)
+    else -> "$bytes B"
+}
+
+private fun cacheStatusLabel(status: String): String = when (status) {
+    VideoCacheStatus.QUEUED -> "Na fila"
+    VideoCacheStatus.DOWNLOADING -> "Preparando"
+    VideoCacheStatus.INTERRUPTED -> "Interrompido"
+    VideoCacheStatus.READY -> "Pronto"
+    VideoCacheStatus.PLAYING -> "Assistindo"
+    VideoCacheStatus.PAUSED -> "Pausado"
+    VideoCacheStatus.COMPLETED -> "Concluído"
+    VideoCacheStatus.REMOVED -> "Removido"
+    else -> status
+}
 
 private fun formatDuration(seconds: Long): String {
     if (seconds <= 0) return "Duração indisponível"
