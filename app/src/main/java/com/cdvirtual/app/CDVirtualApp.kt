@@ -14,6 +14,7 @@ import com.cdvirtual.app.feature.library.GenreBackfill
 import com.cdvirtual.app.feature.library.TrackImporter
 import com.cdvirtual.app.feature.library.TrackRepository
 import com.cdvirtual.app.feature.youtube.VideoCacheRepository
+import com.cdvirtual.app.feature.youtube.VideoCacheRecovery
 import com.cdvirtual.app.media.connectors.ImportRecovery
 import com.cdvirtual.app.media.service.ExportRecovery
 
@@ -26,6 +27,7 @@ class CDVirtualApp : Application() {
     val trackImporter: TrackImporter by lazy { TrackImporter(this, trackRepository) { analysisRunner.kick() } }
     val videoCacheFileStore: VideoCacheFileStore by lazy { VideoCacheFileStore(this) }
     val videoCacheRepository: VideoCacheRepository by lazy { VideoCacheRepository(database.videoCacheDao(), videoCacheFileStore) }
+    val videoCacheRecovery: VideoCacheRecovery by lazy { VideoCacheRecovery(videoCacheRepository, videoCacheFileStore) }
 
     override fun onCreate() {
         super.onCreate()
@@ -34,6 +36,8 @@ class CDVirtualApp : Application() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             ImportRecovery.cleanOrphans(this@CDVirtualApp) { trackRepository.findByUri(it) != null }
             GenreBackfill.run(this@CDVirtualApp, trackRepository) // músicas anteriores à coluna de gênero
+            runCatching { videoCacheRecovery.recover() }
+                .onFailure { android.util.Log.w("VideoCacheRecovery", "Não foi possível reconciliar o cache de vídeos", it) }
         }
         analysisRunner.kick()
     }
