@@ -2,7 +2,7 @@
 
 - Projeto: `Kyra2214/MixTapeMp3`
 - Branch: `main`
-- Último commit de código: `e71d33be5423973ca4b0c2b732ddc78dca3de332`
+- Último commit de código: `0c67b1c1f162c49d2ea237d330befb06fdb6d53f`
 - Fase atual: Fase 3.2 — política de admissão de fontes e integração do provedor permitido.
 - Fase 0: auditoria concluída.
 - Fase 1.1: implementada; prévias na Central de Áudio não gravam histórico/progresso da Central de Vídeos.
