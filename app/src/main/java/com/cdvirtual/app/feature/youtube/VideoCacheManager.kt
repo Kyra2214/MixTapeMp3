@@ -7,6 +7,8 @@ import com.cdvirtual.app.core.storage.VideoCacheFileStore
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface VideoCacheReserveResult {
     data class Reserved(val item: VideoCacheEntity) : VideoCacheReserveResult
@@ -33,6 +35,7 @@ class VideoCacheManager(
     private val settings: VideoCacheSettingsStore
 ) {
     val items: Flow<List<VideoCacheEntity>> = repository.items
+    private val reservationMutex = Mutex()
 
     suspend fun reserve(
         sourceId: String,
@@ -42,19 +45,18 @@ class VideoCacheManager(
         thumbnailUrl: String?,
         durationMs: Long,
         qualityHeight: Int = VideoCacheQuality.DEFAULT
-    ): VideoCacheReserveResult {
+    ): VideoCacheReserveResult = reservationMutex.withLock {
         require(sourceId.isNotBlank() && sourceVideoId.isNotBlank()) { "Fonte ou vídeo inválido." }
         require(title.isNotBlank()) { "O vídeo precisa ter um título." }
         require(durationMs >= 0L) { "Duração inválida." }
         require(qualityHeight in VideoCacheQuality.supportedHeights) { "Escolha 240p, 360p ou 480p." }
 
-        repository.findBySource(sourceId, sourceVideoId)?.let {
-            return VideoCacheReserveResult.AlreadyExists(it)
-        }
+        val existing = repository.findBySource(sourceId, sourceVideoId)
+        if (existing != null) return@withLock VideoCacheReserveResult.AlreadyExists(existing)
 
         val limit = settings.maxItems()
         val current = repository.countActive()
-        if (current >= limit) return VideoCacheReserveResult.LimitReached(current, limit)
+        if (current >= limit) return@withLock VideoCacheReserveResult.LimitReached(current, limit)
 
         val now = System.currentTimeMillis()
         val item = VideoCacheEntity(
@@ -71,7 +73,7 @@ class VideoCacheManager(
             updatedAt = now
         )
         repository.save(item)
-        return VideoCacheReserveResult.Reserved(item)
+        VideoCacheReserveResult.Reserved(item)
     }
 
     suspend fun startDownload(cacheId: String) =
