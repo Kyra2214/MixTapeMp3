@@ -84,6 +84,7 @@
 - [ ] Exibir somente qualidades realmente disponíveis.
 - [x] Núcleo de transferência próprio da Central de Vídeos com progresso, cancelamento preservando `.part` e retomada HTTP Range quando suportada. Integração com serviço de download em primeiro plano permanece pendente.
 - [x] Gravar em `.part` e promover atomicamente após conclusão e validação de tamanho.
+- [x] Validar contêiner e existência de faixa de vídeo via `MediaExtractor` antes de marcar READY.
 - [x] Verificar espaço disponível quando a fonte informa o tamanho total.
 - [x] Não implementar downloader ou cache temporário de streams do YouTube por métodos não autorizados. A integração específica com YouTube permanece bloqueada até existir mecanismo oficialmente permitido para esse uso.
 
@@ -146,11 +147,11 @@
 
 - Fases 0–3.1: auditoria, separação dos domínios, persistência, recuperação inicial e gerenciador implementados; validação funcional reservada à Fase 10.
 - Fase 3.2: contrato de admissão de fontes, registro de provedores, downloader HTTP exclusivo de vídeo, progresso, cancelamento com preservação do parcial, retomada por Range e verificação de espaço implementados.
-- Fase 4: núcleo de transferência e publicação atômica implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local e integrar a seleção de qualidade a esse provedor.
+- Fase 4: núcleo de transferência, publicação atômica, verificação de espaço conhecido e validação de contêiner/faixa de vídeo implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local e integrar a seleção de qualidade a esse provedor.
 - Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
 - Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
 - Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar e remoção manual. Progresso visual de transferência, miniatura/duração e seletor de qualidade ainda pendentes.
-- Fases 8–9: reconciliação e documentação atualizadas; validação de integridade por parser, testes de concorrência e integração final ainda pendentes.
+- Fases 8–9: reconciliação e documentação atualizadas; parser MediaExtractor valida faixa de vídeo; testes de concorrência e integração final ainda pendentes.
 - Fase 10: reservada exclusivamente à validação final. Nenhum teste ou build foi executado nesta etapa.
 - Bloqueio conhecido: não há provedor oficialmente autorizado confirmado para cache temporário de vídeos do YouTube. O registro de provedores permanece vazio; a reprodução online continua intacta. Não contornar restrições da fonte.
 - Regra de escopo: nenhum arquivo, classe, serviço, fila, histórico ou biblioteca da Central de Áudio foi alterado nesta etapa.
