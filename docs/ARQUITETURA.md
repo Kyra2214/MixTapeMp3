@@ -144,3 +144,14 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 
 - `feature/youtube/VideoCacheManager` coordena reserva de vaga, limite configurável (padrão 3, presets 1/2/3/5/10 e personalizado até 100), transições de download/reprodução, publicação, conclusão natural e remoção manual. Alterar o limite não remove itens existentes.
 - `VideoCacheSettingsStore` persiste o limite em SharedPreferences. O manager expõe capacidade (itens, limite, bytes usados e espaço disponível). A conclusão natural remove o arquivo e registro; pausa/interrupção preservam o cache.
+
+## Cache temporário da Central de Vídeos (2026-11-26)
+- `feature/youtube/VideoCacheSourceRegistry` define admissão explícita de fontes. O registro inicia vazio; um extrator de reprodução online não se torna automaticamente um provedor de download/offline.
+- `feature/youtube/VideoCacheTransfer` é um transporte HTTP próprio da Central de Vídeos, baseado no OkHttp já presente no app. Exige HTTPS, MIME de vídeo e extensão MP4/WebM compatível; envia Range quando existe parcial, informa progresso e preserva `.part` em falhas/cancelamentos.
+- `VideoCacheDownloadCoordinator` coordena reserva, verificação de espaço, transferência e publicação. `VideoCacheFileStore.getOrCreatePartialFile` permite retomar parciais sem tocar nos arquivos de áudio.
+- `VideoCacheManager.publishDownloadedFile` conclui a publicação e o estado READY sem janela de cancelamento entre rename e persistência Room.
+- A seção Cache fica dentro de `feature/youtube/YouTubeScreen` e lista somente itens do domínio de vídeo. Permite assistir/retomar e apagar manualmente; não consulta a biblioteca MP3.
+- `YouTubePlaybackService` aceita itens locais pelo mesmo ExoPlayer/MediaSession. O identificador de cache é transportado em metadados próprios para impedir escrita no histórico YouTube; posição é persistida no `VideoCacheRepository`.
+- A conclusão natural do player remove arquivo e registro. Seek manual até o fim não conclui a visualização. Pausa, troca de tela, fechamento do app, reinicialização e perda de conexão preservam o arquivo.
+- O provedor YouTube permanece ausente até existir um mecanismo oficialmente autorizado para download/armazenamento local. A reprodução online existente não foi alterada.
+- Regra inviolável de escopo: nenhum arquivo da Central de Áudio foi alterado nesta etapa.
