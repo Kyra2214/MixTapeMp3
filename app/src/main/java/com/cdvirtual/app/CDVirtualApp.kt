@@ -19,6 +19,7 @@ import com.cdvirtual.app.feature.youtube.VideoCacheManager
 import com.cdvirtual.app.feature.youtube.VideoCacheSettingsStore
 import com.cdvirtual.app.feature.youtube.VideoCacheTransfer
 import com.cdvirtual.app.feature.youtube.VideoCacheDownloadCoordinator
+import com.cdvirtual.app.feature.youtube.VideoCacheSourceRegistry
 import com.cdvirtual.app.media.connectors.ImportRecovery
 import com.cdvirtual.app.media.service.ExportRecovery
 
@@ -38,6 +39,7 @@ class CDVirtualApp : Application() {
     val videoCacheDownloadCoordinator: VideoCacheDownloadCoordinator by lazy {
         VideoCacheDownloadCoordinator(videoCacheManager, videoCacheTransfer)
     }
+    val videoCacheSourceRegistry: VideoCacheSourceRegistry by lazy { VideoCacheSourceRegistry() }
 
     override fun onCreate() {
         super.onCreate()
