@@ -135,8 +135,12 @@ class YouTubePlaybackService : MediaSessionService() {
                         scope.launch {
                             runCatching {
                                 val manager = (application as CDVirtualApp).videoCacheManager
-                                if (currentCacheSeekedToEnd) manager.pausePlayback(cacheId)
-                                else manager.finishNaturally(cacheId)
+                                if (currentCacheSeekedToEnd) {
+                                    manager.updatePosition(cacheId, 0L)
+                                    manager.pausePlayback(cacheId)
+                                } else {
+                                    manager.finishNaturally(cacheId)
+                                }
                             }.onFailure { failure ->
                                 android.util.Log.w(TAG, "Não foi possível finalizar o cache temporário", failure)
                             }
@@ -152,13 +156,10 @@ class YouTubePlaybackService : MediaSessionService() {
                 newPosition: Player.PositionInfo,
                 reason: Int
             ) {
-                if (currentCachedId() != null &&
-                    reason == Player.DISCONTINUITY_REASON_SEEK &&
-                    player.duration > 0L &&
-                    newPosition.positionMs >= player.duration - 1_000L
-                ) {
+                if (currentCachedId() != null && reason == Player.DISCONTINUITY_REASON_SEEK) {
                     // Um seek manual até o fim não equivale a assistir naturalmente.
-                    currentCacheSeekedToEnd = true
+                    currentCacheSeekedToEnd = player.duration > 0L &&
+                        newPosition.positionMs >= player.duration - 1_000L
                 }
             }
 
@@ -546,9 +547,14 @@ class YouTubePlaybackService : MediaSessionService() {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     val app = application as CDVirtualApp
-                    app.videoCacheManager.updatePosition(cachedIdAtDestroy, position)
                     if (shouldPauseCachedItem) {
+                        app.videoCacheManager.updatePosition(
+                            cachedIdAtDestroy,
+                            if (currentCacheSeekedToEnd) 0L else position
+                        )
                         app.videoCacheManager.pausePlayback(cachedIdAtDestroy)
+                    } else {
+                        app.videoCacheManager.finishNaturally(cachedIdAtDestroy)
                     }
                 }.onFailure { failure ->
                     android.util.Log.w(TAG, "Não foi possível preservar a posição do cache ao encerrar o serviço", failure)
