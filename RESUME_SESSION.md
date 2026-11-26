@@ -2,8 +2,9 @@
 
 - Projeto: `Kyra2214/MixTapeMp3`
 - Branch de trabalho: `feature/video-temporary-cache`
+- Pull request draft: https://github.com/Kyra2214/MixTapeMp3/pull/11
 - Base: `main`
-- Último commit de código: `beeb7fa6ad4f262964536d2e6be41a8ba7855340`
+- Último commit da branch no checkpoint: `f4b2491d4e4c16fea6a7839c4870c8b2771e4ff0`
 - Escopo absoluto: somente Central de Vídeos. A Central de Áudio não pode ser modificada.
 - Regra de retenção: cache temporário para assistir; manter após pausa, troca de tela, fechar app, reiniciar e perder conexão; apagar somente após conclusão natural ou ação manual.
 - Implementado nesta etapa: `VideoCacheTransfer` (HTTPS, MIME/extensão, progresso, Range, parcial preservado), `VideoCacheSourceRegistry` (registro vazio por padrão), `VideoCacheDownloadCoordinator` (reserva, espaço, download e publicação), retomada de parciais, reprodução local pelo Media3 existente, posição persistida inclusive durante MediaSession, exclusão natural/manual e seção Cache na Central de Vídeos.
