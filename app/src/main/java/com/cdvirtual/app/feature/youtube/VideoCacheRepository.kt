@@ -4,6 +4,7 @@ import com.cdvirtual.app.core.database.VideoCacheDao
 import com.cdvirtual.app.core.database.VideoCacheEntity
 import com.cdvirtual.app.core.database.VideoCacheQuality
 import com.cdvirtual.app.core.database.VideoCacheStatus
+import com.cdvirtual.app.core.database.VideoCacheStateMachine
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -40,11 +41,10 @@ class VideoCacheRepository(private val dao: VideoCacheDao) {
     }
 
     suspend fun updateStatus(cacheId: String, status: String) {
-        require(status in setOf(
-            VideoCacheStatus.QUEUED, VideoCacheStatus.DOWNLOADING, VideoCacheStatus.INTERRUPTED,
-            VideoCacheStatus.READY, VideoCacheStatus.PLAYING, VideoCacheStatus.PAUSED,
-            VideoCacheStatus.COMPLETED, VideoCacheStatus.REMOVED
-        )) { "Estado de cache desconhecido." }
+        val current = dao.find(cacheId) ?: throw IllegalArgumentException("Item de cache não encontrado.")
+        require(VideoCacheStateMachine.canTransition(current.status, status)) {
+            "Transição de cache inválida: ${current.status} → $status."
+        }
         dao.updateStatus(cacheId, status, System.currentTimeMillis())
     }
 
