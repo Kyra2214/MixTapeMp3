@@ -364,3 +364,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Corrigidos os delimitadores da SQL da migração v13→v14 para string Kotlin multilinha válida. A verificação funcional e o build continuam reservados à fase final.
 
 - Adicionado `VideoCacheStateMachine` para restringir transições de estado e `VideoCacheFileStore` para manter arquivos em diretório isolado, publicar parciais atomicamente e validar integridade/caminho. `READY` agora exige `markReadyAfterPromotion` após validação do arquivo. Nenhuma rotina apaga parciais automaticamente.
+
+- Implementada recuperação inicial do Cache Offline: reconcilia estados do banco com arquivos, preserva parciais retomáveis, pausa reproduções interrompidas com arquivo válido e finaliza exclusões concluídas pendentes. Arquivos órfãos são identificados sem limpeza destrutiva.
