@@ -8,6 +8,7 @@ import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -92,7 +93,9 @@ class VideoCacheManager(
         extension: String,
         expectedBytes: Long = 0L
     ): VideoCacheEntity {
-        val published = fileStore.promotePartialFile(partialFile, extension, expectedBytes)
+        val published = withContext(Dispatchers.IO) {
+            fileStore.promotePartialFile(partialFile, extension, expectedBytes)
+        }
         try {
             // Depois do rename, concluir a gravação do estado sem deixar uma janela
             // de cancelamento entre o arquivo publicado e o registro READY.
@@ -107,7 +110,9 @@ class VideoCacheManager(
                     .getOrDefault(false)
             }
             if (!readyWasPersisted) {
-                runCatching { fileStore.rollbackPromotion(published, cacheId) }
+                withContext(Dispatchers.IO) {
+                    runCatching { fileStore.rollbackPromotion(published, cacheId) }
+                }
             }
             throw failure
         }
@@ -131,8 +136,9 @@ class VideoCacheManager(
         }
         repository.updateStatus(cacheId, VideoCacheStatus.COMPLETED)
         val completed = repository.find(cacheId) ?: return false
-        val fileRemoved = completed.filePath.isNullOrBlank() ||
+        val fileRemoved = completed.filePath.isNullOrBlank() || withContext(Dispatchers.IO) {
             fileStore.deleteManagedFile(completed.filePath)
+        }
         if (fileRemoved) repository.deleteRecordAfterFileRemoval(cacheId)
         return fileRemoved
     }
@@ -140,8 +146,10 @@ class VideoCacheManager(
     /** Exclusão explícita do usuário, mesmo que o vídeo ainda não tenha sido assistido. */
     suspend fun removeManually(cacheId: String): Boolean {
         val item = repository.find(cacheId) ?: return false
-        val finalRemoved = item.filePath.isNullOrBlank() || fileStore.deleteManagedFile(item.filePath)
-        val partialRemoved = fileStore.deletePartialFile(cacheId)
+        val (finalRemoved, partialRemoved) = withContext(Dispatchers.IO) {
+            val final = item.filePath.isNullOrBlank() || fileStore.deleteManagedFile(item.filePath)
+            final to fileStore.deletePartialFile(cacheId)
+        }
         if (finalRemoved && partialRemoved) {
             repository.deleteRecordAfterFileRemoval(cacheId)
             return true
@@ -154,13 +162,16 @@ class VideoCacheManager(
     fun maxItems(): Int = settings.maxItems()
 
     suspend fun capacity(): VideoCacheCapacity {
-        val directory = fileStore.cacheDirectory()
-        if (!directory.exists()) directory.mkdirs()
+        val availableBytes = withContext(Dispatchers.IO) {
+            val directory = fileStore.cacheDirectory()
+            if (!directory.exists()) directory.mkdirs()
+            directory.usableSpace.coerceAtLeast(0L)
+        }
         return VideoCacheCapacity(
             currentItems = repository.countActive(),
             maxItems = settings.maxItems(),
             usedBytes = repository.totalBytes(),
-            availableBytes = directory.usableSpace.coerceAtLeast(0L)
+            availableBytes = availableBytes
         )
     }
 }
