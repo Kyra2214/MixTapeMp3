@@ -70,6 +70,11 @@ class VideoCacheFileStore(context: Context) {
         return !file.exists() || file.delete()
     }
 
+    /** Lista arquivos publicados; a recuperação usa a lista para identificar órfãos sem apagá-los. */
+    fun listPublishedFiles(): List<File> =
+        directory.listFiles { file -> file.isFile && file.extension.lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS }
+            ?.toList().orEmpty()
+
     /** Lista parciais para recuperação posterior; não os apaga automaticamente. */
     fun listPartialFiles(): List<File> =
         directory.listFiles { file -> file.isFile && file.name.endsWith(".part") }?.toList().orEmpty()
