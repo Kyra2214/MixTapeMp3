@@ -7,6 +7,8 @@ import com.cdvirtual.app.core.storage.VideoCacheFileStore
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -89,7 +91,16 @@ class VideoCacheManager(
         expectedBytes: Long = 0L
     ): VideoCacheEntity {
         val published = fileStore.promotePartialFile(partialFile, extension, expectedBytes)
-        repository.markReadyAfterPromotion(cacheId, published)
+        try {
+            // Depois do rename, concluir a gravação do estado sem deixar uma janela
+            // de cancelamento entre o arquivo publicado e o registro READY.
+            withContext(NonCancellable) {
+                repository.markReadyAfterPromotion(cacheId, published)
+            }
+        } catch (failure: Throwable) {
+            fileStore.deleteManagedFile(published.absolutePath)
+            throw failure
+        }
         return repository.find(cacheId) ?: throw IllegalStateException("Registro do cache desapareceu.")
     }
 
