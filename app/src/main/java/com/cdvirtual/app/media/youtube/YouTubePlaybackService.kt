@@ -113,6 +113,7 @@ class YouTubePlaybackService : MediaSessionService() {
                         scope.launch {
                             runCatching { (application as CDVirtualApp).videoCacheManager.startPlayback(cacheId) }
                         }
+                        startCachePlaybackMonitor(cacheId)
                     }
                 } else if (hasStartedCurrentItem && player.playbackState != Player.STATE_ENDED) {
                     if (cacheId != null) {
