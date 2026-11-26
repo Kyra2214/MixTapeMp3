@@ -148,7 +148,8 @@
 - Fase 1.1: implementada no código e documentada; validação funcional transferida para a fase final.
 - Fase 1.2 (fronteiras de armazenamento): implementada; o cache ainda não cria arquivos até a fase do gerenciador.
 - Fase 2.1 (entidade, DAO e migração): implementada; exportação do schema 14 e build ficam para a fase final.
-- Fases 2.2–9: pendentes.
+- Fase 2.2 (repositório): implementada.
+- Fases 2.3–9: pendentes.
 - Fase 10: reservada exclusivamente à validação final.
 - Percentual de implementação deste roadmap: Fase 1.1 concluída; fases seguintes pendentes. Validação final ainda não executada.
 - Bloqueio conhecido: não há via autorizada confirmada para baixar e armazenar permanentemente vídeos do YouTube fora dos recursos oficiais. Não contornar essa restrição.
