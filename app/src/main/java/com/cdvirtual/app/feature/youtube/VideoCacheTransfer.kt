@@ -81,6 +81,12 @@ class VideoCacheTransfer(
         .followRedirects(true)
         .build()
 ) {
+    fun requiredFreeBytes(cacheId: String, expectedBytes: Long): Long {
+        if (expectedBytes <= 0L) return 0L
+        val partial = fileStore.getOrCreatePartialFile(cacheId)
+        return (expectedBytes - partial.length()).coerceAtLeast(0L)
+    }
+
     suspend fun download(
         cacheId: String,
         request: VideoCacheTransferRequest,
