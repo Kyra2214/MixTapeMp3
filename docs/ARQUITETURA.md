@@ -133,3 +133,6 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - Room v14 acrescenta `VideoCacheEntity` e `VideoCacheDao` em tabela própria `video_cache`; migração explícita v13→v14 cria tabela e índice status/data. Não há FK para `tracks`, `youtube_history` ou `youtube_channels`.
 - Qualidades persistidas como altura 240/360/480; 240p é o padrão. Estados são strings controladas por `VideoCacheStatus`.
 - O DAO persiste metadados e posição; não apaga arquivos físicos. A remoção de arquivos será responsabilidade do gerenciador de cache.
+
+- `feature/youtube/VideoCacheRepository` encapsula o DAO do cache e valida identificadores, qualidade (240/360/480), estado e valores não negativos. A remoção de registro só é exposta com o contrato `deleteRecordAfterFileRemoval`, para impedir que a camada de persistência apague o metadado antes do arquivo físico.
+- `CDVirtualApp.videoCacheRepository` fornece a instância compartilhada do repositório à Central de Vídeos.
