@@ -209,3 +209,5 @@
 - 2026-11-26 — Fase 2.3: máquina de estados e armazenamento seguro do cache implementados. Arquivos `.part` só são publicados após validação; estado READY exige arquivo válido dentro de `video_cache`. Recuperação de parciais continua pendente. Nenhum teste/build executado.
 
 - 2026-11-26 — Fase 2.4: `VideoCacheRecovery` integrado à inicialização; recupera estados, valida arquivos, preserva parciais e reporta órfãos sem apagá-los. Nenhum teste/build executado.
+
+- 2026-11-26 — Fase 3.1: `VideoCacheManager` e `VideoCacheSettingsStore` implementados; limite padrão 3, presets 1/2/3/5/10 e personalizado 1–100; reserva, capacidade, remoção manual e exclusão após conclusão natural. Nenhum teste/build executado.
