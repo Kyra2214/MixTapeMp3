@@ -102,6 +102,7 @@ class YouTubePlaybackService : MediaSessionService() {
                         .getBoolean(KEY_SPONSOR_BLOCK, false)
                     if (sponsorEnabled) requestSponsorSegments(resumedId, requestId)
                 }
+                currentCachedId()?.let(::startCachePlaybackMonitor)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
