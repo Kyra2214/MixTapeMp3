@@ -98,6 +98,7 @@ class VideoCacheFileStore(context: Context) {
         val file = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
         if (!isManaged(file) || !file.isFile || file.length() <= 0L) return null
         if (expectedBytes > 0L && file.length() != expectedBytes) return null
+        if (!containsVideoTrack(file)) return null
         return file
     }
 
