@@ -378,3 +378,4 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Integrado o cache local ao `YouTubePlaybackService`/Media3 existente, com posição persistida, pausa preservando arquivo, remoção após conclusão natural e proteção contra seek manual até o fim.
 - Adicionada seção Cache à Central de Vídeos com estado, qualidade, tamanho, assistir/retomar e remoção manual.
 - Central de Áudio não foi modificada. Nenhum teste/build executado, conforme a regra de validação somente ao final.
+- Complemento da etapa: retomada de cache pela MediaSession; posição gravada durante reprodução; seek manual até o fim volta à posição inicial e preserva o arquivo; validação com `MediaExtractor` exige uma faixa `video/*`; falha ao gravar READY tenta reverter a promoção sem remover bytes já baixados.
