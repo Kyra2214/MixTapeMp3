@@ -163,7 +163,18 @@ class YouTubePlaybackService : MediaSessionService() {
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                persistCurrentPosition()
+                val cacheId = currentCachedId()
+                if (cacheId != null) {
+                    scope.launch {
+                        runCatching {
+                            val app = application as CDVirtualApp
+                            app.videoCacheManager.updatePosition(cacheId, player.currentPosition.coerceAtLeast(0L))
+                            app.videoCacheManager.pausePlayback(cacheId)
+                        }
+                    }
+                } else {
+                    persistCurrentPosition()
+                }
                 YouTubePlaybackStatus.reportError(error.toYouTubePlaybackMessage())
             }
         })
