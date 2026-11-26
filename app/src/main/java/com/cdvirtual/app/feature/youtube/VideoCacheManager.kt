@@ -100,7 +100,9 @@ class VideoCacheManager(
                 repository.markReadyAfterPromotion(cacheId, published)
             }
         } catch (failure: Throwable) {
-            fileStore.deleteManagedFile(published.absolutePath)
+            // Se o Room falhar após o rename, devolver o arquivo a .part para
+            // que a retomada/reconciliação não perca um download já concluído.
+            runCatching { fileStore.rollbackPromotion(published, cacheId) }
             throw failure
         }
         return repository.find(cacheId) ?: throw IllegalStateException("Registro do cache desapareceu.")
