@@ -359,3 +359,6 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 
 - Criados `VideoCacheEntity`, `VideoCacheDao`, estados/qualidades e migração Room v13→v14. O domínio de cache é isolado das tabelas de áudio e do histórico/canais do YouTube.
 - Nenhum teste ou build foi executado; geração/registro do schema Room 14 foi transferida para a validação final.
+
+- Criado `VideoCacheRepository`, com validação de metadados/qualidade/estado e acesso via `CDVirtualApp`. O repositório não manipula arquivos; a exclusão do registro exige que o gerenciador já tenha removido o arquivo físico.
+- Corrigidos os delimitadores da SQL da migração v13→v14 para string Kotlin multilinha válida. A verificação funcional e o build continuam reservados à fase final.
