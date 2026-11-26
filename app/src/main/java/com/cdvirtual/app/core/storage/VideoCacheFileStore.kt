@@ -70,6 +70,23 @@ class VideoCacheFileStore(context: Context) {
         return destination
     }
 
+    /**
+     * Reverte a promoção se a persistência Room falhar, mantendo os bytes para nova tentativa.
+     * Se o parcial já existir, preserva ambos os arquivos para reconciliação posterior.
+     */
+    fun rollbackPromotion(publishedFile: File, cacheId: String): Boolean {
+        requireSafeId(cacheId)
+        val published = publishedFile.canonicalFile
+        requireManaged(published)
+        require(published.name.startsWith("$cacheId.") &&
+            published.extension.lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS
+        ) { "O arquivo publicado não pertence ao item de cache informado." }
+        val partial = File(directory, "$cacheId.part").canonicalFile
+        requireManaged(partial)
+        if (!published.isFile || partial.exists()) return false
+        return published.renameTo(partial)
+    }
+
     /** Retorna somente arquivos completos e contidos no diretório exclusivo de vídeo. */
     fun resolveValidFile(path: String?, expectedBytes: Long = 0L): File? {
         if (path.isNullOrBlank()) return null
