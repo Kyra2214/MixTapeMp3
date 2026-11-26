@@ -23,6 +23,8 @@ import com.google.common.util.concurrent.SettableFuture
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.MainActivity
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
+import com.cdvirtual.app.core.database.VideoCacheEntity
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -206,17 +208,22 @@ class YouTubePlaybackService : MediaSessionService() {
             scope.launch {
                 try {
                     val app = application as CDVirtualApp
-                    val cachedAndFile = app.videoCacheRepository.all()
+                    var cachedAndFile: Pair<VideoCacheEntity, File>? = null
+                    val cachedCandidates = app.videoCacheRepository.all()
                         .filter {
                             it.status == com.cdvirtual.app.core.database.VideoCacheStatus.PAUSED ||
                                 it.status == com.cdvirtual.app.core.database.VideoCacheStatus.READY
                         }
                         .sortedByDescending { it.updatedAt }
-                        .firstNotNullOfOrNull { entry ->
-                            withContext(Dispatchers.IO) {
-                                app.videoCacheFileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
-                            }?.let { file -> entry to file }
+                    for (entry in cachedCandidates) {
+                        val file = withContext(Dispatchers.IO) {
+                            app.videoCacheFileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
                         }
+                        if (file != null) {
+                            cachedAndFile = entry to file
+                            break
+                        }
+                    }
                     if (cachedAndFile != null) {
                         val (cached, file) = cachedAndFile
                         val metadata = MediaMetadata.Builder()
