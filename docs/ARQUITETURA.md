@@ -115,3 +115,12 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 - `ExportService.run` depois de gerar: cópia para a pasta (`FolderExporter` + `ExportCopies`) se `AppSettings.autoSaveToFolder`, depois `OriginalsCleaner` se pedido na geração. Falha na cópia nunca apaga originais.
 - `feature/library/Genres` normaliza a tag (ID3v1 numérico e "(n)texto"); coluna `tracks.genre` (null = ainda não lido, "" = sem gênero); Room v11 com `MIGRATION_10_11`.
 
+
+
+## Central de Vídeos e Central de Áudio (auditoria 2026-11-26)
+- Home encaminha para destinos independentes: `Destination.YouTube` abre `feature/youtube/YouTubeScreen`; `Destination.Browser` abre `feature/browser/BrowserScreen` (fluxo de pesquisa/importação de áudio).
+- A biblioteca musical usa exclusivamente `TrackEntity`, `TrackDao` e `TrackRepository`. O histórico da Central de Vídeos usa `YouTubeHistoryEntity/YouTubeHistoryDao`; canais salvos usam `YouTubeChannelEntity/YouTubeChannelDao`.
+- Reprodução MP3 e YouTube possuem serviços separados: `Mp3Player/PlaybackService` e `YouTubePlaybackService`.
+- O vídeo usado como origem para extração de áudio não é um item de vídeo da biblioteca musical; o item registrado na biblioteca é o arquivo de áudio importado.
+- Não foi encontrada consulta cruzada entre as tabelas de faixas e as tabelas YouTube na inspeção estática. A validação funcional permanece na fase final.
+- O Cache Offline deverá usar entidades, DAO, repositório e diretório próprios. A preparação offline só poderá integrar fontes que autorizem armazenamento local.

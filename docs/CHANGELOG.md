@@ -342,3 +342,13 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Home: acesso a Configurações; contador de ferramentas deixou de ser fixo.
 - Não compilado nem executado em aparelho (sem SDK/rede no ambiente de integração).
 
+
+
+## [dev] 2026-11-26 — Roadmap Central de Vídeos e Cache Offline
+- Confirmado baseline remoto da `main`: `1a80446cf53485dabd56057c0fe385e2e9a5ae24`.
+- Auditoria estática confirmou domínios separados: biblioteca musical (`tracks`), histórico de vídeos (`youtube_history`) e canais (`youtube_channels`), com serviços de reprodução independentes.
+- Criado `docs/ROADMAP_CACHE_OFFLINE.md` para controlar a evolução sem substituir o roadmap original de 76 submódulos.
+- Registrada a regra de retenção: cache só é removido ao concluir naturalmente a visualização ou por ação manual.
+- Registradas as qualidades planejadas: 240p padrão, 360p e 480p; limite configurável e sem remoção automática para abrir vaga.
+- A validação funcional foi transferida para a fase final. Nenhum teste ou build foi executado nesta etapa.
+- A integração de cache persistente de vídeos do YouTube fica condicionada a uma via oficialmente autorizada; não será implementado contorno de restrições da fonte.

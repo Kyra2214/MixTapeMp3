@@ -186,3 +186,14 @@
 - Room v11: `11.json` ainda não existe (é gerado pelo KSP no primeiro build e deve ser versionado).
 - Nada compilado: sem Android SDK, Gradle nem rede neste ambiente.
 
+
+
+## Roadmap Central de Vídeos e Cache Offline (iniciado em 2026-11-26)
+- Repositório: `Kyra2214/MixTapeMp3`; branch `main`; baseline `1a80446cf53485dabd56057c0fe385e2e9a5ae24`.
+- Fase 0 (auditoria e baseline): concluída por inspeção estática.
+- Fase 1 (independência das centrais): arquitetura existente confirmada; documentação e consolidação pendentes.
+- Fases 2–9: pendentes.
+- Fase 10 (testes/build/validação): reservada para depois da implementação integral.
+- Percentual dos submódulos de implementação deste roadmap: 0%; não confundir auditoria concluída com implementação.
+- Bloqueio: não foi confirmada uma via autorizada para download/cache persistente de vídeos do YouTube. A implementação deve respeitar os mecanismos oficiais da fonte.
+- Nenhum teste, build ou validação foi executado nesta etapa.
