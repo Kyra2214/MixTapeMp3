@@ -202,8 +202,46 @@ class YouTubePlaybackService : MediaSessionService() {
             val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
             scope.launch {
                 try {
-                    val history = (application as CDVirtualApp).database
-                        .youtubeHistoryDao().findMostRecent()
+                    val app = application as CDVirtualApp
+                    val cached = app.videoCacheRepository.all()
+                        .filter {
+                            it.status == com.cdvirtual.app.core.database.VideoCacheStatus.PAUSED ||
+                                it.status == com.cdvirtual.app.core.database.VideoCacheStatus.READY
+                        }
+                        .sortedByDescending { it.updatedAt }
+                        .firstOrNull {
+                            app.videoCacheFileStore.resolveValidFile(it.filePath, it.sizeBytes) != null
+                        }
+                    if (cached != null) {
+                        val file = app.videoCacheFileStore.resolveValidFile(cached.filePath, cached.sizeBytes)
+                            ?: throw IllegalStateException("O arquivo temporário não está disponível.")
+                        val metadata = MediaMetadata.Builder()
+                            .setTitle(cached.title)
+                            .setArtist(cached.uploader)
+                            .setArtworkUri(cached.thumbnailUrl?.let(Uri::parse))
+                            .setExtras(Bundle().apply {
+                                putString(EXTRA_CACHE_ID, cached.cacheId)
+                                putBoolean(EXTRA_AUDIO_ONLY, false)
+                            })
+                            .build()
+                        val mimeType = if (file.extension.equals("webm", true)) "video/webm" else "video/mp4"
+                        val cachedItem = MediaItem.Builder()
+                            .setMediaId("cache:${cached.cacheId}")
+                            .setUri(Uri.fromFile(file))
+                            .setMimeType(mimeType)
+                            .setMediaMetadata(metadata)
+                            .build()
+                        result.set(
+                            MediaSession.MediaItemsWithStartPosition(
+                                listOf(cachedItem),
+                                0,
+                                cached.lastPositionMs.coerceAtLeast(0L)
+                            )
+                        )
+                        return@launch
+                    }
+
+                    val history = app.database.youtubeHistoryDao().findMostRecent()
                         ?: throw IllegalStateException("Nenhum vídeo disponível no histórico para retomar")
                     val audioOnly = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                         .getBoolean(KEY_LAST_AUDIO_ONLY, false)
