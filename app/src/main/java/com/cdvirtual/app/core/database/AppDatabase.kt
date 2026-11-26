@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.cdvirtual.app.core.database.VideoCacheEntity
+import com.cdvirtual.app.core.database.VideoCacheDao
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TrackEntity::class, CdEntity::class, CdTrackEntity::class, YouTubeHistoryEntity::class, YouTubeChannelEntity::class], version = 13, exportSchema = true)
+@Database(entities = [TrackEntity::class, CdEntity::class, CdTrackEntity::class, YouTubeHistoryEntity::class, YouTubeChannelEntity::class, VideoCacheEntity::class], version = 14, exportSchema = true)
 /**
  * REGRA (T-103): a v10 é a linha de base da 1.0 (v11 acrescenta o gênero das músicas). Toda mudança de schema exige incrementar a versão e registrar uma
  * Migration (addMigrations), nunca voltar a usar fallbackToDestructiveMigration() sem lista de versões.
@@ -18,6 +20,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cdDao(): CdDao
     abstract fun youtubeHistoryDao(): YouTubeHistoryDao
     abstract fun youtubeChannelDao(): YouTubeChannelDao
+    abstract fun videoCacheDao(): VideoCacheDao
 
     companion object {
         private const val NAME = "cdvirtual.db"
@@ -63,9 +66,38 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+
+        /** v13 -> v14: cria o domínio persistente do Cache Offline de vídeos. */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    \"\"\"CREATE TABLE IF NOT EXISTS video_cache (
+                        cacheId TEXT NOT NULL PRIMARY KEY,
+                        sourceId TEXT NOT NULL,
+                        sourceVideoId TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        uploader TEXT,
+                        thumbnailUrl TEXT,
+                        durationMs INTEGER NOT NULL,
+                        qualityHeight INTEGER NOT NULL,
+                        filePath TEXT,
+                        sizeBytes INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        lastPositionMs INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        completedAt INTEGER
+                    )\"\"\"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_video_cache_status_createdAt ON video_cache(status, createdAt)"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9)
                 .build().also { instance = it }
         }

@@ -356,3 +356,6 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Corrigido o vazamento de histórico: vídeos abertos como prévia no navegador da Central de Áudio não são registrados nem têm progresso gravado na biblioteca/histórico da Central de Vídeos. Reproduções iniciadas pela Central de Vídeos mantêm o registro normal.
 
 - Criado `MediaStorageLayout` para separar fisicamente importações de áudio (`filesDir/imports`, caminho legado preservado) e cache de vídeo (`filesDir/video_cache`). `ImporterViewModel` e `ImportRecovery` agora usam explicitamente o diretório de áudio.
+
+- Criados `VideoCacheEntity`, `VideoCacheDao`, estados/qualidades e migração Room v13→v14. O domínio de cache é isolado das tabelas de áudio e do histórico/canais do YouTube.
+- Nenhum teste ou build foi executado; geração/registro do schema Room 14 foi transferida para a validação final.

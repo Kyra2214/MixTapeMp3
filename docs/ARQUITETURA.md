@@ -129,3 +129,7 @@ Módulo Gradle único (:app) com pacotes em com.cdvirtual.app (evita módulos va
 
 - `core/storage/MediaStorageLayout` define `filesDir/imports` como diretório legado exclusivo de importações de áudio e `filesDir/video_cache` como diretório exclusivo reservado ao cache de vídeo permitido. O caminho de imports não muda para preservar URIs persistidos.
 - `ImportRecovery` e `ImporterViewModel` usam `MediaStorageLayout.audioImportsDir`; a recuperação de áudio não percorre o diretório de vídeos.
+
+- Room v14 acrescenta `VideoCacheEntity` e `VideoCacheDao` em tabela própria `video_cache`; migração explícita v13→v14 cria tabela e índice status/data. Não há FK para `tracks`, `youtube_history` ou `youtube_channels`.
+- Qualidades persistidas como altura 240/360/480; 240p é o padrão. Estados são strings controladas por `VideoCacheStatus`.
+- O DAO persiste metadados e posição; não apaga arquivos físicos. A remoção de arquivos será responsabilidade do gerenciador de cache.

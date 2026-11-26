@@ -57,9 +57,10 @@
 
 ## FASE 2 — MODELO E PERSISTÊNCIA DO CACHE
 
-- [ ] Criar entidade exclusiva para itens de cache de vídeo.
-- [ ] Criar DAO e repositório próprios, sem reutilizar `TrackEntity`.
-- [ ] Criar migração Room explícita e schema exportado.
+- [x] Criar entidade exclusiva `VideoCacheEntity` para itens de cache de vídeo, sem reutilizar `TrackEntity`.
+- [x] Criar `VideoCacheDao` exclusivo para consulta e persistência de metadados.
+- [x] Criar migração Room explícita v13→v14; exportação do schema 14 fica pendente para a fase final de build.
+- [ ] Criar repositório próprio para o domínio de cache.
 - [ ] Persistir identificador da fonte, título, miniatura, duração, qualidade, tamanho, caminho, estado, posição e datas.
 - [ ] Modelar estados: aguardando, baixando, interrompido, pronto, em reprodução, pausado, concluído e removido.
 - [ ] Garantir recuperação consistente após encerramento inesperado.
@@ -146,7 +147,8 @@
 - Fase 0: concluída por inspeção estática.
 - Fase 1.1: implementada no código e documentada; validação funcional transferida para a fase final.
 - Fase 1.2 (fronteiras de armazenamento): implementada; o cache ainda não cria arquivos até a fase do gerenciador.
-- Fases 2–9: pendentes.
+- Fase 2.1 (entidade, DAO e migração): implementada; exportação do schema 14 e build ficam para a fase final.
+- Fases 2.2–9: pendentes.
 - Fase 10: reservada exclusivamente à validação final.
 - Percentual de implementação deste roadmap: Fase 1.1 concluída; fases seguintes pendentes. Validação final ainda não executada.
 - Bloqueio conhecido: não há via autorizada confirmada para baixar e armazenar permanentemente vídeos do YouTube fora dos recursos oficiais. Não contornar essa restrição.

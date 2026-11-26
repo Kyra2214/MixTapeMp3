@@ -2,12 +2,14 @@
 
 - Projeto: `Kyra2214/MixTapeMp3`
 - Branch: `main`
-- Último commit: aguarda publicação do checkpoint de fronteiras de armazenamento.
-- Fase atual: Fase 2 — modelo e persistência do cache.
+- Último commit: aguarda publicação do submódulo 2.1.
+- Fase atual: Fase 2.2 — repositório de cache.
 - Fase 0: auditoria concluída.
-- Fase 1.1: implementada; prévias iniciadas na Central de Áudio não gravam histórico/progresso na Central de Vídeos.
-- Fase 1.2: implementada; `MediaStorageLayout` separa `filesDir/imports` (áudio, caminho legado preservado) e `filesDir/video_cache` (cache de vídeo); importador e recuperação usam somente o diretório de áudio.
-- Próximo submódulo: Fase 2.1 — modelo Room exclusivo para itens de cache de vídeo, com migração explícita.
+- Fase 1.1: implementada; prévias na Central de Áudio não gravam histórico/progresso da Central de Vídeos.
+- Fase 1.2: implementada; `MediaStorageLayout` separa imports de áudio e diretório reservado de cache de vídeo.
+- Fase 2.1: implementada; `VideoCacheEntity`, `VideoCacheDao`, qualidades/estados e migração Room v13→v14.
+- Pendência de validação final: gerar/registrar schema Room v14 com KSP e executar testes de migração.
+- Próximo submódulo: Fase 2.2 — repositório de cache isolado.
 - Testes/build: não executar até completar todo o roadmap; validação reservada à Fase 10.
 - Bloqueio conhecido: cache persistente de vídeos do YouTube requer mecanismo oficialmente permitido. Não contornar restrições da fonte.
-- Último ZIP completo: não gerado; clone/arquivo remoto não está acessível pelo ambiente atual.
+- Último ZIP completo: não gerado; ambiente não consegue resolver GitHub via rede direta.
