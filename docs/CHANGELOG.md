@@ -370,3 +370,11 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Criado `VideoCacheManager` e `VideoCacheSettingsStore`: limite configurável (padrão 3), reservas sem sobrescrever itens, capacidade de armazenamento, remoção manual e conclusão natural com exclusão do arquivo. O gerenciador não resolve URLs nem baixa streams; essa integração fica condicionada a fonte autorizada.
 
 - Reservas de vagas do Cache Offline agora são serializadas com Mutex para impedir que solicitações simultâneas ultrapassem o limite configurado.
+
+## 2026-11-26 — Cache temporário da Central de Vídeos
+- Criado `VideoCacheTransfer`, transporte HTTP exclusivo do domínio de vídeo, com HTTPS obrigatório, validação MIME/extensão, progresso, retomada HTTP Range e preservação de `.part` em cancelamentos/falhas.
+- Criado `VideoCacheSourceRegistry` com contrato explícito de provedores autorizados. Registro inicia vazio; nenhum extrator de stream do YouTube foi conectado para armazenamento offline.
+- Criado `VideoCacheDownloadCoordinator` para reserva, checagem de espaço, transferência e publicação; `VideoCacheFileStore` agora reabre parciais para retomada.
+- Integrado o cache local ao `YouTubePlaybackService`/Media3 existente, com posição persistida, pausa preservando arquivo, remoção após conclusão natural e proteção contra seek manual até o fim.
+- Adicionada seção Cache à Central de Vídeos com estado, qualidade, tamanho, assistir/retomar e remoção manual.
+- Central de Áudio não foi modificada. Nenhum teste/build executado, conforme a regra de validação somente ao final.
