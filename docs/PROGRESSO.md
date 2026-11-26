@@ -221,3 +221,5 @@
 - Regra de escopo cumprida: nenhuma alteração em arquivos da Central de Áudio.
 - Nenhum teste, build ou validação executado.
 - Robustez adicional: retomada de itens locais via MediaSession; posição salva periodicamente; seek manual até o fim não apaga o vídeo e reinicia a posição; validação estrutural com `MediaExtractor`; rollback de promoção preserva o parcial quando a persistência Room falha.
+
+- Transporte reforçado contra downgrade HTTPS e resposta com MIME divergente; operações de arquivo e análise MediaExtractor movidas para Dispatchers.IO para evitar bloqueio da interface.
