@@ -110,6 +110,9 @@ class VideoCacheManager(
     suspend fun pausePlayback(cacheId: String) =
         repository.updateStatus(cacheId, VideoCacheStatus.PAUSED)
 
+    suspend fun updatePosition(cacheId: String, positionMs: Long) =
+        repository.updatePosition(cacheId, positionMs)
+
     /** Chamado somente pelo player ao receber conclusão natural, nunca por seek manual. */
     suspend fun finishNaturally(cacheId: String): Boolean {
         val current = repository.find(cacheId) ?: return false
