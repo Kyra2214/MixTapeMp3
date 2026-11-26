@@ -420,6 +420,7 @@ class YouTubePlaybackService : MediaSessionService() {
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
+            runCatching { (application as CDVirtualApp).videoCacheManager.pausePlayback(cacheId) }
             android.util.Log.e(TAG, "Não foi possível reproduzir o vídeo temporário $cacheId", failure)
             YouTubePlaybackStatus.reportError(failure.message ?: "Não foi possível abrir o vídeo do cache.")
         }
