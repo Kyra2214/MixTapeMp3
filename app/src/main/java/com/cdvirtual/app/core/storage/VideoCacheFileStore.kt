@@ -1,6 +1,8 @@
 package com.cdvirtual.app.core.storage
 
 import android.content.Context
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import java.io.File
 import java.io.IOException
 import java.util.Locale
@@ -61,6 +63,9 @@ class VideoCacheFileStore(context: Context) {
         if (expectedBytes > 0L && partial.length() != expectedBytes) {
             throw IOException("O arquivo temporário está incompleto.")
         }
+        if (!containsVideoTrack(partial)) {
+            throw IOException("O arquivo recebido não contém uma faixa de vídeo reconhecível.")
+        }
 
         val baseName = partial.name.removeSuffix(".part")
         val destination = File(directory, "$baseName.${extension.lowercase(Locale.ROOT)}").canonicalFile
@@ -120,6 +125,24 @@ class VideoCacheFileStore(context: Context) {
     /** Lista parciais para recuperação posterior; não os apaga automaticamente. */
     fun listPartialFiles(): List<File> =
         directory.listFiles { file -> file.isFile && file.name.endsWith(".part") }?.toList().orEmpty()
+
+    private fun containsVideoTrack(file: File): Boolean {
+        val extractor = MediaExtractor()
+        return try {
+            extractor.setDataSource(file.absolutePath)
+            (0 until extractor.trackCount).any { index ->
+                runCatching {
+                    extractor.getTrackFormat(index)
+                        .getString(MediaFormat.KEY_MIME)
+                        ?.startsWith("video/") == true
+                }.getOrDefault(false)
+            }
+        } catch (_: Exception) {
+            false
+        } finally {
+            runCatching { extractor.release() }
+        }
+    }
 
     private fun requireSafeId(cacheId: String) {
         require(cacheId.matches(Regex("^[A-Za-z0-9_-]{1,100}$"))) {
