@@ -70,6 +70,14 @@ class VideoCacheFileStore(context: Context) {
         return !file.exists() || file.delete()
     }
 
+    /** Remove um parcial identificado por cacheId, sem tocar em arquivos fora do diretório de vídeo. */
+    fun deletePartialFile(cacheId: String): Boolean {
+        requireSafeId(cacheId)
+        val partial = File(directory, "$cacheId.part").canonicalFile
+        if (!isManaged(partial)) return false
+        return !partial.exists() || partial.delete()
+    }
+
     /** Lista arquivos publicados; a recuperação usa a lista para identificar órfãos sem apagá-los. */
     fun listPublishedFiles(): List<File> =
         directory.listFiles { file -> file.isFile && file.extension.lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS }
