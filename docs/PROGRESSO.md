@@ -213,3 +213,10 @@
 - 2026-11-26 — Fase 3.1: `VideoCacheManager` e `VideoCacheSettingsStore` implementados; limite padrão 3, presets 1/2/3/5/10 e personalizado 1–100; reserva, capacidade, remoção manual e exclusão após conclusão natural. Nenhum teste/build executado.
 
 - 2026-11-26 — Reforçada a reserva de vagas com Mutex para impedir ultrapassagem concorrente do limite configurado. Sem testes/build, conforme execução definida.
+
+## 2026-11-26 — Implementação do cache temporário na Central de Vídeos
+- Implementados: motor de transferência próprio para vídeo; retomada HTTP Range; `.part` preservado; registro de provedores autorizados; checagem de espaço conhecido; publicação para READY; integração de reprodução local Media3; posição/estado; exclusão natural/manual; seção Cache na UI.
+- Limitação: registro de provedores inicia vazio. Não há provedor YouTube oficialmente autorizado confirmado para download/armazenamento local; a reprodução online segue inalterada.
+- Pendências: integração de fonte autorizada real; UI de progresso e seletor de qualidade; validação de contêiner/arquivo; tratamento adicional de concorrência e retomada da MediaSession; testes e builds na Fase 10.
+- Regra de escopo cumprida: nenhuma alteração em arquivos da Central de Áudio.
+- Nenhum teste, build ou validação executado.
