@@ -5,6 +5,7 @@ import android.content.Intent
 import android.app.PendingIntent
 import android.os.Bundle
 import android.os.SystemClock
+import android.net.Uri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -64,6 +65,7 @@ class YouTubePlaybackService : MediaSessionService() {
     private val skippedSponsorSegments = mutableSetOf<Int>()
     private val progressWriteMutex = Mutex()
     private var hasStartedCurrentItem = false
+    private var currentCacheSeekedToEnd = false
     private var resumingVideoId: String? = null
     private var resumingRequestId = 0L
 
@@ -89,6 +91,7 @@ class YouTubePlaybackService : MediaSessionService() {
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 hasStartedCurrentItem = false
+                currentCacheSeekedToEnd = false
                 val resumedId = mediaItem?.mediaId
                 if (resumedId != null && resumedId == resumingVideoId) {
                     val requestId = resumingRequestId
@@ -102,16 +105,60 @@ class YouTubePlaybackService : MediaSessionService() {
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                val cacheId = currentCachedId()
                 if (isPlaying) {
                     hasStartedCurrentItem = true
+                    if (cacheId != null) {
+                        scope.launch {
+                            runCatching { (application as CDVirtualApp).videoCacheManager.startPlayback(cacheId) }
+                        }
+                    }
                 } else if (hasStartedCurrentItem && player.playbackState != Player.STATE_ENDED) {
-                    persistCurrentPosition()
+                    if (cacheId != null) {
+                        scope.launch {
+                            runCatching {
+                                val app = application as CDVirtualApp
+                                app.videoCacheManager.updatePosition(cacheId, player.currentPosition.coerceAtLeast(0L))
+                                app.videoCacheManager.pausePlayback(cacheId)
+                            }
+                        }
+                    } else {
+                        persistCurrentPosition()
+                    }
                 }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
-                    persistCurrentPosition(resetToStart = true)
+                    val cacheId = currentCachedId()
+                    if (cacheId != null) {
+                        scope.launch {
+                            runCatching {
+                                val manager = (application as CDVirtualApp).videoCacheManager
+                                if (currentCacheSeekedToEnd) manager.pausePlayback(cacheId)
+                                else manager.finishNaturally(cacheId)
+                            }.onFailure { failure ->
+                                android.util.Log.w(TAG, "Não foi possível finalizar o cache temporário", failure)
+                            }
+                        }
+                    } else {
+                        persistCurrentPosition(resetToStart = true)
+                    }
+                }
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
+                if (currentCachedId() != null &&
+                    reason == Player.DISCONTINUITY_REASON_SEEK &&
+                    player.duration > 0L &&
+                    newPosition.positionMs >= player.duration - 1_000L
+                ) {
+                    // Um seek manual até o fim não equivale a assistir naturalmente.
+                    currentCacheSeekedToEnd = true
                 }
             }
 
@@ -196,7 +243,10 @@ class YouTubePlaybackService : MediaSessionService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        if (intent?.action == ACTION_PLAY) {
+        if (intent?.action == ACTION_PLAY_CACHED) {
+            val cacheId = intent.getStringExtra(EXTRA_CACHE_ID)?.takeIf { it.isNotBlank() }
+            if (cacheId != null) scope.launch { loadAndPlayCached(cacheId) }
+        } else if (intent?.action == ACTION_PLAY) {
             YouTubePlaybackStatus.clearError()
             val videoId = intent.getStringExtra(EXTRA_VIDEO_ID)?.takeIf { it.isNotBlank() }
             val audioOnly = intent.getBooleanExtra(EXTRA_AUDIO_ONLY, false)
@@ -316,6 +366,77 @@ class YouTubePlaybackService : MediaSessionService() {
         }
     }
 
+    private suspend fun loadAndPlayCached(cacheId: String) {
+        try {
+            val app = application as CDVirtualApp
+            val item = app.videoCacheRepository.find(cacheId)
+                ?: throw IllegalStateException("Vídeo temporário não encontrado no cache.")
+            require(item.status == com.cdvirtual.app.core.database.VideoCacheStatus.READY ||
+                item.status == com.cdvirtual.app.core.database.VideoCacheStatus.PAUSED
+            ) { "Este vídeo ainda não está pronto para reprodução." }
+            val file = app.videoCacheFileStore.resolveValidFile(item.filePath, item.sizeBytes)
+                ?: throw IllegalStateException("O arquivo temporário não está íntegro ou não existe.")
+
+            ++playbackRequestId
+            loadingVideoId = null
+            sponsorSegments = emptyList()
+            skippedSponsorSegments.clear()
+            currentCacheSeekedToEnd = false
+            app.videoCacheManager.startPlayback(cacheId)
+
+            val metadata = MediaMetadata.Builder()
+                .setTitle(item.title)
+                .setArtist(item.uploader)
+                .setArtworkUri(item.thumbnailUrl?.let(Uri::parse))
+                .setExtras(Bundle().apply {
+                    putString(EXTRA_CACHE_ID, cacheId)
+                    putBoolean(EXTRA_AUDIO_ONLY, false)
+                })
+                .build()
+            val mimeType = if (file.extension.equals("webm", true)) "video/webm" else "video/mp4"
+            player.setMediaItem(
+                MediaItem.Builder()
+                    .setMediaId("cache:$cacheId")
+                    .setUri(Uri.fromFile(file))
+                    .setMimeType(mimeType)
+                    .setMediaMetadata(metadata)
+                    .build(),
+                item.lastPositionMs.coerceAtLeast(0L)
+            )
+            player.prepare()
+            player.play()
+            startCachePlaybackMonitor(cacheId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            android.util.Log.e(TAG, "Não foi possível reproduzir o vídeo temporário $cacheId", failure)
+            YouTubePlaybackStatus.reportError(failure.message ?: "Não foi possível abrir o vídeo do cache.")
+        }
+    }
+
+    private fun startCachePlaybackMonitor(cacheId: String) {
+        playbackMonitorJob?.cancel()
+        val mediaId = "cache:$cacheId"
+        playbackMonitorJob = scope.launch {
+            while (player.currentMediaItem?.mediaId == mediaId &&
+                player.playbackState != Player.STATE_IDLE &&
+                player.playbackState != Player.STATE_ENDED
+            ) {
+                delay(5_000L)
+                if (player.currentMediaItem?.mediaId != mediaId) break
+                if (player.isPlaying) {
+                    runCatching {
+                        (application as CDVirtualApp).videoCacheManager
+                            .updatePosition(cacheId, player.currentPosition.coerceAtLeast(0L))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun currentCachedId(): String? =
+        player.currentMediaItem?.mediaMetadata?.extras?.getString(EXTRA_CACHE_ID)
+
     private fun requestSponsorSegments(videoId: String, requestId: Long) {
         scope.launch {
             val segments = SponsorBlockRepository.getSkippableSegments(videoId)
@@ -333,6 +454,7 @@ class YouTubePlaybackService : MediaSessionService() {
     }
 
     private fun persistCurrentPosition(resetToStart: Boolean = false) {
+        if (currentCachedId() != null) return
         val videoId = player.currentMediaItem?.mediaId ?: return
         val requestId = playbackRequestId
         val position = if (resetToStart) 0L else player.currentPosition.coerceAtLeast(0L)
@@ -346,6 +468,7 @@ class YouTubePlaybackService : MediaSessionService() {
         positionMs: Long,
         requestId: Long
     ) {
+        if (currentCachedId() != null) return
         progressWriteMutex.withLock {
             // Eventos atrasados de uma reprodução anterior não podem sobrescrever
             // a posição de uma nova solicitação, mesmo quando o ID do vídeo é igual.
@@ -404,19 +527,35 @@ class YouTubePlaybackService : MediaSessionService() {
     override fun onDestroy() {
         // Faz uma última tentativa de salvar o ponto atual em um escopo independente,
         // pois o escopo principal será cancelado logo abaixo.
-        player.currentMediaItem?.mediaId?.let { videoId ->
-            val position = if (player.playbackState == Player.STATE_ENDED) {
-                0L
-            } else {
-                player.currentPosition.coerceAtLeast(0L)
-            }
+        val cachedIdAtDestroy = currentCachedId()
+        if (cachedIdAtDestroy != null) {
+            val position = player.currentPosition.coerceAtLeast(0L)
             CoroutineScope(Dispatchers.IO).launch {
-                progressWriteMutex.withLock {
-                    runCatching {
-                        (application as CDVirtualApp).database.youtubeHistoryDao()
-                            .updateProgress(videoId, position)
-                    }.onFailure { failure ->
-                        android.util.Log.w(TAG, "Não foi possível salvar a posição ao encerrar o serviço", failure)
+                runCatching {
+                    val app = application as CDVirtualApp
+                    app.videoCacheManager.updatePosition(cachedIdAtDestroy, position)
+                    if (player.playbackState != Player.STATE_ENDED) {
+                        app.videoCacheManager.pausePlayback(cachedIdAtDestroy)
+                    }
+                }.onFailure { failure ->
+                    android.util.Log.w(TAG, "Não foi possível preservar a posição do cache ao encerrar o serviço", failure)
+                }
+            }
+        } else {
+            player.currentMediaItem?.mediaId?.let { videoId ->
+                val position = if (player.playbackState == Player.STATE_ENDED) {
+                    0L
+                } else {
+                    player.currentPosition.coerceAtLeast(0L)
+                }
+                CoroutineScope(Dispatchers.IO).launch {
+                    progressWriteMutex.withLock {
+                        runCatching {
+                            (application as CDVirtualApp).database.youtubeHistoryDao()
+                                .updateProgress(videoId, position)
+                        }.onFailure { failure ->
+                            android.util.Log.w(TAG, "Não foi possível salvar a posição ao encerrar o serviço", failure)
+                        }
                     }
                 }
             }
@@ -434,8 +573,10 @@ class YouTubePlaybackService : MediaSessionService() {
     companion object {
         private const val TAG = "YouTubePlayback"
         private const val ACTION_PLAY = "com.cdvirtual.app.youtube.PLAY"
+        private const val ACTION_PLAY_CACHED = "com.cdvirtual.app.youtube.PLAY_CACHED"
         private const val EXTRA_VIDEO_ID = "youtube_video_id"
         const val EXTRA_AUDIO_ONLY = "youtube_audio_only"
+        const val EXTRA_CACHE_ID = "video_cache_id"
         const val PREFERENCES = "youtube_preferences"
         const val KEY_SPONSOR_BLOCK = "sponsor_block_enabled"
         private const val KEY_LAST_AUDIO_ONLY = "last_audio_only"
@@ -448,6 +589,14 @@ class YouTubePlaybackService : MediaSessionService() {
                     .setAction(ACTION_PLAY)
                     .putExtra(EXTRA_VIDEO_ID, videoId)
                     .putExtra(EXTRA_AUDIO_ONLY, audioOnly)
+            )
+        }
+
+        fun playCached(context: Context, cacheId: String) {
+            context.startService(
+                Intent(context, YouTubePlaybackService::class.java)
+                    .setAction(ACTION_PLAY_CACHED)
+                    .putExtra(EXTRA_CACHE_ID, cacheId)
             )
         }
     }
