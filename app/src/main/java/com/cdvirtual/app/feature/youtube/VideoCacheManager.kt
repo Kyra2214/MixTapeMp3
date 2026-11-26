@@ -78,6 +78,8 @@ class VideoCacheManager(
         VideoCacheReserveResult.Reserved(item)
     }
 
+    suspend fun find(cacheId: String): VideoCacheEntity? = repository.find(cacheId)
+
     suspend fun startDownload(cacheId: String) =
         repository.updateStatus(cacheId, VideoCacheStatus.DOWNLOADING)
 
