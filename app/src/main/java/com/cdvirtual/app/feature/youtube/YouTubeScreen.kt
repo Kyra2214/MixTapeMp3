@@ -445,6 +445,13 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (!app.videoCacheSourceRegistry.hasProvider("youtube")) {
+                        Text(
+                            "A preparação offline do YouTube ainda não está habilitada: falta um provedor que autorize oficialmente o armazenamento local. A reprodução online continua disponível.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
                     Text(
                         "Itens: ${cacheCapacity?.currentItems ?: cachedVideos.size}/${cacheCapacity?.maxItems ?: app.videoCacheManager.maxItems()} • Ocupado: ${formatBytes(cacheCapacity?.usedBytes ?: cachedVideos.sumOf { it.sizeBytes })}",
                         style = MaterialTheme.typography.labelMedium
@@ -473,6 +480,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                                 }
                                 TextButton(onClick = {
                                     scope.launch {
+                                        if (cached.status == VideoCacheStatus.PLAYING) mediaController?.stop()
                                         app.videoCacheManager.removeManually(cached.cacheId)
                                         cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
                                     }
