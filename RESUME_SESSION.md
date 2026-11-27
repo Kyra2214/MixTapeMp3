@@ -22,3 +22,6 @@
 - Não executar build/testes até concluir o roadmap. Nenhum arquivo da Central de Áudio foi alterado.
 
 - Commit `a550f54`: a interface exibe feedback informativo após cancelar a preparação. O roadmap também foi corrigido para declarar explicitamente que importação de vídeos locais/galeria/SAF está fora do escopo.
+
+- Commit `c93d804`: recuperação de cache reforçada para arquivos ausentes/corrompidos, órfãos preservados e varredura única de parciais. Commits seguintes validam intervalos HTTP 206 e persistem REMOVED antes da exclusão manual; UI bloqueia apagar durante fila/download.
+- Próxima frente: concluir detalhes restantes do motor, revisar lifecycle/retomada e integração de recuperação; não executar build/testes até finalizar o roadmap. Provedor remoto autorizado segue como dependência externa, não deve ser simulado.
