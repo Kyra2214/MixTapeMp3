@@ -55,7 +55,21 @@ class VideoCacheDownloadService : Service() {
 
         val source = intent?.let(::readSource)
         if (source == null) {
-            stopSelf(startId)
+            // Uma Intent inválida não pode derrubar outras transferências já ativas.
+            // startForegroundService também pode entregar uma Intent nula após recriação;
+            // nesse caso, encerra apenas quando não há trabalho em andamento.
+            if (activeCount.get() == 0) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelfResult(startId)
+            } else {
+                notifications.notify(
+                    NOTIFICATION_ID,
+                    buildNotification(
+                        "${activeCount.get()} preparação(ões) em andamento",
+                        true
+                    )
+                )
+            }
             return START_NOT_STICKY
         }
 
