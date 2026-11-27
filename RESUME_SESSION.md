@@ -35,3 +35,5 @@
 - Contrato de fonte ganhou consulta de qualidades por vídeo; a UI só oferece 240p/360p/480p confirmados. Coordenador reserva espaço para downloads conhecidos em paralelo e reduz a reserva com o progresso.
 
 - Recuperação agora reconhece arquivo válido promovido antes de uma queda ocorrida no commit Room READY; conclusão natural grava `completedAt` antes da limpeza.
+
+- HTTP 206 valida Content-Range e rejeita intervalos que não chegam ao fim do tamanho total conhecido; progresso parcial não é tratado como tamanho total. Recuperação faz uma única validação por arquivo e recupera rename concluído antes do commit READY.
