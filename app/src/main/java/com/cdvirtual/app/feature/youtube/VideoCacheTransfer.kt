@@ -66,6 +66,24 @@ data class VideoCacheTransferProgress(
             ?.let { (downloadedBytes.toFloat() / it).coerceIn(0f, 1f) }
 }
 
+
+internal data class VideoCacheContentRange(
+    val start: Long,
+    val endInclusive: Long,
+    val totalBytes: Long
+)
+
+/** Strict parser for RFC 7233 Content-Range values used by resumable transfers. */
+internal fun parseVideoCacheContentRange(header: String?): VideoCacheContentRange? {
+    val match = Regex("""^bytes\\s+(\\d+)-(\\d+)/(\\d+)$""", RegexOption.IGNORE_CASE)
+        .matchEntire(header?.trim().orEmpty()) ?: return null
+    val start = match.groupValues[1].toLongOrNull() ?: return null
+    val end = match.groupValues[2].toLongOrNull() ?: return null
+    val total = match.groupValues[3].toLongOrNull() ?: return null
+    if (start < 0L || end < start || total <= end) return null
+    return VideoCacheContentRange(start, end, total)
+}
+
 /**
  * Transporte exclusivo da Central de Vídeos.
  *
@@ -124,23 +142,15 @@ class VideoCacheTransfer(
                             }
                             var responseRangeLength: Long? = null
                             if (http.code == 206) {
-                                val contentRange = http.header("Content-Range")
-                                    ?: throw IOException("A fonte retornou HTTP 206 sem informar Content-Range.")
-                                val rangeParts = contentRange.removePrefix("bytes ").split("/", limit = 2)
-                                val bounds = rangeParts.firstOrNull()?.split("-", limit = 2)
-                                val rangeStart = bounds?.getOrNull(0)?.toLongOrNull()
-                                val rangeEnd = bounds?.getOrNull(1)?.toLongOrNull()
+                                val parsedRange = parseVideoCacheContentRange(http.header("Content-Range"))
+                                    ?: throw IOException("A fonte retornou HTTP 206 com Content-Range inválido ou ausente.")
                                 val expectedStart = if (append) requestedOffset else 0L
-                                if (rangeStart != expectedStart || rangeEnd == null || rangeEnd < expectedStart) {
+                                if (parsedRange.start != expectedStart) {
                                     throw IOException("A fonte retornou um intervalo incompatível com o parcial.")
                                 }
-                                responseRangeLength = rangeEnd - expectedStart + 1L
-                                val declaredTotal = rangeParts.getOrNull(1)?.toLongOrNull()
-                                    ?: throw IOException("A fonte retornou HTTP 206 sem informar o tamanho total do vídeo.")
-                                if (declaredTotal <= rangeEnd) {
-                                    throw IOException("A fonte informou um tamanho total incompatível com o intervalo.")
-                                }
-                                if (rangeEnd != declaredTotal - 1L) {
+                                responseRangeLength = parsedRange.endInclusive - parsedRange.start + 1L
+                                val declaredTotal = parsedRange.totalBytes
+                                if (parsedRange.endInclusive != declaredTotal - 1L) {
                                     throw IOException("A fonte retornou somente parte do intervalo solicitado; o parcial foi preservado para retomada.")
                                 }
                                 if (request.expectedBytes > 0L && declaredTotal != request.expectedBytes) {
