@@ -8,6 +8,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Orquestra exclusivamente downloads temporários da Central de Vídeos.
@@ -21,6 +24,9 @@ class VideoCacheDownloadCoordinator(
 ) {
     private val transferSemaphore = Semaphore(maxConcurrentDownloads.also { require(it > 0) })
     private val activeCacheIds = ConcurrentHashMap.newKeySet<String>()
+    private val preparingCacheIds = ConcurrentHashMap.newKeySet<String>()
+    private val spaceMutex = Mutex()
+    private val reservedSpaceBytes = ConcurrentHashMap<String, AtomicLong>()
 
     suspend fun prepare(
         source: VideoCacheResolvedSource,
@@ -51,16 +57,43 @@ class VideoCacheDownloadCoordinator(
             else -> throw IllegalStateException("Este item não pode ser preparado novamente.")
         }
 
-        val requiredBytes = transfer.requiredFreeBytes(item.cacheId, source.transferRequest.expectedBytes)
-        val availableBytes = manager.capacity().availableBytes
-        if (requiredBytes > availableBytes) {
-            if (isNewReservation) manager.removeManually(item.cacheId)
-            throw IllegalStateException("Espaço insuficiente: faltam ${requiredBytes - availableBytes} bytes para preparar este vídeo.")
-        }
+        check(preparingCacheIds.add(item.cacheId)) { "Este vídeo já está na fila de preparação." }
+        try {
+            var missingBytes = 0L
+            val hasCapacity = spaceMutex.withLock {
+                val required = transfer.requiredFreeBytes(item.cacheId, source.transferRequest.expectedBytes)
+                val available = manager.capacity().availableBytes
+                val reservedByOthers = reservedSpaceBytes.values.sumOf { it.get() }
+                val availableAfterReservations = (available - reservedByOthers).coerceAtLeast(0L)
+                missingBytes = (required - availableAfterReservations).coerceAtLeast(0L)
+                if (missingBytes == 0L) {
+                    reservedSpaceBytes[item.cacheId] = AtomicLong(required)
+                    true
+                } else false
+            }
+            if (!hasCapacity) {
+                if (isNewReservation) manager.removeManually(item.cacheId)
+                throw IllegalStateException("Espaço insuficiente: faltam $missingBytes bytes para preparar este vídeo.")
+            }
 
-        download(item.cacheId, source.transferRequest, onProgress)
-        return manager.find(item.cacheId)
-            ?: throw IllegalStateException("O item desapareceu após a preparação.")
+            try {
+                download(item.cacheId, source.transferRequest) { progress ->
+                    if (source.transferRequest.expectedBytes > 0L) {
+                        reservedSpaceBytes[item.cacheId]?.set(
+                            (source.transferRequest.expectedBytes - progress.downloadedBytes).coerceAtLeast(0L)
+                        )
+                    }
+                    onProgress(progress)
+                }
+            } finally {
+                reservedSpaceBytes.remove(item.cacheId)
+            }
+            return manager.find(item.cacheId)
+                ?: throw IllegalStateException("O item desapareceu após a preparação.")
+        } finally {
+            preparingCacheIds.remove(item.cacheId)
+            reservedSpaceBytes.remove(item.cacheId)
+        }
     }
 
     suspend fun download(
