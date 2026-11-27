@@ -24,6 +24,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Serviço de primeiro plano exclusivo dos downloads temporários da Central de Vídeos.
@@ -33,6 +34,8 @@ class VideoCacheDownloadService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val jobs = ConcurrentHashMap<String, Job>()
     private val activeCount = AtomicInteger(0)
+    private val cancelledCount = AtomicInteger(0)
+    private val lastFailureMessage = AtomicReference<String?>(null)
     private lateinit var notifications: NotificationManager
 
     override fun onCreate() {
@@ -78,19 +81,24 @@ class VideoCacheDownloadService : Service() {
                     )
                 }
             } catch (cancelled: CancellationException) {
+                cancelledCount.incrementAndGet()
                 throw cancelled
             } catch (failure: Exception) {
                 android.util.Log.w(TAG, "Falha ao preparar vídeo temporário", failure)
-                notifications.notify(
-                    NOTIFICATION_ID,
-                    buildNotification(failure.message ?: "Falha ao preparar um vídeo.", true)
-                )
+                lastFailureMessage.set(failure.message ?: "Falha ao preparar um vídeo.")
             } finally {
                 jobs.remove(cacheKey)
                 if (activeCount.decrementAndGet() <= 0) {
+                    val failure = lastFailureMessage.getAndSet(null)
+                    val wasCancelled = cancelledCount.getAndSet(0) > 0
+                    val finalMessage = when {
+                        failure != null -> "Falha na preparação: $failure. Consulte o item no cache."
+                        wasCancelled -> "Preparação cancelada. Arquivos parciais foram preservados."
+                        else -> "Preparação finalizada. Consulte a Central de Vídeos."
+                    }
                     notifications.notify(
                         NOTIFICATION_ID,
-                        buildNotification("Preparação finalizada. Consulte a Central de Vídeos.", false)
+                        buildNotification(finalMessage, false)
                     )
                     stopForeground(STOP_FOREGROUND_DETACH)
                     stopSelf()
