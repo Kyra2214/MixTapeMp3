@@ -3,6 +3,7 @@
 - Branch: `feature/video-temporary-cache`; PR #11 permanece draft, aberto e sem merge.
 - Serviço de primeiro plano exclusivo da Central de Vídeos: notificação/progresso/cancelamento, limite de três transferências no coordenador, encerramento protegido contra solicitações concorrentes e tratamento do timeout Android para serviço `dataSync`.
 - Serviço protegido contra Intent inválida/nula: não encerra uma instância que ainda possui outras transferências ativas; encerra apenas quando não há trabalho em andamento.
+- Transporte HTTP Range endurecido: resposta 206 precisa declarar tamanho total numérico e cobrir até o último byte do recurso; respostas parciais ambíguas são rejeitadas e o `.part` fica preservado.
 - Recuperação inicial registra contagens de itens interrompidos, reproduções pausadas, arquivos ausentes/corrompidos, órfãos e parciais preservados. Arquivos órfãos/parciais não são apagados automaticamente.
 - Provedor autorizado continua pendente; registro vazio por padrão. Não existe integração offline ativa para YouTube e não será implementado contorno das restrições da plataforma.
 - Miniatura/duração na lista de cache e progresso da visualização continuam pendentes.
