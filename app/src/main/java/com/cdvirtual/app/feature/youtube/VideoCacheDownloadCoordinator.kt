@@ -7,6 +7,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Orquestra exclusivamente downloads temporários da Central de Vídeos.
@@ -19,6 +20,7 @@ class VideoCacheDownloadCoordinator(
     maxConcurrentDownloads: Int = DEFAULT_MAX_CONCURRENT_DOWNLOADS
 ) {
     private val transferSemaphore = Semaphore(maxConcurrentDownloads.also { require(it > 0) })
+    private val activeCacheIds = ConcurrentHashMap.newKeySet<String>()
 
     suspend fun prepare(
         source: VideoCacheResolvedSource,
@@ -66,27 +68,32 @@ class VideoCacheDownloadCoordinator(
         request: VideoCacheTransferRequest,
         onProgress: (VideoCacheTransferProgress) -> Unit = {}
     ) {
-        transferSemaphore.withPermit {
-            manager.startDownload(cacheId)
-            try {
-                val partial = transfer.download(cacheId, request, onProgress)
-                manager.publishDownloadedFile(
-                    cacheId = cacheId,
-                    partialFile = partial,
-                    extension = request.extension,
-                    expectedBytes = request.expectedBytes
-                )
-            } catch (cancelled: CancellationException) {
-                withContext(NonCancellable) {
-                    runCatching { manager.markInterrupted(cacheId) }
+        check(activeCacheIds.add(cacheId)) { "Este vídeo já possui uma transferência ativa." }
+        try {
+            transferSemaphore.withPermit {
+                manager.startDownload(cacheId)
+                try {
+                    val partial = transfer.download(cacheId, request, onProgress)
+                    manager.publishDownloadedFile(
+                        cacheId = cacheId,
+                        partialFile = partial,
+                        extension = request.extension,
+                        expectedBytes = request.expectedBytes
+                    )
+                } catch (cancelled: CancellationException) {
+                    withContext(NonCancellable) {
+                        runCatching { manager.markInterrupted(cacheId) }
+                    }
+                    throw cancelled
+                } catch (failure: Exception) {
+                    withContext(NonCancellable) {
+                        runCatching { manager.markInterrupted(cacheId) }
+                    }
+                    throw failure
                 }
-                throw cancelled
-            } catch (failure: Exception) {
-                withContext(NonCancellable) {
-                    runCatching { manager.markInterrupted(cacheId) }
-                }
-                throw failure
             }
+        } finally {
+            activeCacheIds.remove(cacheId)
         }
     }
 
