@@ -18,7 +18,7 @@ import com.cdvirtual.app.core.storage.VideoCacheFileStore
 class VideoCacheRepository(
     private val dao: VideoCacheDao,
     private val fileStore: VideoCacheFileStore
-) {
+) : VideoCacheRecoveryRepository {
     val items: Flow<List<VideoCacheEntity>> = dao.observeAll()
 
     override suspend fun all(): List<VideoCacheEntity> = dao.getAll()
