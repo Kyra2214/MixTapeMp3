@@ -6,7 +6,7 @@ package com.cdvirtual.app.core.database
  */
 object VideoCacheStateMachine {
     private val transitions = mapOf(
-        VideoCacheStatus.QUEUED to setOf(VideoCacheStatus.DOWNLOADING, VideoCacheStatus.REMOVED),
+        VideoCacheStatus.QUEUED to setOf(VideoCacheStatus.DOWNLOADING, VideoCacheStatus.INTERRUPTED, VideoCacheStatus.REMOVED),
         VideoCacheStatus.DOWNLOADING to setOf(VideoCacheStatus.READY, VideoCacheStatus.INTERRUPTED, VideoCacheStatus.REMOVED),
         VideoCacheStatus.INTERRUPTED to setOf(VideoCacheStatus.DOWNLOADING, VideoCacheStatus.READY, VideoCacheStatus.REMOVED),
         VideoCacheStatus.READY to setOf(VideoCacheStatus.PLAYING, VideoCacheStatus.INTERRUPTED, VideoCacheStatus.REMOVED),
