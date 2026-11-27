@@ -1,7 +1,12 @@
 package com.cdvirtual.app.feature.youtube
 
+import android.Manifest
 import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.os.Build
 import android.view.View
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,6 +84,14 @@ import java.util.Locale
 @Composable
 fun YouTubeScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            // A preparação exige notificação visível para acompanhar/cancelar o serviço.
+            cacheActionError = "Permita notificações para iniciar a preparação em segundo plano."
+        }
+    }
     val app = context.applicationContext as CDVirtualApp
     val repository = remember { YouTubeSearchRepository() }
     val history by app.database.youtubeHistoryDao().observeAll().collectAsState(initial = emptyList())
@@ -231,6 +244,12 @@ fun YouTubeScreen(onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in availableCacheQualities && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        return@TextButton
+                    }
                     val video = videoForCache ?: return@TextButton
                     cachePreparing = true
                     cacheActionError = null
