@@ -80,7 +80,7 @@
 ## FASE 4 — PREPARAÇÃO OFFLINE E QUALIDADE
 
 - [ ] Implementar adaptador de fonte para conteúdo que autorize download e armazenamento local.
-- [ ] Seleção individual: 240p (padrão), 360p e 480p.
+- [x] Seletor individual 240p (padrão), 360p e 480p na interface de preparação; a fonte deve confirmar a qualidade solicitada. Integração funcional depende de provedor autorizado.
 - [ ] Exibir somente qualidades realmente disponíveis.
 - [x] Núcleo de transferência próprio da Central de Vídeos com progresso, cancelamento preservando `.part` e retomada HTTP Range quando suportada. Integração com serviço de download em primeiro plano permanece pendente.
 - [x] Gravar em `.part` e promover atomicamente após conclusão e validação de tamanho.
