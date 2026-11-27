@@ -59,6 +59,8 @@ import coil.compose.AsyncImage
 import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.core.database.YouTubeChannelEntity
+import com.cdvirtual.app.core.database.VideoCacheStatus
+import com.cdvirtual.app.core.database.VideoCacheQuality
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
 import com.cdvirtual.app.media.youtube.toYouTubePlaybackMessage
@@ -66,6 +68,8 @@ import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
 import com.cdvirtual.app.media.youtube.YouTubeVideo
 import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.schabi.newpipe.extractor.Page
 import java.text.SimpleDateFormat
@@ -79,8 +83,41 @@ fun YouTubeScreen(onBack: () -> Unit) {
     val repository = remember { YouTubeSearchRepository() }
     val history by app.database.youtubeHistoryDao().observeAll().collectAsState(initial = emptyList())
     val savedChannels by app.database.youtubeChannelDao().observeAll().collectAsState(initial = emptyList())
+    val cachedVideos by app.videoCacheManager.items.collectAsState(initial = emptyList())
+    var cacheCapacity by remember { mutableStateOf<VideoCacheCapacity?>(null) }
+    var videoForCache by remember { mutableStateOf<YouTubeVideo?>(null) }
+    var selectedCacheQuality by remember { mutableStateOf(VideoCacheQuality.DEFAULT) }
+    var availableCacheQualities by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var loadingCacheQualities by remember { mutableStateOf(false) }
+    var cachePreparing by remember { mutableStateOf(false) }
+    var cachePreparationJob by remember { mutableStateOf<Job?>(null) }
+    var cacheProgress by remember { mutableStateOf<VideoCacheTransferProgress?>(null) }
+    var cacheActionError by remember { mutableStateOf<String?>(null) }
+    var cacheActionNotice by remember { mutableStateOf<String?>(null) }
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
     val scope = rememberCoroutineScope()
+    LaunchedEffect(cachedVideos) {
+        cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
+    }
+    LaunchedEffect(videoForCache?.videoId) {
+        val video = videoForCache
+        availableCacheQualities = emptySet()
+        if (video != null && app.videoCacheSourceRegistry.hasProvider("youtube")) {
+            loadingCacheQualities = true
+            try {
+                availableCacheQualities = app.videoCacheSourceRegistry.availableQualities("youtube", video.videoId)
+                if (selectedCacheQuality !in availableCacheQualities) {
+                    selectedCacheQuality = if (VideoCacheQuality.DEFAULT in availableCacheQualities) VideoCacheQuality.DEFAULT else availableCacheQualities.minOrNull() ?: VideoCacheQuality.DEFAULT
+                }
+            } catch (failure: Exception) {
+                cacheActionError = failure.message ?: "Não foi possível consultar as qualidades disponíveis."
+            } finally {
+                loadingCacheQualities = false
+            }
+        } else {
+            loadingCacheQualities = false
+        }
+    }
     var query by remember { mutableStateOf("") }
     var activeQuery by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<YouTubeVideo>>(emptyList()) }
@@ -158,6 +195,76 @@ fun YouTubeScreen(onBack: () -> Unit) {
         }
     }
 
+    if (videoForCache != null) {
+        AlertDialog(
+            onDismissRequest = { if (!cachePreparing) videoForCache = null },
+            title = { Text("Preparar vídeo temporariamente") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(videoForCache?.title.orEmpty())
+                    Text("Escolha uma qualidade confirmada pela fonte.")
+                    when {
+                        loadingCacheQualities -> Text("Consultando qualidades disponíveis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        availableCacheQualities.isEmpty() -> Text("A fonte não informou qualidades autorizadas para este vídeo.", color = MaterialTheme.colorScheme.error)
+                        else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            availableCacheQualities.sorted().forEach { height ->
+                                if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                                else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                            }
+                        }
+                    }
+                    cacheProgress?.let { progress ->
+                        val fraction = progress.fraction
+                        if (fraction != null) {
+                            androidx.compose.material3.LinearProgressIndicator(progress = fraction, modifier = Modifier.fillMaxWidth())
+                        } else {
+                            androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                        Text("${formatBytes(progress.downloadedBytes)} de ${progress.totalBytes?.let(::formatBytes) ?: "tamanho desconhecido"}")
+                    }
+                    cacheActionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    cacheActionNotice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                    if (!app.videoCacheSourceRegistry.hasProvider("youtube")) {
+                        Text("Nenhum provedor autorizado está conectado. A preparação ficará disponível quando uma fonte compatível for integrada.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in availableCacheQualities && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
+                    val video = videoForCache ?: return@TextButton
+                    cachePreparing = true
+                    cacheActionError = null
+                    cacheActionNotice = null
+                    cacheProgress = null
+                    cachePreparationJob = scope.launch {
+                        try {
+                            val source = app.videoCacheSourceRegistry.resolve("youtube", video.videoId, selectedCacheQuality)
+                                ?: throw IllegalStateException("A fonte não disponibilizou essa qualidade.")
+                            VideoCacheDownloadService.start(context, source)
+                            cacheActionNotice = "Preparação iniciada em segundo plano. Você pode sair da tela; o progresso ficará na notificação."
+                            videoForCache = null
+                        } catch (cancelled: CancellationException) {
+                            // O coordenador preserva o .part e marca o item como interrompido.
+                            cacheActionNotice = "Preparação cancelada. O arquivo parcial foi preservado quando já havia transferência iniciada."
+                            throw cancelled
+                        } catch (failure: Exception) {
+                            cacheActionError = failure.message ?: "Não foi possível preparar o vídeo."
+                        } finally {
+                            cachePreparing = false
+                            cachePreparationJob = null
+                        }
+                    }
+                }) { Text(if (cachePreparing) "Preparando..." else "Preparar") }
+            },
+            dismissButton = {
+                if (cachePreparing) {
+                    TextButton(onClick = { cachePreparationJob?.cancel() }) { Text("Cancelar preparação") }
+                } else {
+                    TextButton(onClick = { videoForCache = null }) { Text("Fechar") }
+                }
+            }
+        )
+    }
     fun startYouTubePlayback(videoId: String, audioOnly: Boolean = false) {
         error = null
         selectedVideoId = videoId
@@ -431,6 +538,120 @@ fun YouTubeScreen(onBack: () -> Unit) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (section == "Cache") {
+                item {
+                    Text("Cache temporário", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Os vídeos ficam neste aparelho apenas para assistir. Pausar, minimizar ou sair da tela não apaga o arquivo; a exclusão automática ocorre ao terminar naturalmente.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (!app.videoCacheSourceRegistry.hasProvider("youtube")) {
+                        Text(
+                            "A preparação offline do YouTube ainda não está habilitada: falta um provedor que autorize oficialmente o armazenamento local. A reprodução online continua disponível.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                    Text(
+                        "Itens: ${cacheCapacity?.currentItems ?: cachedVideos.size}/${cacheCapacity?.maxItems ?: app.videoCacheManager.maxItems()} • Ocupado: ${formatBytes(cacheCapacity?.usedBytes ?: cachedVideos.sumOf { it.sizeBytes })}",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+                if (cachedVideos.isEmpty()) {
+                    item { Text("Nenhum vídeo preparado para assistir offline.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+                items(cachedVideos, key = { it.cacheId }) { cached ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (!cached.thumbnailUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = cached.thumbnailUrl,
+                                        contentDescription = "Miniatura de ${cached.title}",
+                                        modifier = Modifier.size(width = 112.dp, height = 64.dp),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(cached.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "${cached.qualityHeight}p • ${formatBytes(cached.sizeBytes)} • ${cacheStatusLabel(cached.status)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        formatDuration(cached.durationMs / 1000L),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            if (cached.durationMs > 0L && cached.lastPositionMs > 0L &&
+                                cached.status in setOf(VideoCacheStatus.PLAYING, VideoCacheStatus.PAUSED)
+                            ) {
+                                val playbackProgress = (cached.lastPositionMs.toFloat() / cached.durationMs.toFloat()).coerceIn(0f, 1f)
+                                androidx.compose.material3.LinearProgressIndicator(
+                                    progress = playbackProgress,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    "${formatDuration(cached.lastPositionMs / 1000L)} / ${formatDuration(cached.durationMs / 1000L)} assistidos",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (cached.status == VideoCacheStatus.READY || cached.status == VideoCacheStatus.PAUSED) {
+                                    Button(onClick = { YouTubePlaybackService.playCached(context, cached.cacheId) }) {
+                                        Text(if (cached.lastPositionMs > 0L) "Retomar" else "Assistir")
+                                    }
+                                }
+                                if (cached.status == VideoCacheStatus.INTERRUPTED) {
+                                    TextButton(
+                                        enabled = app.videoCacheSourceRegistry.hasProvider(cached.sourceId),
+                                        onClick = {
+                                            scope.launch {
+                                                try {
+                                                    val source = app.videoCacheSourceRegistry.resolve(
+                                                        cached.sourceId,
+                                                        cached.sourceVideoId,
+                                                        cached.qualityHeight
+                                                    ) ?: throw IllegalStateException("A fonte não disponibilizou novamente este vídeo.")
+                                                    VideoCacheDownloadService.start(context, source)
+                                                } catch (failure: Exception) {
+                                                    error = failure.message ?: "Não foi possível retomar a preparação."
+                                                }
+                                            }
+                                        }
+                                    ) { Text("Retomar preparação") }
+                                }
+                                TextButton(
+                                    enabled = cached.status != VideoCacheStatus.DOWNLOADING &&
+                                        cached.status != VideoCacheStatus.QUEUED,
+                                    onClick = {
+                                        scope.launch {
+                                            if (cached.status == VideoCacheStatus.PLAYING) mediaController?.stop()
+                                            app.videoCacheManager.removeManually(cached.cacheId)
+                                            cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
+                                        }
+                                    }
+                                ) { Text("Apagar") }
+                            }
+                        }
+                    }
+                }
+            }
             if (section == "Início") {
                 item { Text("Sua seleção", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
                 if (savedChannels.isEmpty()) item { Text("Quando encontrar um canal de que goste, toque em + Canal para guardá-lo aqui.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -446,7 +667,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     items(homeVideos, key = { "followed-" + it.videoId }) { video ->
                         VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {
                             video.channelUrl?.let { openChannel(it, video.channel, video.channelAvatarUrl) }
-                        })
+                        }, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheActionNotice = null; cacheProgress = null }) else null)
                     }
                 } else if (results.isNotEmpty()) item { Text("Vídeos da última pesquisa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
@@ -456,7 +677,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             if (section == "Buscar" || section == "Início") items(results, key = { it.videoId }) { video ->
                 VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, { addChannel(video) }, {
                     video.channelUrl?.let { openChannel(it, video.channel, video.channelAvatarUrl) }
-                })
+                }, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheProgress = null }) else null)
             }
             if (section == "Canais") {
                 item { Text(selectedChannel?.channelName ?: "Seus canais", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
@@ -469,7 +690,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     item { OutlinedButton(onClick = { selectedChannel = null; channelVideos = emptyList() }) { Text("Voltar aos canais") } }
                     if (channelLoading) item { CircularProgressIndicator() }
                     items(channelVideos, key = { it.videoId }) { video ->
-                        VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {})
+                        VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {}, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheProgress = null }) else null)
                     }
                     if (channelNextPage != null && channelTabHandler != null) item {
                         OutlinedButton(onClick = {
@@ -534,7 +755,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            listOf("Início", "Buscar", "Canais", "Biblioteca").forEach { destination ->
+            listOf("Início", "Buscar", "Canais", "Biblioteca", "Cache").forEach { destination ->
                 TextButton(onClick = { section = destination; selectedChannel = null }) { Text(destination, fontWeight = if (section == destination) FontWeight.Bold else FontWeight.Normal) }
             }
         }
@@ -608,7 +829,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: () -> Unit, onAddChannel: () -> Unit, onOpenChannel: () -> Unit) {
+private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: () -> Unit, onAddChannel: () -> Unit, onOpenChannel: () -> Unit, onPrepareCache: (() -> Unit)? = null) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             AsyncImage(model = video.thumbnailUrl, contentDescription = "Miniatura de " + video.title,
@@ -618,6 +839,7 @@ private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: ()
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 Button(onClick = onPlay) { Text("Assistir") }
+                if (onPrepareCache != null) TextButton(onClick = onPrepareCache) { Text("Preparar offline") }
                 TextButton(onClick = onListen) { Text("Só áudio") }
                 if (video.channelUrl != null) TextButton(onClick = onAddChannel) { Text("+ Canal") }
                 if (video.channelUrl != null) TextButton(onClick = onOpenChannel) { Text("Ver canal") }
@@ -677,6 +899,25 @@ private fun HistoryRow(item: YouTubeHistoryEntity, onPlay: () -> Unit, onListen:
 
 private fun formatWatchedAt(timestamp: Long): String =
     SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> "%.1f GB".format(Locale.getDefault(), bytes / (1024.0 * 1024.0 * 1024.0))
+    bytes >= 1024L * 1024L -> "%.1f MB".format(Locale.getDefault(), bytes / (1024.0 * 1024.0))
+    bytes >= 1024L -> "%.0f KB".format(Locale.getDefault(), bytes / 1024.0)
+    else -> "$bytes B"
+}
+
+private fun cacheStatusLabel(status: String): String = when (status) {
+    VideoCacheStatus.QUEUED -> "Na fila"
+    VideoCacheStatus.DOWNLOADING -> "Preparando"
+    VideoCacheStatus.INTERRUPTED -> "Interrompido"
+    VideoCacheStatus.READY -> "Pronto"
+    VideoCacheStatus.PLAYING -> "Assistindo"
+    VideoCacheStatus.PAUSED -> "Pausado"
+    VideoCacheStatus.COMPLETED -> "Concluído"
+    VideoCacheStatus.REMOVED -> "Removido"
+    else -> status
+}
 
 private fun formatDuration(seconds: Long): String {
     if (seconds <= 0) return "Duração indisponível"

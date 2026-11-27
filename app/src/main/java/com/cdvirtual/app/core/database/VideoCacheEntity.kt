@@ -51,4 +51,11 @@ object VideoCacheStatus {
     const val PAUSED = "PAUSED"
     const val COMPLETED = "COMPLETED"
     const val REMOVED = "REMOVED"
+
+    private val knownStatuses = setOf(
+        QUEUED, DOWNLOADING, INTERRUPTED, READY,
+        PLAYING, PAUSED, COMPLETED, REMOVED
+    )
+
+    fun isKnown(value: String): Boolean = value in knownStatuses
 }

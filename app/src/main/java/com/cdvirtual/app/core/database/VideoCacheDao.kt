@@ -23,7 +23,7 @@ interface VideoCacheDao {
     @Query("SELECT * FROM video_cache WHERE sourceId = :sourceId AND sourceVideoId = :sourceVideoId LIMIT 1")
     suspend fun findBySource(sourceId: String, sourceVideoId: String): VideoCacheEntity?
 
-    @Query("SELECT * FROM video_cache WHERE status != 'REMOVED' ORDER BY createdAt DESC")
+    @Query("SELECT * FROM video_cache ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<VideoCacheEntity>>
 
     @Query("SELECT COUNT(*) FROM video_cache WHERE status != 'REMOVED'")
@@ -32,7 +32,7 @@ interface VideoCacheDao {
     @Query("SELECT COALESCE(SUM(sizeBytes), 0) FROM video_cache WHERE status != 'REMOVED'")
     suspend fun totalBytes(): Long
 
-    @Query("UPDATE video_cache SET status = :status, updatedAt = :updatedAt WHERE cacheId = :cacheId")
+    @Query("UPDATE video_cache SET status = :status, updatedAt = :updatedAt, completedAt = CASE WHEN :status = 'COMPLETED' THEN :updatedAt ELSE completedAt END WHERE cacheId = :cacheId")
     suspend fun updateStatus(cacheId: String, status: String, updatedAt: Long)
 
     @Query("UPDATE video_cache SET lastPositionMs = :positionMs, updatedAt = :updatedAt WHERE cacheId = :cacheId")

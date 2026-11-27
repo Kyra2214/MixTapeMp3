@@ -24,6 +24,10 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <service
+            android:name=".feature.youtube.VideoCacheDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name=".media.service.ExportService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

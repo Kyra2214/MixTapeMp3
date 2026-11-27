@@ -12,11 +12,11 @@
 3. Componentes técnicos podem ser compartilhados, mas bibliotecas, filas, históricos, preferências e arquivos gerenciados devem permanecer isolados.
 4. Não reescrever o player existente sem necessidade comprovada.
 5. Preservar reprodução em segundo plano, tela cheia, retomada e controles existentes.
-6. Cache persistente nunca é apagado por fechar o app, trocar de aba, pausar ou interromper a reprodução.
+6. O cache é temporário, mas sobrevive a fechar o app, trocar de aba, pausar, perder conexão ou reiniciar o aparelho; só é apagado após conclusão natural da visualização ou ação manual.
 7. Exclusão automática somente após conclusão real da visualização; exclusão manual sempre disponível.
 8. Qualidade por vídeo: 240p (padrão), 360p e 480p. Não oferecer HD/Full HD.
 9. Não remover cache existente automaticamente para abrir espaço. Limite atingido deve gerar aviso e ação explícita do usuário.
-10. A preparação offline deve usar somente fontes e mecanismos que autorizem download e armazenamento local. Não implementar extração, captura, gravação ou cache persistente de streams do YouTube fora dos mecanismos oficiais autorizados. A implementação de cache para vídeos do YouTube depende de uma via oficialmente permitida; uso pessoal não elimina as restrições da fonte.
+10. A preparação offline temporária deve usar somente fontes e mecanismos que autorizem download e armazenamento local. Não implementar extração, captura, gravação ou cache temporário de streams do YouTube fora dos mecanismos oficiais autorizados. A implementação de cache para vídeos do YouTube depende de uma via oficialmente permitida; uso pessoal não elimina as restrições da fonte.
 
 ## FASE 0 — PREPARAÇÃO E AUDITORIA
 
@@ -68,65 +68,68 @@
 
 ## FASE 3 — GERENCIADOR DE CACHE
 
-- [ ] Criar módulo de gerenciamento do cache de vídeo.
-- [ ] Definir limite configurável: 1, 2, 3, 5, 10 ou personalizado.
-- [ ] Impedir remoção automática de itens prontos para liberar vaga.
-- [ ] Expor espaço ocupado e espaço livre.
-- [ ] Suportar remoção manual.
-- [ ] Recuperar estados e arquivos após reinicialização.
+- [x] Criar módulo de gerenciamento do cache de vídeo.
+- [x] Definir limite configurável: 1, 2, 3, 5, 10 ou personalizado.
+- [x] Impedir remoção automática de itens prontos para liberar vaga.
+- [x] Expor espaço ocupado e espaço livre.
+- [x] Suportar remoção manual.
+- [x] Recuperar estados e arquivos após reinicialização.
 - [x] Identificar arquivos órfãos sem apagar arquivos válidos não assistidos; parciais e arquivos órfãos são reportados, nunca removidos automaticamente.
-- [ ] Restringir provedores a fontes com autorização técnica e contratual para armazenamento offline.
+- [x] Criar contrato e registro explícito de provedores autorizados; o registro inicia vazio e não habilita extração automática do YouTube.
 
 ## FASE 4 — PREPARAÇÃO OFFLINE E QUALIDADE
 
-- [ ] Implementar adaptador de fonte para conteúdo que autorize download e armazenamento local.
-- [ ] Seleção individual: 240p (padrão), 360p e 480p.
-- [ ] Exibir somente qualidades realmente disponíveis.
-- [ ] Download em segundo plano com progresso, cancelamento e recuperação quando suportada.
-- [ ] Gravar em arquivo temporário e promover atomicamente após conclusão e validação.
-- [ ] Verificar espaço disponível antes de iniciar.
-- [ ] Não implementar downloader ou cache persistente de streams do YouTube por métodos não autorizados. A integração específica com YouTube permanece bloqueada até existir mecanismo oficialmente permitido para esse uso.
+- [ ] Implementar adaptador de fonte para conteúdo que autorize download e armazenamento local (provedor real autorizado continua pendente).
+- [x] Seletor individual 240p (padrão), 360p e 480p na interface de preparação; a fonte deve confirmar a qualidade solicitada. Integração funcional depende de provedor autorizado.
+- [x] Exibir somente qualidades realmente disponíveis, consultadas no contrato do provedor e filtradas para 240p/360p/480p.
+- [x] Núcleo de transferência próprio da Central de Vídeos com progresso, cancelamento preservando `.part` e retomada HTTP Range quando suportada; valida limites e tamanho de respostas HTTP 206.
+- [x] Serviço de primeiro plano exclusivo da Central de Vídeos, com notificação de progresso e cancelamento, permitindo continuar transferências fora da tela. O serviço usa o coordenador com limite de três transferências, trata o timeout de execução `dataSync` do Android e não reutiliza o serviço de downloads de áudio.
+- [x] Gravar em `.part` e promover atomicamente após conclusão e validação de tamanho.
+- [x] Validar contêiner e existência de faixa de vídeo via `MediaExtractor` antes de marcar READY.
+- [x] Verificar espaço disponível quando a fonte informa o tamanho total e reservar capacidade entre preparações concorrentes para evitar supercompromisso de espaço.
+- [x] Não implementar downloader ou cache temporário de streams do YouTube por métodos não autorizados. A integração específica com YouTube permanece bloqueada até existir mecanismo oficialmente permitido para esse uso.
 
 ## FASE 5 — REPRODUÇÃO OFFLINE
 
-- [ ] Priorizar arquivo local válido quando houver cache autorizado.
-- [ ] Reproduzir sem internet quando o arquivo estiver completo.
-- [ ] Persistir posição e estado durante a reprodução.
-- [ ] Retomar vídeo interrompido sem perder o arquivo.
-- [ ] Preservar tela cheia, controles, MediaSession e reprodução em segundo plano existentes.
-- [ ] Não declarar conclusão por seek manual para o fim; exigir conclusão natural da reprodução.
+- [x] O serviço Media3 reproduz arquivo local válido quando iniciado por um item do cache.
+- [x] Reprodução local pelo Media3 sem depender da URL remota após o arquivo estar pronto.
+- [x] Persistir posição e estado durante a reprodução do cache.
+- [x] Retomar item pronto/pausado pelo cache; retomada de downloads parciais fica disponível no núcleo HTTP quando a fonte suporta Range.
+- [x] Reutilizar o serviço Media3 e a MediaSession existentes para arquivos locais, sem criar outro player.
+- [x] Seek manual até o fim não autoriza exclusão automática.
 
 ## FASE 6 — REGRA DE EXCLUSÃO
 
-- [ ] Excluir automaticamente somente após conclusão natural confirmada.
-- [ ] Manter arquivo ao pausar, sair do vídeo, trocar de aba, fechar o app, reiniciar aparelho ou perder conexão.
-- [ ] Permitir exclusão manual a qualquer momento.
-- [ ] Remoção deve ser idempotente e sincronizar arquivo e banco.
-- [ ] Nunca apagar cache não assistido durante limpeza de recuperação.
+- [x] Excluir automaticamente somente após conclusão natural confirmada pelo player; seek manual até o fim preserva o arquivo.
+- [x] Manter arquivo ao pausar, sair do vídeo, trocar de aba, fechar o app, reiniciar aparelho ou perder conexão.
+- [x] Permitir exclusão manual pela seção Cache da Central de Vídeos.
+- [x] Remoção deve ser idempotente e sincronizar arquivo e banco (mutex serializa exclusões; arquivo final e parcial são removidos antes do registro).
+- [x] Nunca apagar cache não assistido durante limpeza de recuperação.
 
 ## FASE 7 — INTERFACE DA CENTRAL DE VÍDEOS
 
-- [ ] Criar seção Cache Offline independente da biblioteca de áudio.
-- [ ] Exibir miniatura, título, duração, qualidade, tamanho e estado.
-- [ ] Exibir progresso do download e da visualização.
-- [ ] Oferecer assistir/retomar e remover manualmente.
-- [ ] Exibir limite de itens e armazenamento ocupado.
-- [ ] Permitir qualidade padrão e alteração individual por vídeo.
-- [ ] Tratar lista vazia, falha, armazenamento insuficiente e fonte não compatível.
+- [x] Criar seção Cache temporário dentro da Central de Vídeos, independente da biblioteca de áudio.
+- [x] Exibir título, miniatura, duração, qualidade, tamanho e estado na listagem do cache.
+- [x] Exibir progresso do download (barra e bytes recebidos/total) e progresso de visualização com posição/duração persistidas.
+- [x] Oferecer assistir/retomar e remover manualmente.
+- [x] Exibir limite de itens e armazenamento ocupado.
+- [x] Permitir qualidade padrão e alteração individual por vídeo na preparação.
+- [x] Tratar lista vazia, falha de preparação, armazenamento insuficiente e fonte não compatível na interface.
 
 ## FASE 8 — RECUPERAÇÃO E ROBUSTEZ
 
-- [ ] Recuperar downloads interrompidos quando suportado pela fonte.
-- [ ] Reconciliar registros e arquivos físicos.
-- [ ] Não apagar arquivos completos ainda não assistidos.
-- [ ] Tratar arquivo ausente, corrompido ou incompleto.
-- [ ] Evitar exclusões duplicadas e condições de corrida.
-- [ ] Persistir estado antes de liberar arquivo após conclusão.
+- [x] Preservar `.part` e retomar via Range quando suportado pela fonte.
+- [x] Reconciliar registros e arquivos físicos sem apagar parciais ou órfãos automaticamente.
+- [x] Não apagar arquivos completos ainda não assistidos durante recuperação; itens READY/PAUSED são preservados.
+- [x] Recuperação de itens COMPLETED/REMOVED tenta remover também parciais residuais antes de apagar o registro.
+- [x] Tratar arquivo ausente, corrompido ou incompleto: READY/PAUSED/PLAYING sem arquivo íntegro viram INTERRUPTED e perdem a referência inválida; arquivos publicados corrompidos são reportados como órfãos e preservados para inspeção.
+- [x] Evitar exclusões duplicadas e condições de corrida (mutex de exclusão e bloqueio por cacheId; validar sob concorrência na Fase 10).
+- [x] Persistir estado antes de liberar arquivo após conclusão/remoção: COMPLETED ou REMOVED é gravado antes da exclusão física, permitindo retry seguro após encerramento inesperado.
 
 ## FASE 9 — DOCUMENTAÇÃO E INTEGRAÇÃO
 
-- [ ] Atualizar arquitetura, changelog, progresso e instruções de retomada.
-- [ ] Documentar estados, diretórios, migrações e política de retenção.
+- [x] Atualizar arquitetura, changelog, progresso e instruções de retomada para refletir a implementação desta etapa.
+- [x] Documentar estados, diretórios, migrações e política de retenção em ARQUITETURA.md e neste roadmap.
 - [ ] Integrar as alterações na `main` sem force push.
 - [ ] Gerar checkpoints completos quando o ambiente permitir obter o arquivo-fonte integral.
 
@@ -142,17 +145,20 @@
 - [ ] Build debug/release e validação em dispositivo.
 - [ ] Corrigir falhas e repetir testes afetados.
 
+## Escopo explícito
+
+- O cache não terá importação de vídeos locais, galeria ou arquivos escolhidos pelo usuário. O domínio atende exclusivamente conteúdos fornecidos por fontes remotas que autorizem expressamente o armazenamento temporário.
+- Não criar fluxo de seleção/cópia de arquivos locais nem ampliar a entidade para acomodá-los.
+
 ## Estado atual
 
-- Fase 0: concluída por inspeção estática.
-- Fase 1.1: implementada no código e documentada; validação funcional transferida para a fase final.
-- Fase 1.2 (fronteiras de armazenamento): implementada; o cache ainda não cria arquivos até a fase do gerenciador.
-- Fase 2.1 (entidade, DAO e migração): implementada; exportação do schema 14 e build ficam para a fase final.
-- Fase 2.2 (repositório): implementada.
-- Fase 2.3 (integridade e estados): implementada; recuperação de arquivos ainda pendente.
-- Fase 2.4 (recuperação e reconciliação): implementada; limpeza automática de órfãos continua proibida e não foi adicionada.
-- Fase 3.1 (gerenciador e capacidade): implementada; integração com provedor de mídia permanece para a Fase 4.
-- Fases 3.2–9: pendentes.
-- Fase 10: reservada exclusivamente à validação final.
-- Percentual de implementação deste roadmap: Fase 1.1 concluída; fases seguintes pendentes. Validação final ainda não executada.
-- Bloqueio conhecido: não há via autorizada confirmada para baixar e armazenar permanentemente vídeos do YouTube fora dos recursos oficiais. Não contornar essa restrição.
+- Fases 0–3.1: auditoria, separação dos domínios, persistência, recuperação inicial e gerenciador implementados; validação funcional reservada à Fase 10.
+- Fase 3.2: contrato de admissão de fontes, registro de provedores, downloader HTTP exclusivo de vídeo, progresso, cancelamento com preservação do parcial, retomada por Range, verificação de espaço e serviço de primeiro plano exclusivo de vídeo implementados.
+- Fase 4: núcleo de transferência, publicação atômica, verificação/reserva concorrente de espaço conhecido, validação de contêiner/faixa de vídeo, serviço de primeiro plano e consulta das qualidades realmente oferecidas pelo provedor implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local.
+- Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
+- Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
+- Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, miniatura, duração, assistir/retomar, remoção manual, lista vazia, erros de fonte/espaço, seletor 240p/360p/480p, progresso de transferência e posição/progresso de visualização persistidos.
+- Fase 8: recuperação trata arquivos ausentes/corrompidos sem apagá-los silenciosamente, preserva parciais/órfãos e reconcilia estados. Remoção manual persiste REMOVED antes da exclusão; conclusão natural persiste COMPLETED. Concorrência real permanece para a Fase 10.
+- Fase 10: reservada exclusivamente à validação final. Nenhum teste ou build foi executado nesta etapa.
+- Bloqueio conhecido: não há provedor oficialmente autorizado confirmado para cache temporário de vídeos do YouTube. O registro de provedores permanece vazio; a reprodução online continua intacta. Não contornar restrições da fonte.
+- Regra de escopo: nenhum arquivo, classe, serviço, fila, histórico ou biblioteca da Central de Áudio foi alterado nesta etapa.

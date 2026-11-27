@@ -1,3 +1,16 @@
+# CHECKPOINT: CENTRAL DE VÍDEOS / CACHE TEMPORÁRIO (2026-11-27)
+
+- Branch: `feature/video-temporary-cache`; PR #11 permanece draft, aberto e sem merge.
+- Serviço de primeiro plano exclusivo da Central de Vídeos: notificação/progresso/cancelamento, limite de três transferências no coordenador, encerramento protegido contra solicitações concorrentes e tratamento do timeout Android para serviço `dataSync`.
+- Serviço protegido contra Intent inválida/nula: não encerra uma instância que ainda possui outras transferências ativas; encerra apenas quando não há trabalho em andamento.
+- Transporte HTTP Range endurecido: resposta 206 precisa declarar tamanho total numérico e cobrir até o último byte do recurso; respostas parciais ambíguas são rejeitadas e o `.part` fica preservado.
+- Recuperação inicial registra contagens de itens interrompidos, reproduções pausadas, arquivos ausentes/corrompidos, órfãos e parciais preservados. Arquivos órfãos/parciais não são apagados automaticamente.
+- Provedor autorizado continua pendente; registro vazio por padrão. Não existe integração offline ativa para YouTube e não será implementado contorno das restrições da plataforma.
+- Miniatura e duração aparecem na lista de cache; progresso da visualização é atualizado a cada 5 segundos e exibido com posição/duração. Implementado, aguardando validação funcional na Fase 10.
+- Central de Áudio permanece fora do diff. Nenhum build ou teste executado, conforme a regra de validar somente após concluir a implementação.
+
+---
+
 # PROGRESSO
 - Fase atual: Fase 10 — Finalização (execução de ROADMAP_CORRECOES.md)
 - Roadmap original: 75/76 submódulos (98,7%); o 10.8 (APK final) só fecha com T-703, validada pelo usuário
@@ -213,3 +226,89 @@
 - 2026-11-26 — Fase 3.1: `VideoCacheManager` e `VideoCacheSettingsStore` implementados; limite padrão 3, presets 1/2/3/5/10 e personalizado 1–100; reserva, capacidade, remoção manual e exclusão após conclusão natural. Nenhum teste/build executado.
 
 - 2026-11-26 — Reforçada a reserva de vagas com Mutex para impedir ultrapassagem concorrente do limite configurado. Sem testes/build, conforme execução definida.
+
+## 2026-11-26 — Implementação do cache temporário na Central de Vídeos
+- Implementados: motor de transferência próprio para vídeo; retomada HTTP Range; `.part` preservado; registro de provedores autorizados; checagem de espaço conhecido; publicação para READY; integração de reprodução local Media3; posição/estado; exclusão natural/manual; seção Cache na UI.
+- Limitação: registro de provedores inicia vazio. Não há provedor YouTube oficialmente autorizado confirmado para download/armazenamento local; a reprodução online segue inalterada.
+- Pendências: integração de fonte autorizada real; UI de progresso e seletor de qualidade; validação de contêiner/arquivo; tratamento adicional de concorrência e retomada da MediaSession; testes e builds na Fase 10.
+- Regra de escopo cumprida: nenhuma alteração em arquivos da Central de Áudio.
+- Nenhum teste, build ou validação executado.
+- Robustez adicional: retomada de itens locais via MediaSession; posição salva periodicamente; seek manual até o fim não apaga o vídeo e reinicia a posição; validação estrutural com `MediaExtractor`; rollback de promoção preserva o parcial quando a persistência Room falha.
+
+- Transporte reforçado contra downgrade HTTPS e resposta com MIME divergente; operações de arquivo e análise MediaExtractor movidas para Dispatchers.IO para evitar bloqueio da interface.
+
+## Central de Vídeos — Cache temporário (branch feature/video-temporary-cache)
+- Núcleo de transferência HTTPS, retomada HTTP Range, preservação de .part e validação de mídia implementados.
+- Gerenciador, recuperação, player Media3 offline e seção Cache implementados.
+- Robustez adicional: exclusões natural/manual serializadas; conclusão limpa arquivo final e parcial; recuperação repete limpeza de resíduos concluídos.
+- Não há provedor autorizado registrado; download offline de YouTube permanece bloqueado até uma via permitida. Reprodução online preservada.
+- Pendentes: integração de provedor permitido, seletor de qualidade por vídeo, progresso visual, estados de erro/armazenamento e validação final.
+- Builds/testes não executados por determinação do roadmap: somente após a implementação completa.
+- Regra de escopo respeitada: nenhuma alteração em arquivos da Central de Áudio.
+
+### Continuação — UI e concorrência do cache de vídeos
+- Interface de preparação com seletor 240p/360p/480p, progresso em bytes e barra de progresso; controles só aparecem com provedor autorizado registrado.
+- Coordenador com limite de 3 transferências simultâneas por padrão e bloqueio de duplicidade por cacheId.
+- Provedor YouTube permanece desativado até existir integração que autorize expressamente o armazenamento local.
+- Sem build/testes nesta etapa, conforme instrução de executar validação somente ao fim do roadmap.
+
+
+### Continuação — cancelamento da preparação offline
+- O diálogo de preparação agora permite cancelar a transferência em andamento.
+- O cancelamento propaga `CancellationException` ao coordenador, que preserva o `.part` e registra o item como interrompido; a retomada depende do suporte HTTP Range da fonte autorizada.
+- O roadmap foi atualizado: progresso visual do download, lista vazia e mensagens de falha/espaço/fonte incompatível já possuem UI; progresso da visualização e miniatura/duração seguem pendentes.
+- Nenhum build/teste executado; a Central de Áudio permanece fora do escopo.
+
+### Ajuste de escopo e feedback de cancelamento
+- Removida qualquer previsão de importação de vídeos locais: essa funcionalidade não faz parte do produto.
+- Diálogo de preparação agora exibe uma mensagem informativa após cancelamento, esclarecendo a preservação do parcial quando a transferência já havia iniciado.
+- Cache permanece restrito a provedores remotos com autorização expressa de armazenamento temporário.
+
+### Robustez do motor de cache
+- Recuperação de ausentes/corrompidos implementada com preservação e reporte de órfãos.
+- Validação de Content-Range reforçada para retomada HTTP.
+- Exclusão manual agora persiste REMOVED antes da operação física, para retry seguro após interrupção.
+- Ação de apagar desabilitada durante fila/transferência ativa.
+- Ainda sem build ou testes, conforme ordem definida: validação somente após concluir o roadmap.
+
+### Serviço de transferência em primeiro plano
+- Serviço dedicado da Central de Vídeos registrado no Manifest com tipo `dataSync`.
+- Notificação de progresso e ação para cancelar transferências ativas.
+- UI delega o trabalho ao serviço, sem manter o download preso ao ciclo de vida da tela.
+- Cancelamento inclusive durante espera pelo semáforo persiste INTERRUPTED.
+- O serviço de áudio existente não foi reutilizado nem alterado.
+
+- Exclusões manuais que falham permanecem registradas como REMOVED e visíveis para nova tentativa; recuperação repete a limpeza no próximo início.
+
+- Reservas QUEUED abandonadas por encerramento do processo são recuperadas como INTERRUPTED; arquivos parciais permanecem intactos.
+
+- Qualidades disponíveis são consultadas no provedor por vídeo; UI não oferece opções que a fonte não confirmou.
+- Reserva concorrente de espaço implementada para downloads com tamanho conhecido, ajustada conforme bytes recebidos.
+
+- Recuperação reconcilia arquivo já promovido com estado DOWNLOADING, concluindo READY sem baixar novamente; `completedAt` é persistido ao marcar conclusão natural.
+
+- Validação HTTP Range reforçada para rejeitar respostas 206 incompletas/incoerentes antes da publicação.
+- Recuperação evita validar duas vezes o mesmo arquivo e conclui publicação que ficou entre rename e commit Room.
+- Reserva de espaço estimado compartilhada entre transferências concorrentes.
+
+- Cancelamento antes do início do HTTP, inclusive durante a reserva de espaço, também deixa o item INTERRUPTED e retomável.
+
+- UI da seção Cache agora permite retomar itens INTERRUPTED pelo provedor registrado, mantendo a qualidade original e reaproveitando parcial compatível.
+
+- Notificação do serviço de primeiro plano exibe barra de progresso (ou indeterminada), resultado final de falha/cancelamento e ação de cancelar.
+
+- Arquivos corrompidos mantêm o caminho gerenciado para remoção manual; o coordenador bloqueia uma nova publicação sobre a cópia inválida até o usuário removê-la.
+- Arquivo publicado íntegro em estado INTERRUPTED é restaurado para READY ao retomar, sem transferir novamente.
+
+
+## 2026-11-27 — Fechamento da implementação do motor de cache temporário
+- Revisão estática final do fluxo: reserva → transferência → publicação → reprodução → conclusão/remoção → recuperação.
+- Confirmados os limites de escopo: cache exclusivo de vídeo; nenhuma importação de arquivos locais; nenhuma alteração em arquivos da Central de Áudio nesta branch.
+- Confirmada a retenção: pausa, troca de tela, encerramento, reinício, perda de conexão e seek manual até o fim não autorizam apagar o arquivo. A remoção natural depende do evento de conclusão do player; remoção manual permanece disponível.
+- Transferência: HTTPS, retomada HTTP Range validada, parcial preservado em falhas/cancelamentos, limite padrão de três operações simultâneas, reserva concorrente de espaço quando o tamanho é conhecido e validação de faixa de vídeo antes de READY.
+- Recuperação: estados e arquivos reconciliados; órfãos, corrompidos e parciais preservados para inspeção/ação explícita; operações de exclusão pendentes podem ser repetidas.
+- Interface: miniatura, duração, qualidade suportada, tamanho, estado, progresso de transferência e progresso de visualização.
+- **Bloqueio externo não resolvido:** não há provedor real confirmado que autorize download e armazenamento local do conteúdo do YouTube. O registro de provedores permanece vazio. Não implementar bypass nem declarar o fluxo YouTube offline operacional.
+- **Validação pendente por decisão do roadmap:** nenhum build/teste foi executado. Fase 10 continua pendente, incluindo migração Room, concorrência, regressão da Central de Áudio, reprodução/background e validação em aparelho.
+- PR #11 permanece draft e a branch não foi integrada à main. Não integrar enquanto a validação final não for realizada e o provedor não for resolvido/explicitamente retirado do escopo.
+- Status honesto: motor e UI implementados estaticamente; integração de provedor autorizado e validação final não concluídas. Não declarar 100% nem release pronto.

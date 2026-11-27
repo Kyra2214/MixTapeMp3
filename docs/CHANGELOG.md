@@ -370,3 +370,104 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Criado `VideoCacheManager` e `VideoCacheSettingsStore`: limite configurável (padrão 3), reservas sem sobrescrever itens, capacidade de armazenamento, remoção manual e conclusão natural com exclusão do arquivo. O gerenciador não resolve URLs nem baixa streams; essa integração fica condicionada a fonte autorizada.
 
 - Reservas de vagas do Cache Offline agora são serializadas com Mutex para impedir que solicitações simultâneas ultrapassem o limite configurado.
+
+## 2026-11-26 — Cache temporário da Central de Vídeos
+- Criado `VideoCacheTransfer`, transporte HTTP exclusivo do domínio de vídeo, com HTTPS obrigatório, validação MIME/extensão, progresso, retomada HTTP Range e preservação de `.part` em cancelamentos/falhas.
+- Criado `VideoCacheSourceRegistry` com contrato explícito de provedores autorizados. Registro inicia vazio; nenhum extrator de stream do YouTube foi conectado para armazenamento offline.
+- Criado `VideoCacheDownloadCoordinator` para reserva, checagem de espaço, transferência e publicação; `VideoCacheFileStore` agora reabre parciais para retomada.
+- Integrado o cache local ao `YouTubePlaybackService`/Media3 existente, com posição persistida, pausa preservando arquivo, remoção após conclusão natural e proteção contra seek manual até o fim.
+- Adicionada seção Cache à Central de Vídeos com estado, qualidade, tamanho, assistir/retomar e remoção manual.
+- Central de Áudio não foi modificada. Nenhum teste/build executado, conforme a regra de validação somente ao final.
+- Complemento da etapa: retomada de cache pela MediaSession; posição gravada durante reprodução; seek manual até o fim volta à posição inicial e preserva o arquivo; validação com `MediaExtractor` exige uma faixa `video/*`; falha ao gravar READY tenta reverter a promoção sem remover bytes já baixados.
+
+- Endurecimento do transporte: bloqueio de downgrade HTTPS, verificação de MIME de resposta e retomada Range validada pelo offset; operações de arquivo e parser MediaExtractor executados em Dispatchers.IO.
+
+## [dev] Central de Vídeos — robustez da limpeza temporária
+- Serializar exclusão natural e manual para evitar operações concorrentes no mesmo cache.
+- Conclusão natural remove também parciais residuais; registro só é apagado após confirmação das remoções.
+- Recuperação de itens COMPLETED/REMOVED tenta limpar final e parcial, preservando registro quando a limpeza falha.
+- Escopo exclusivo da Central de Vídeos; nenhum arquivo da Central de Áudio alterado.
+
+## [dev] Central de Vídeos — concorrência e preparação por qualidade
+- Coordenador limita transferências simultâneas a 3 por padrão e impede duplicidade concorrente para o mesmo cacheId.
+- Interface de preparação inclui seletor 240p/360p/480p e progresso em bytes/barra, com indicação de total desconhecido.
+- A ação de preparação só é oferecida quando existe provedor autorizado registrado; nenhum provedor YouTube foi ativado.
+- Nenhum arquivo da Central de Áudio foi alterado.
+
+
+## [dev] Central de Vídeos — cancelamento controlado da preparação
+- Adicionado botão para cancelar uma preparação em andamento diretamente no diálogo.
+- O cancelamento cancela a coroutine da transferência; o coordenador mantém o `.part` e marca o item como INTERRUPTED para permitir retomada quando a fonte oferecer HTTP Range.
+- A interface distingue cancelamento de falha e não fecha o diálogo antes de a operação terminar.
+- Nenhuma alteração na Central de Áudio. Nenhum build/teste executado.
+
+## [dev] Central de Vídeos — cancelamento e escopo
+- O diálogo agora informa quando uma preparação foi cancelada e esclarece que o parcial é preservado quando a transferência já havia começado.
+- Escopo reafirmado: não haverá importação de arquivos locais, galeria ou SAF; somente fontes remotas autorizadas poderão alimentar o cache temporário.
+- Central de Áudio permanece intocada. Nenhum build/teste executado.
+
+## [dev] Robustez do motor de cache
+- Recuperação agora identifica arquivos ausentes/corrompidos, desassocia referências inválidas e reporta os arquivos publicados correspondentes como órfãos, sem apagá-los automaticamente.
+- Recuperação otimizada para listar parciais uma única vez por execução.
+- Download retomável valida início, limites e comprimento declarado de respostas HTTP 206.
+- Exclusão manual grava o estado REMOVED antes de apagar os arquivos; falhas podem ser repetidas pela recuperação.
+- A interface impede apagar itens enquanto aguardam ou executam transferência.
+- Central de Áudio preservada; build/testes continuam reservados à fase final.
+
+## [dev] Transferências em segundo plano
+- Criado `VideoCacheDownloadService`, serviço de primeiro plano exclusivo da Central de Vídeos, com notificação, progresso e ação de cancelar transferências.
+- A interface agora delega a preparação ao serviço; sair da tela ou minimizar o app não cancela a transferência.
+- O serviço não reutiliza o serviço de download da Central de Áudio. Limite de três transferências permanece no coordenador.
+- Cancelamento enquanto aguarda vaga também deixa o item em estado INTERRUPTED.
+
+- Registros em estado REMOVED permanecem visíveis quando a exclusão física falha, permitindo nova tentativa manual; a recuperação também repete a limpeza no próximo início.
+
+- Reservas QUEUED encontradas após reinício agora viram INTERRUPTED, preservando qualquer parcial e liberando retry ou remoção manual.
+
+- Provedor agora declara as qualidades disponíveis por vídeo; a interface só apresenta e habilita resoluções efetivamente retornadas (240p/360p/480p).
+- Coordenador reserva espaço estimado entre transferências concorrentes e atualiza a reserva conforme o progresso, evitando que downloads conhecidos comprometam o mesmo espaço livre.
+
+- Recuperação aproveita arquivos íntegros já promovidos quando o processo caiu antes de persistir READY no Room.
+- Timestamp `completedAt` passa a ser persistido ao registrar conclusão natural, antes da limpeza do arquivo.
+
+- Respostas HTTP 206 agora precisam declarar intervalo coerente e cobrir até o fim do recurso conhecido; comprimentos parciais não são confundidos com tamanho total.
+- Recuperação valida cada arquivo publicado uma única vez e conclui arquivos já promovidos quando o processo caiu antes de gravar READY.
+- A reserva de espaço é compartilhada entre preparações concorrentes e diminui conforme o progresso de cada transferência.
+
+- Cancelamento durante a preparação inicial/reserva de espaço também persiste INTERRUPTED, não deixando reservas QUEUED presas.
+
+- Itens INTERRUPTED agora oferecem ação explícita de Retomar preparação, que resolve novamente a fonte autorizada e continua do parcial quando HTTP Range for suportado.
+
+- Notificação do serviço agora apresenta barra de progresso quando o tamanho é conhecido, progresso indeterminado quando não é e resultado final distinto para falha/cancelamento.
+
+- Arquivos corrompidos continuam associados ao item interrompido para permitir exclusão manual explícita; a retomada não sobrescreve silenciosamente a cópia inválida.
+- Se a recuperação encontrar um arquivo íntegro já publicado em estado INTERRUPTED, ele é restaurado para READY sem novo download.
+
+
+## [dev] Central de Vídeos: revisão do serviço em primeiro plano
+- Corrigido o import de Dispatchers usado pelo serviço de cache.
+- O encerramento normal agora considera o último startId recebido, evitando parar o serviço enquanto outra preparação ainda foi solicitada.
+- Tratado o callback de timeout de serviços dataSync do Android: transferências são canceladas e o parcial permanece recuperável.
+- O resumo da recuperação inicial agora registra contagens de itens interrompidos, reproduções pausadas, arquivos ausentes/corrompidos, órfãos e parciais preservados. Nenhum arquivo é apagado por essa observabilidade.
+- Nenhum build ou teste foi executado; validação permanece na Fase 10.
+
+
+## [dev] Central de Vídeos: apresentação do cache
+- Cartões do cache agora exibem miniatura e duração quando fornecidas pela fonte.
+- A posição assistida e a duração mostram uma barra de progresso de visualização para itens em reprodução/pausados; a posição é persistida pelo monitor do serviço Media3.
+- Fase 7 do roadmap atualizada. Nenhum teste/build foi executado.
+
+## [dev] Central de Vídeos — isolamento de intents inválidas no serviço
+- `VideoCacheDownloadService` não encerra transferências existentes quando recebe Intent inválida/nula; só encerra a instância quando não há trabalho ativo.
+- Nenhuma alteração na Central de Áudio. Build/testes permanecem reservados à fase final.
+
+## [dev] Central de Vídeos — validação completa de respostas HTTP 206
+- Respostas parciais precisam declarar tamanho total numérico e cobrir até o último byte; respostas ambíguas/incompletas são rejeitadas antes de publicar o arquivo.
+- O `.part` é preservado para retomada/inspeção; nenhuma mudança na Central de Áudio.
+
+
+## [dev] 2026-11-27 — Fechamento da implementação do motor de cache temporário
+- Revisado estaticamente o ciclo reserva, transferência, publicação, reprodução, retenção e recuperação.
+- Confirmadas as fronteiras da Central de Vídeos: arquivos/serviços/tabelas de áudio não fazem parte do diff; não há importação de arquivos locais.
+- Documentado o bloqueio do provedor autorizado e mantida a integração YouTube offline desativada.
+- A Fase 10 (build, testes e validação em aparelho) permanece pendente; nenhuma validação foi alegada como executada.
