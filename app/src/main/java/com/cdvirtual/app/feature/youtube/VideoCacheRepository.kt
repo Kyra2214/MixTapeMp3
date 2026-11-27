@@ -21,14 +21,14 @@ class VideoCacheRepository(
 ) {
     val items: Flow<List<VideoCacheEntity>> = dao.observeAll()
 
-    suspend fun all(): List<VideoCacheEntity> = dao.getAll()
+    override suspend fun all(): List<VideoCacheEntity> = dao.getAll()
 
     suspend fun find(cacheId: String): VideoCacheEntity? = dao.find(cacheId)
 
     suspend fun findBySource(sourceId: String, sourceVideoId: String): VideoCacheEntity? =
         dao.findBySource(sourceId, sourceVideoId)
 
-    suspend fun save(item: VideoCacheEntity) {
+    override suspend fun save(item: VideoCacheEntity) {
         require(item.cacheId.isNotBlank()) { "Identificador do cache vazio." }
         require(item.sourceId.isNotBlank()) { "Identificador da fonte vazio." }
         require(item.sourceVideoId.isNotBlank()) { "Identificador do vídeo vazio." }
@@ -47,7 +47,7 @@ class VideoCacheRepository(
         dao.upsert(item)
     }
 
-    suspend fun updateStatus(cacheId: String, status: String) {
+    override suspend fun updateStatus(cacheId: String, status: String) {
         require(status != VideoCacheStatus.READY) {
             "Use markReadyAfterPromotion para publicar somente arquivos completos e íntegros."
         }
@@ -67,7 +67,7 @@ class VideoCacheRepository(
      * Marca o item como disponível somente depois de validar que o arquivo publicado
      * existe, não está vazio e pertence ao diretório exclusivo de vídeos.
      */
-    suspend fun markReadyAfterPromotion(cacheId: String, publishedFile: File) {
+    override suspend fun markReadyAfterPromotion(cacheId: String, publishedFile: File) {
         val current = dao.find(cacheId) ?: throw IllegalArgumentException("Item de cache não encontrado.")
         require(VideoCacheStateMachine.canTransition(current.status, VideoCacheStatus.READY)) {
             "O item não pode passar de ${current.status} para READY."
@@ -90,7 +90,7 @@ class VideoCacheRepository(
     suspend fun totalBytes(): Long = dao.totalBytes()
 
     /** Chamar somente depois que o gerenciador confirmar a remoção do arquivo físico. */
-    suspend fun deleteRecordAfterFileRemoval(cacheId: String) {
+    override suspend fun deleteRecordAfterFileRemoval(cacheId: String) {
         dao.delete(cacheId)
     }
 }
