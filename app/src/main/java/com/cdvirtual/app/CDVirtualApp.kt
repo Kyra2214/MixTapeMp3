@@ -49,6 +49,15 @@ class CDVirtualApp : Application() {
             ImportRecovery.cleanOrphans(this@CDVirtualApp) { trackRepository.findByUri(it) != null }
             GenreBackfill.run(this@CDVirtualApp, trackRepository) // músicas anteriores à coluna de gênero
             runCatching { videoCacheRecovery.recover() }
+                .onSuccess { report ->
+                    android.util.Log.i(
+                        "VideoCacheRecovery",
+                        "Recuperação concluída: interrompidos=${report.interruptedDownloads}, " +
+                            "reprodução pausada=${report.pausedPlayback}, arquivos ausentes/corrompidos=${report.missingFiles}, " +
+                            "concluídos removidos=${report.completedItemsRemoved}, órfãos preservados=${report.orphanedFiles.size}, " +
+                            "parciais preservados=${report.partialFiles.size}"
+                    )
+                }
                 .onFailure { android.util.Log.w("VideoCacheRecovery", "Não foi possível reconciliar o cache de vídeos", it) }
         }
         analysisRunner.kick()
