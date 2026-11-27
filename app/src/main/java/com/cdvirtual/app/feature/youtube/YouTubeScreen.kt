@@ -84,14 +84,6 @@ import java.util.Locale
 @Composable
 fun YouTubeScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            // A preparação exige notificação visível para acompanhar/cancelar o serviço.
-            cacheActionError = "Permita notificações para iniciar a preparação em segundo plano."
-        }
-    }
     val app = context.applicationContext as CDVirtualApp
     val repository = remember { YouTubeSearchRepository() }
     val history by app.database.youtubeHistoryDao().observeAll().collectAsState(initial = emptyList())
@@ -106,6 +98,14 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var cachePreparationJob by remember { mutableStateOf<Job?>(null) }
     var cacheProgress by remember { mutableStateOf<VideoCacheTransferProgress?>(null) }
     var cacheActionError by remember { mutableStateOf<String?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            // A preparação exige notificação visível para acompanhar/cancelar o serviço.
+            cacheActionError = "Permita notificações para iniciar a preparação em segundo plano."
+        }
+    }
     var cacheActionNotice by remember { mutableStateOf<String?>(null) }
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
     val scope = rememberCoroutineScope()
