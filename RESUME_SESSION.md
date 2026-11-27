@@ -17,6 +17,8 @@
 
 
 ## Continuação mais recente
+
+- Commit `e3eaa29`: `VideoCacheDownloadService` agora ignora Intent inválida/nula sem encerrar outras transferências ativas. Se não houver trabalho ativo, encerra apenas a instância ociosa. Nenhum build/teste executado.
 - Commit `bae89fb`: diálogo de preparação ganhou ação **Cancelar preparação**. O cancelamento propaga `CancellationException`; o coordenador preserva o parcial e marca o item como `INTERRUPTED`.
 - UI de progresso do download e mensagens de erro/armazenamento/fonte já foram refletidas no roadmap. Permanecem pendentes progresso de visualização, miniatura/duração, fonte autorizada real e validação final.
 - Não executar build/testes até concluir o roadmap. Nenhum arquivo da Central de Áudio foi alterado.
