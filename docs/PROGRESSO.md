@@ -1,3 +1,14 @@
+# CHECKPOINT: CENTRAL DE VÍDEOS / CACHE TEMPORÁRIO (2026-11-27)
+
+- Branch: `feature/video-temporary-cache`; PR #11 permanece draft, aberto e sem merge.
+- Serviço de primeiro plano exclusivo da Central de Vídeos: notificação/progresso/cancelamento, limite de três transferências no coordenador, encerramento protegido contra solicitações concorrentes e tratamento do timeout Android para serviço `dataSync`.
+- Recuperação inicial registra contagens de itens interrompidos, reproduções pausadas, arquivos ausentes/corrompidos, órfãos e parciais preservados. Arquivos órfãos/parciais não são apagados automaticamente.
+- Provedor autorizado continua pendente; registro vazio por padrão. Não existe integração offline ativa para YouTube e não será implementado contorno das restrições da plataforma.
+- Miniatura/duração na lista de cache e progresso da visualização continuam pendentes.
+- Central de Áudio permanece fora do diff. Nenhum build ou teste executado, conforme a regra de validar somente após concluir a implementação.
+
+---
+
 # PROGRESSO
 - Fase atual: Fase 10 — Finalização (execução de ROADMAP_CORRECOES.md)
 - Roadmap original: 75/76 submódulos (98,7%); o 10.8 (APK final) só fecha com T-703, validada pelo usuário
