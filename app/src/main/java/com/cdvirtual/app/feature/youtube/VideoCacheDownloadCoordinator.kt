@@ -51,6 +51,13 @@ class VideoCacheDownloadCoordinator(
         require(item.qualityHeight == source.qualityHeight) {
             "Este vídeo já está reservado em ${item.qualityHeight}p. Remova o item para escolher outra qualidade."
         }
+        if (item.status == VideoCacheStatus.INTERRUPTED) {
+            val restored = manager.restoreReadyIfValid(item.cacheId)
+            if (restored != null) return restored
+            if (manager.find(item.cacheId)?.filePath != null) {
+                throw IllegalStateException("O arquivo associado está corrompido. Apague este item manualmente antes de preparar outra cópia.")
+            }
+        }
 
         when (item.status) {
             VideoCacheStatus.READY, VideoCacheStatus.PAUSED, VideoCacheStatus.PLAYING -> return item
