@@ -60,6 +60,7 @@ import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.core.database.YouTubeChannelEntity
 import com.cdvirtual.app.core.database.VideoCacheStatus
+import com.cdvirtual.app.core.database.VideoCacheQuality
 import com.cdvirtual.app.media.youtube.YouTubePlaybackService
 import com.cdvirtual.app.media.youtube.YouTubePlaybackStatus
 import com.cdvirtual.app.media.youtube.toYouTubePlaybackMessage
@@ -82,6 +83,11 @@ fun YouTubeScreen(onBack: () -> Unit) {
     val savedChannels by app.database.youtubeChannelDao().observeAll().collectAsState(initial = emptyList())
     val cachedVideos by app.videoCacheManager.items.collectAsState(initial = emptyList())
     var cacheCapacity by remember { mutableStateOf<VideoCacheCapacity?>(null) }
+    var videoForCache by remember { mutableStateOf<YouTubeVideo?>(null) }
+    var selectedCacheQuality by remember { mutableStateOf(VideoCacheQuality.DEFAULT) }
+    var cachePreparing by remember { mutableStateOf(false) }
+    var cacheProgress by remember { mutableStateOf<VideoCacheTransferProgress?>(null) }
+    var cacheActionError by remember { mutableStateOf<String?>(null) }
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
     val scope = rememberCoroutineScope()
     LaunchedEffect(cachedVideos) {
@@ -164,6 +170,53 @@ fun YouTubeScreen(onBack: () -> Unit) {
         }
     }
 
+    if (videoForCache != null) {
+        AlertDialog(
+            onDismissRequest = { if (!cachePreparing) videoForCache = null },
+            title = { Text("Preparar vídeo temporariamente") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(videoForCache?.title.orEmpty())
+                    Text("Escolha a qualidade oferecida pela fonte.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(VideoCacheQuality.P240, VideoCacheQuality.P360, VideoCacheQuality.P480).forEach { height ->
+                            if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                            else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                        }
+                    }
+                    cacheProgress?.let { progress ->
+                        if (progress.fraction != null) androidx.compose.material3.LinearProgressIndicator(progress = { progress.fraction }, modifier = Modifier.fillMaxWidth())
+                        else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text("${formatBytes(progress.downloadedBytes)} de ${progress.totalBytes?.let(::formatBytes) ?: "tamanho desconhecido"}")
+                    }
+                    cacheActionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    if (!app.videoCacheSourceRegistry.hasProvider("youtube")) {
+                        Text("Nenhum provedor autorizado está conectado. A preparação ficará disponível quando uma fonte compatível for integrada.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !cachePreparing && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
+                    val video = videoForCache ?: return@TextButton
+                    cachePreparing = true
+                    cacheActionError = null
+                    cacheProgress = null
+                    scope.launch {
+                        try {
+                            val source = app.videoCacheSourceRegistry.resolve("youtube", video.videoId, selectedCacheQuality)
+                                ?: throw IllegalStateException("A fonte não disponibilizou essa qualidade.")
+                            app.videoCacheDownloadCoordinator.prepare(source) { progress -> cacheProgress = progress }
+                            cacheCapacity = app.videoCacheManager.capacity()
+                            videoForCache = null
+                        } catch (failure: Exception) {
+                            cacheActionError = failure.message ?: "Não foi possível preparar o vídeo."
+                        } finally { cachePreparing = false }
+                    }
+                }) { Text(if (cachePreparing) "Preparando..." else "Preparar") }
+            },
+            dismissButton = { TextButton(enabled = !cachePreparing, onClick = { videoForCache = null }) { Text("Fechar") } }
+        )
+    }
     fun startYouTubePlayback(videoId: String, audioOnly: Boolean = false) {
         error = null
         selectedVideoId = videoId
@@ -515,7 +568,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             if (section == "Buscar" || section == "Início") items(results, key = { it.videoId }) { video ->
                 VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, { addChannel(video) }, {
                     video.channelUrl?.let { openChannel(it, video.channel, video.channelAvatarUrl) }
-                })
+                }, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheProgress = null }) else null)
             }
             if (section == "Canais") {
                 item { Text(selectedChannel?.channelName ?: "Seus canais", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
@@ -528,7 +581,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     item { OutlinedButton(onClick = { selectedChannel = null; channelVideos = emptyList() }) { Text("Voltar aos canais") } }
                     if (channelLoading) item { CircularProgressIndicator() }
                     items(channelVideos, key = { it.videoId }) { video ->
-                        VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {})
+                        VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {}, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheProgress = null }) else null)
                     }
                     if (channelNextPage != null && channelTabHandler != null) item {
                         OutlinedButton(onClick = {
@@ -667,7 +720,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: () -> Unit, onAddChannel: () -> Unit, onOpenChannel: () -> Unit) {
+private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: () -> Unit, onAddChannel: () -> Unit, onOpenChannel: () -> Unit, onPrepareCache: (() -> Unit)? = null) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             AsyncImage(model = video.thumbnailUrl, contentDescription = "Miniatura de " + video.title,
@@ -677,6 +730,7 @@ private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: ()
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 Button(onClick = onPlay) { Text("Assistir") }
+                if (onPrepareCache != null) TextButton(onClick = onPrepareCache) { Text("Preparar offline") }
                 TextButton(onClick = onListen) { Text("Só áudio") }
                 if (video.channelUrl != null) TextButton(onClick = onAddChannel) { Text("+ Canal") }
                 if (video.channelUrl != null) TextButton(onClick = onOpenChannel) { Text("Ver canal") }
