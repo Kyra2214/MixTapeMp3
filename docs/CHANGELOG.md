@@ -439,3 +439,6 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Itens INTERRUPTED agora oferecem ação explícita de Retomar preparação, que resolve novamente a fonte autorizada e continua do parcial quando HTTP Range for suportado.
 
 - Notificação do serviço agora apresenta barra de progresso quando o tamanho é conhecido, progresso indeterminado quando não é e resultado final distinto para falha/cancelamento.
+
+- Arquivos corrompidos continuam associados ao item interrompido para permitir exclusão manual explícita; a retomada não sobrescreve silenciosamente a cópia inválida.
+- Se a recuperação encontrar um arquivo íntegro já publicado em estado INTERRUPTED, ele é restaurado para READY sem novo download.
