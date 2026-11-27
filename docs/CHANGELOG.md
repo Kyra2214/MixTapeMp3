@@ -405,3 +405,11 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - O diálogo agora informa quando uma preparação foi cancelada e esclarece que o parcial é preservado quando a transferência já havia começado.
 - Escopo reafirmado: não haverá importação de arquivos locais, galeria ou SAF; somente fontes remotas autorizadas poderão alimentar o cache temporário.
 - Central de Áudio permanece intocada. Nenhum build/teste executado.
+
+## [dev] Robustez do motor de cache
+- Recuperação agora identifica arquivos ausentes/corrompidos, desassocia referências inválidas e reporta os arquivos publicados correspondentes como órfãos, sem apagá-los automaticamente.
+- Recuperação otimizada para listar parciais uma única vez por execução.
+- Download retomável valida início, limites e comprimento declarado de respostas HTTP 206.
+- Exclusão manual grava o estado REMOVED antes de apagar os arquivos; falhas podem ser repetidas pela recuperação.
+- A interface impede apagar itens enquanto aguardam ou executam transferência.
+- Central de Áudio preservada; build/testes continuam reservados à fase final.
