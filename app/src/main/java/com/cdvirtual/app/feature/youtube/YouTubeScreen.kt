@@ -68,6 +68,8 @@ import com.cdvirtual.app.media.youtube.YouTubeSearchRepository
 import com.cdvirtual.app.media.youtube.YouTubeVideo
 import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import org.schabi.newpipe.extractor.Page
 import java.text.SimpleDateFormat
@@ -86,6 +88,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var videoForCache by remember { mutableStateOf<YouTubeVideo?>(null) }
     var selectedCacheQuality by remember { mutableStateOf(VideoCacheQuality.DEFAULT) }
     var cachePreparing by remember { mutableStateOf(false) }
+    var cachePreparationJob by remember { mutableStateOf<Job?>(null) }
     var cacheProgress by remember { mutableStateOf<VideoCacheTransferProgress?>(null) }
     var cacheActionError by remember { mutableStateOf<String?>(null) }
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
@@ -205,20 +208,32 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     cachePreparing = true
                     cacheActionError = null
                     cacheProgress = null
-                    scope.launch {
+                    cachePreparationJob = scope.launch {
                         try {
                             val source = app.videoCacheSourceRegistry.resolve("youtube", video.videoId, selectedCacheQuality)
                                 ?: throw IllegalStateException("A fonte não disponibilizou essa qualidade.")
                             app.videoCacheDownloadCoordinator.prepare(source) { progress -> cacheProgress = progress }
                             cacheCapacity = app.videoCacheManager.capacity()
                             videoForCache = null
+                        } catch (cancelled: CancellationException) {
+                            // O coordenador preserva o .part e marca o item como interrompido.
+                            throw cancelled
                         } catch (failure: Exception) {
                             cacheActionError = failure.message ?: "Não foi possível preparar o vídeo."
-                        } finally { cachePreparing = false }
+                        } finally {
+                            cachePreparing = false
+                            cachePreparationJob = null
+                        }
                     }
                 }) { Text(if (cachePreparing) "Preparando..." else "Preparar") }
             },
-            dismissButton = { TextButton(enabled = !cachePreparing, onClick = { videoForCache = null }) { Text("Fechar") } }
+            dismissButton = {
+                if (cachePreparing) {
+                    TextButton(onClick = { cachePreparationJob?.cancel() }) { Text("Cancelar preparação") }
+                } else {
+                    TextButton(onClick = { videoForCache = null }) { Text("Fechar") }
+                }
+            }
         )
     }
     fun startYouTubePlayback(videoId: String, audioOnly: Boolean = false) {
