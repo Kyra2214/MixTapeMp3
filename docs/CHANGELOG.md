@@ -423,3 +423,6 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Registros em estado REMOVED permanecem visíveis quando a exclusão física falha, permitindo nova tentativa manual; a recuperação também repete a limpeza no próximo início.
 
 - Reservas QUEUED encontradas após reinício agora viram INTERRUPTED, preservando qualquer parcial e liberando retry ou remoção manual.
+
+- Provedor agora declara as qualidades disponíveis por vídeo; a interface só apresenta e habilita resoluções efetivamente retornadas (240p/360p/480p).
+- Coordenador reserva espaço estimado entre transferências concorrentes e atualiza a reserva conforme o progresso, evitando que downloads conhecidos comprometam o mesmo espaço livre.
