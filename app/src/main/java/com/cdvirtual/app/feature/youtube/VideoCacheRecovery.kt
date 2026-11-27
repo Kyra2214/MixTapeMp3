@@ -48,8 +48,13 @@ class VideoCacheRecovery(
                     interruptedDownloads++
                 }
                 VideoCacheStatus.DOWNLOADING -> {
-                    repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
-                    interruptedDownloads++
+                    if (validFile != null) {
+                        // O processo pode ter caído após o rename e antes do commit READY no Room.
+                        repository.markReadyAfterPromotion(entry.cacheId, validFile)
+                    } else {
+                        repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
+                        interruptedDownloads++
+                    }
                 }
                 VideoCacheStatus.PLAYING -> {
                     if (validFile != null) {
