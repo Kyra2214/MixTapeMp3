@@ -48,6 +48,9 @@ class VideoCacheDownloadCoordinator(
                 throw IllegalStateException("Limite do cache atingido (${reservation.current}/${reservation.limit}). Remova um item manualmente para continuar.")
         }
         val isNewReservation = reservation is VideoCacheReserveResult.Reserved
+        require(item.qualityHeight == source.qualityHeight) {
+            "Este vídeo já está reservado em ${item.qualityHeight}p. Remova o item para escolher outra qualidade."
+        }
 
         when (item.status) {
             VideoCacheStatus.READY, VideoCacheStatus.PAUSED, VideoCacheStatus.PLAYING -> return item
