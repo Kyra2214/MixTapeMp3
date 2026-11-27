@@ -112,7 +112,7 @@
 - [x] Exibir progresso do download (barra e bytes recebidos/total); progresso da visualização permanece pendente.
 - [x] Oferecer assistir/retomar e remover manualmente.
 - [x] Exibir limite de itens e armazenamento ocupado.
-- [ ] Permitir qualidade padrão e alteração individual por vídeo.
+- [x] Permitir qualidade padrão e alteração individual por vídeo na preparação.
 - [x] Tratar lista vazia, falha de preparação, armazenamento insuficiente e fonte não compatível na interface.
 
 ## FASE 8 — RECUPERAÇÃO E ROBUSTEZ
@@ -121,9 +121,9 @@
 - [x] Reconciliar registros e arquivos físicos sem apagar parciais ou órfãos automaticamente.
 - [x] Não apagar arquivos completos ainda não assistidos durante recuperação; itens READY/PAUSED são preservados.
 - [x] Recuperação de itens COMPLETED/REMOVED tenta remover também parciais residuais antes de apagar o registro.
-- [ ] Tratar arquivo ausente, corrompido ou incompleto.
+- [x] Tratar arquivo ausente, corrompido ou incompleto: READY/PAUSED/PLAYING sem arquivo íntegro viram INTERRUPTED e perdem a referência inválida; arquivos publicados corrompidos são reportados como órfãos e preservados para inspeção.
 - [x] Evitar exclusões duplicadas e condições de corrida (mutex de exclusão e bloqueio por cacheId; validar sob concorrência na Fase 10).
-- [ ] Persistir estado antes de liberar arquivo após conclusão.
+- [x] Persistir estado antes de liberar arquivo após conclusão/remoção: COMPLETED ou REMOVED é gravado antes da exclusão física, permitindo retry seguro após encerramento inesperado.
 
 ## FASE 9 — DOCUMENTAÇÃO E INTEGRAÇÃO
 
@@ -157,7 +157,7 @@
 - Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
 - Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
 - Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar, remoção manual, lista vazia, erros de fonte/espaço, seletor 240p/360p/480p e progresso de transferência. Cancelamento manual preserva o parcial. Miniatura/duração e progresso da visualização permanecem pendentes.
-- Fases 8–9: reconciliação e documentação atualizadas; limpeza de conclusão natural/manual serializada, bloqueio de transferência duplicada e recuperação de parciais concluídos. Concorrência real, cenários de arquivo ausente/corrompido e integração final ainda pendentes.
+- Fase 8: recuperação trata arquivos ausentes/corrompidos sem apagá-los silenciosamente, preserva parciais/órfãos e reconcilia estados. Remoção manual persiste REMOVED antes da exclusão; conclusão natural persiste COMPLETED. Concorrência real permanece para a Fase 10.
 - Fase 10: reservada exclusivamente à validação final. Nenhum teste ou build foi executado nesta etapa.
 - Bloqueio conhecido: não há provedor oficialmente autorizado confirmado para cache temporário de vídeos do YouTube. O registro de provedores permanece vazio; a reprodução online continua intacta. Não contornar restrições da fonte.
 - Regra de escopo: nenhum arquivo, classe, serviço, fila, histórico ou biblioteca da Central de Áudio foi alterado nesta etapa.
