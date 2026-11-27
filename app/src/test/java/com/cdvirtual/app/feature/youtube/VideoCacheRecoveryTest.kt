@@ -2,6 +2,7 @@ package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.database.VideoCacheEntity
 import com.cdvirtual.app.core.database.VideoCacheStatus
+import com.cdvirtual.app.core.storage.VideoCacheRecoveryFileStore
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
