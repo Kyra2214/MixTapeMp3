@@ -6,7 +6,7 @@
 - Transporte HTTP Range endurecido: resposta 206 precisa declarar tamanho total numérico e cobrir até o último byte do recurso; respostas parciais ambíguas são rejeitadas e o `.part` fica preservado.
 - Recuperação inicial registra contagens de itens interrompidos, reproduções pausadas, arquivos ausentes/corrompidos, órfãos e parciais preservados. Arquivos órfãos/parciais não são apagados automaticamente.
 - Provedor autorizado continua pendente; registro vazio por padrão. Não existe integração offline ativa para YouTube e não será implementado contorno das restrições da plataforma.
-- Miniatura/duração na lista de cache e progresso da visualização continuam pendentes.
+- Miniatura e duração aparecem na lista de cache; progresso da visualização é atualizado a cada 5 segundos e exibido com posição/duração. Implementado, aguardando validação funcional na Fase 10.
 - Central de Áudio permanece fora do diff. Nenhum build ou teste executado, conforme a regra de validar somente após concluir a implementação.
 
 ---
