@@ -33,17 +33,46 @@ import java.util.concurrent.atomic.AtomicReference
  * Não reutiliza o DownloadService da Central de Áudio.
  */
 /** In-process handoff avoids Binder's transaction-size limit for signed URLs/headers. */
-private object VideoCacheDownloadRequestStore {
-    private val requests = ConcurrentHashMap<String, VideoCacheResolvedSource>()
+internal object VideoCacheDownloadRequestStore {
+    private data class Entry(val source: VideoCacheResolvedSource, val createdAtMs: Long)
+    private val lock = Any()
+    private val requests = LinkedHashMap<String, Entry>()
 
-    fun put(source: VideoCacheResolvedSource): String {
+    fun put(source: VideoCacheResolvedSource): String = synchronized(lock) {
+        pruneExpiredLocked()
+        while (requests.size >= MAX_PENDING_REQUESTS) {
+            val oldest = requests.entries.firstOrNull()?.key ?: break
+            requests.remove(oldest)
+        }
         val token = UUID.randomUUID().toString()
-        requests[token] = source
-        return token
+        requests[token] = Entry(source, System.currentTimeMillis())
+        token
     }
 
-    fun take(token: String): VideoCacheResolvedSource? = requests.remove(token)
-    fun remove(token: String) { requests.remove(token) }
+    fun take(token: String): VideoCacheResolvedSource? = synchronized(lock) {
+        pruneExpiredLocked()
+        requests.remove(token)?.source
+    }
+
+    fun remove(token: String) = synchronized(lock) { requests.remove(token); Unit }
+
+    fun clear() = synchronized(lock) { requests.clear() }
+
+    internal fun sizeForTest(): Int = synchronized(lock) {
+        pruneExpiredLocked()
+        requests.size
+    }
+
+    private fun pruneExpiredLocked() {
+        val now = System.currentTimeMillis()
+        val iterator = requests.entries.iterator()
+        while (iterator.hasNext()) {
+            if (now - iterator.next().value.createdAtMs >= TOKEN_TTL_MS) iterator.remove()
+        }
+    }
+
+    const val MAX_PENDING_REQUESTS = 32
+    const val TOKEN_TTL_MS = 2 * 60 * 1000L
 }
 
 class VideoCacheDownloadService : Service() {
@@ -74,6 +103,8 @@ class VideoCacheDownloadService : Service() {
             // startForegroundService também pode entregar uma Intent nula após recriação;
             // nesse caso, encerra apenas quando não há trabalho em andamento.
             if (activeCount.get() == 0) {
+                // Nenhuma transferência assumiu os tokens pendentes desta instância.
+                VideoCacheDownloadRequestStore.clear()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelfResult(startId)
             } else {
@@ -167,11 +198,13 @@ class VideoCacheDownloadService : Service() {
         jobs.values.toList().forEach {
             it.cancel(CancellationException("Limite de execução do serviço de cache atingido"))
         }
+        VideoCacheDownloadRequestStore.clear()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
+        VideoCacheDownloadRequestStore.clear()
         scope.cancel()
         super.onDestroy()
     }
