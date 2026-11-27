@@ -126,6 +126,15 @@ class VideoCacheDownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** O Android pode encerrar serviços dataSync após o limite de execução em segundo plano. */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        jobs.values.toList().forEach {
+            it.cancel(CancellationException("Limite de execução do serviço de cache atingido"))
+        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
