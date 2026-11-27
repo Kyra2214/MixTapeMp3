@@ -257,3 +257,10 @@
 - Exclusão manual agora persiste REMOVED antes da operação física, para retry seguro após interrupção.
 - Ação de apagar desabilitada durante fila/transferência ativa.
 - Ainda sem build ou testes, conforme ordem definida: validação somente após concluir o roadmap.
+
+### Serviço de transferência em primeiro plano
+- Serviço dedicado da Central de Vídeos registrado no Manifest com tipo `dataSync`.
+- Notificação de progresso e ação para cancelar transferências ativas.
+- UI delega o trabalho ao serviço, sem manter o download preso ao ciclo de vida da tela.
+- Cancelamento inclusive durante espera pelo semáforo persiste INTERRUPTED.
+- O serviço de áudio existente não foi reutilizado nem alterado.
