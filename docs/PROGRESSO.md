@@ -281,3 +281,5 @@
 - Cancelamento antes do início do HTTP, inclusive durante a reserva de espaço, também deixa o item INTERRUPTED e retomável.
 
 - UI da seção Cache agora permite retomar itens INTERRUPTED pelo provedor registrado, mantendo a qualidade original e reaproveitando parcial compatível.
+
+- Notificação do serviço de primeiro plano exibe barra de progresso (ou indeterminada), resultado final de falha/cancelamento e ação de cancelar.
