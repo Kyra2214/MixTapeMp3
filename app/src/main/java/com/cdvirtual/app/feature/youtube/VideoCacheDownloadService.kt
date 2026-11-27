@@ -73,7 +73,7 @@ class VideoCacheDownloadService : Service() {
                         NOTIFICATION_ID,
                         buildNotification(
                             "Recebidos ${formatBytes(progress.downloadedBytes)} de $total",
-                            progress.fraction == null
+                            true
                         )
                     )
                 }
@@ -83,7 +83,7 @@ class VideoCacheDownloadService : Service() {
                 android.util.Log.w(TAG, "Falha ao preparar vídeo temporário", failure)
                 notifications.notify(
                     NOTIFICATION_ID,
-                    buildNotification(failure.message ?: "Falha ao preparar um vídeo.", false)
+                    buildNotification(failure.message ?: "Falha ao preparar um vídeo.", true)
                 )
             } finally {
                 jobs.remove(cacheKey)
