@@ -579,6 +579,25 @@ fun YouTubeScreen(onBack: () -> Unit) {
                                         Text(if (cached.lastPositionMs > 0L) "Retomar" else "Assistir")
                                     }
                                 }
+                                if (cached.status == VideoCacheStatus.INTERRUPTED) {
+                                    TextButton(
+                                        enabled = app.videoCacheSourceRegistry.hasProvider(cached.sourceId),
+                                        onClick = {
+                                            scope.launch {
+                                                try {
+                                                    val source = app.videoCacheSourceRegistry.resolve(
+                                                        cached.sourceId,
+                                                        cached.sourceVideoId,
+                                                        cached.qualityHeight
+                                                    ) ?: throw IllegalStateException("A fonte não disponibilizou novamente este vídeo.")
+                                                    VideoCacheDownloadService.start(context, source)
+                                                } catch (failure: Exception) {
+                                                    error = failure.message ?: "Não foi possível retomar a preparação."
+                                                }
+                                            }
+                                        }
+                                    ) { Text("Retomar preparação") }
+                                }
                                 TextButton(
                                     enabled = cached.status != VideoCacheStatus.DOWNLOADING &&
                                         cached.status != VideoCacheStatus.QUEUED,
