@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.os.Bundle
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -25,12 +24,28 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Serviço de primeiro plano exclusivo dos downloads temporários da Central de Vídeos.
  * Não reutiliza o DownloadService da Central de Áudio.
  */
+/** In-process handoff avoids Binder's transaction-size limit for signed URLs/headers. */
+private object VideoCacheDownloadRequestStore {
+    private val requests = ConcurrentHashMap<String, VideoCacheResolvedSource>()
+
+    fun put(source: VideoCacheResolvedSource): String {
+        val token = UUID.randomUUID().toString()
+        requests[token] = source
+        return token
+    }
+
+    fun take(token: String): VideoCacheResolvedSource? = requests.remove(token)
+    fun remove(token: String) { requests.remove(token) }
+}
+
 class VideoCacheDownloadService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val jobs = ConcurrentHashMap<String, Job>()
@@ -73,21 +88,17 @@ class VideoCacheDownloadService : Service() {
             return START_NOT_STICKY
         }
 
-        // A notificação é publicada antes de iniciar qualquer operação de rede.
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            buildNotification("Preparando vídeo(s)…", true),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            } else 0
-        )
-
         val cacheKey = "${source.sourceId}:${source.sourceVideoId}:${source.qualityHeight}"
         val job = scope.launch(start = CoroutineStart.LAZY) {
+            val lastProgressNotificationAt = AtomicLong(0L)
             try {
                 val app = application as CDVirtualApp
                 app.videoCacheDownloadCoordinator.prepare(source) { progress ->
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    val previous = lastProgressNotificationAt.get()
+                    if (now - previous < PROGRESS_NOTIFICATION_INTERVAL_MS ||
+                        !lastProgressNotificationAt.compareAndSet(previous, now)
+                    ) return@prepare
                     val total = progress.totalBytes?.let(::formatBytes) ?: "tamanho desconhecido"
                     notifications.notify(
                         NOTIFICATION_ID,
@@ -128,12 +139,23 @@ class VideoCacheDownloadService : Service() {
                 }
             }
         }
+        // Reserve the key before promoting the service. Duplicate requests do not
+        // start a foreground instance or alter the active-job count.
         val existing = jobs.putIfAbsent(cacheKey, job)
         if (existing != null) {
             job.cancel()
+            if (activeCount.get() == 0) stopSelfResult(startId)
             return START_NOT_STICKY
         }
         activeCount.incrementAndGet()
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            buildNotification("Preparando vídeo(s)…", true),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else 0
+        )
         job.start()
         return START_NOT_STICKY
     }
@@ -194,33 +216,10 @@ class VideoCacheDownloadService : Service() {
     }
 
     private fun readSource(intent: Intent): VideoCacheResolvedSource? = runCatching {
-        val sourceId = intent.getStringExtra(EXTRA_SOURCE_ID) ?: return null
-        val videoId = intent.getStringExtra(EXTRA_VIDEO_ID) ?: return null
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: return null
-        val mime = intent.getStringExtra(EXTRA_MIME) ?: return null
-        val extension = intent.getStringExtra(EXTRA_EXTENSION) ?: return null
-        val url = intent.getStringExtra(EXTRA_URL) ?: return null
-        val quality = intent.getIntExtra(EXTRA_QUALITY, 0)
-        val headers = intent.getBundleExtra(EXTRA_HEADERS)?.keySet()
-            ?.associateWith { key -> intent.getBundleExtra(EXTRA_HEADERS)?.getString(key).orEmpty() }
-            .orEmpty()
-        VideoCacheResolvedSource(
-            sourceId = sourceId,
-            sourceVideoId = videoId,
-            title = title,
-            uploader = intent.getStringExtra(EXTRA_UPLOADER),
-            thumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL),
-            durationMs = intent.getLongExtra(EXTRA_DURATION, 0L),
-            qualityHeight = quality,
-            transferRequest = VideoCacheTransferRequest(
-                mediaUrl = url,
-                mimeType = mime,
-                extension = extension,
-                headers = headers,
-                expectedBytes = intent.getLongExtra(EXTRA_EXPECTED_BYTES, 0L)
-            )
-        )
+        val requestToken = intent.getStringExtra(EXTRA_REQUEST_TOKEN) ?: return null
+        VideoCacheDownloadRequestStore.take(requestToken) ?: return null
     }.getOrNull()
+
 
     private fun formatBytes(bytes: Long): String = when {
         bytes >= 1024L * 1024L -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
@@ -233,6 +232,8 @@ class VideoCacheDownloadService : Service() {
         private const val CHANNEL_ID = "video_cache_downloads"
         private const val NOTIFICATION_ID = 4801
         private const val ACTION_CANCEL_ALL = "com.cdvirtual.app.video_cache.CANCEL_ALL"
+        private const val EXTRA_REQUEST_TOKEN = "request_token"
+        private const val PROGRESS_NOTIFICATION_INTERVAL_MS = 300L
         private const val EXTRA_SOURCE_ID = "source_id"
         private const val EXTRA_VIDEO_ID = "video_id"
         private const val EXTRA_TITLE = "title"
@@ -247,24 +248,17 @@ class VideoCacheDownloadService : Service() {
         private const val EXTRA_EXPECTED_BYTES = "expected_bytes"
 
         fun start(context: Context, source: VideoCacheResolvedSource) {
-            val headers = Bundle().apply {
-                source.transferRequest.headers.forEach { (key, value) -> putString(key, value) }
+            // URLs assinadas e cabeçalhos podem ser grandes. Não os serializamos no
+            // Bundle/Intent: trafega pelo Binder apenas um token curto em memória.
+            val token = VideoCacheDownloadRequestStore.put(source)
+            val intent = Intent(context, VideoCacheDownloadService::class.java)
+                .putExtra(EXTRA_REQUEST_TOKEN, token)
+            try {
+                androidx.core.content.ContextCompat.startForegroundService(context, intent)
+            } catch (failure: RuntimeException) {
+                VideoCacheDownloadRequestStore.remove(token)
+                throw failure
             }
-            val intent = Intent(context, VideoCacheDownloadService::class.java).apply {
-                putExtra(EXTRA_SOURCE_ID, source.sourceId)
-                putExtra(EXTRA_VIDEO_ID, source.sourceVideoId)
-                putExtra(EXTRA_TITLE, source.title)
-                putExtra(EXTRA_UPLOADER, source.uploader)
-                putExtra(EXTRA_THUMBNAIL, source.thumbnailUrl)
-                putExtra(EXTRA_DURATION, source.durationMs)
-                putExtra(EXTRA_QUALITY, source.qualityHeight)
-                putExtra(EXTRA_URL, source.transferRequest.mediaUrl)
-                putExtra(EXTRA_MIME, source.transferRequest.mimeType)
-                putExtra(EXTRA_EXTENSION, source.transferRequest.extension)
-                putExtra(EXTRA_HEADERS, headers)
-                putExtra(EXTRA_EXPECTED_BYTES, source.transferRequest.expectedBytes)
-            }
-            androidx.core.content.ContextCompat.startForegroundService(context, intent)
         }
     }
 }
