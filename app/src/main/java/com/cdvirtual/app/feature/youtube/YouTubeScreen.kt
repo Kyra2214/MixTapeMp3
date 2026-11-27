@@ -554,13 +554,17 @@ fun YouTubeScreen(onBack: () -> Unit) {
                                         Text(if (cached.lastPositionMs > 0L) "Retomar" else "Assistir")
                                     }
                                 }
-                                TextButton(onClick = {
-                                    scope.launch {
-                                        if (cached.status == VideoCacheStatus.PLAYING) mediaController?.stop()
-                                        app.videoCacheManager.removeManually(cached.cacheId)
-                                        cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
+                                TextButton(
+                                    enabled = cached.status != VideoCacheStatus.DOWNLOADING &&
+                                        cached.status != VideoCacheStatus.QUEUED,
+                                    onClick = {
+                                        scope.launch {
+                                            if (cached.status == VideoCacheStatus.PLAYING) mediaController?.stop()
+                                            app.videoCacheManager.removeManually(cached.cacheId)
+                                            cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
+                                        }
                                     }
-                                }) { Text("Apagar") }
+                                ) { Text("Apagar") }
                             }
                         }
                     }
