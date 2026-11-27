@@ -98,17 +98,58 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var cachePreparationJob by remember { mutableStateOf<Job?>(null) }
     var cacheProgress by remember { mutableStateOf<VideoCacheTransferProgress?>(null) }
     var cacheActionError by remember { mutableStateOf<String?>(null) }
+    var cacheActionNotice by remember { mutableStateOf<String?>(null) }
+    var pendingCachePreparation by remember { mutableStateOf<Pair<YouTubeVideo, Int>?>(null) }
+    var notificationPermissionDeclined by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun beginCachePreparation(video: YouTubeVideo, quality: Int, withoutNotificationPermission: Boolean = false) {
+        if (cachePreparing) return
+        cachePreparing = true
+        cacheActionError = null
+        cacheActionNotice = if (withoutNotificationPermission) {
+            "Preparação iniciada sem permissão de notificações. O Android poderá exibir o serviço apenas no gerenciador de tarefas."
+        } else null
+        cacheProgress = null
+        cachePreparationJob = scope.launch {
+            try {
+                val source = app.videoCacheSourceRegistry.resolve("youtube", video.videoId, quality)
+                    ?: throw IllegalStateException("A fonte não disponibilizou essa qualidade.")
+                VideoCacheDownloadService.start(context, source)
+                if (!withoutNotificationPermission) {
+                    cacheActionNotice = "Preparação iniciada em segundo plano. Você pode sair da tela; o progresso ficará na notificação."
+                }
+                videoForCache = null
+            } catch (cancelled: CancellationException) {
+                cacheActionNotice = "Preparação cancelada. O arquivo parcial foi preservado quando já havia transferência iniciada."
+                throw cancelled
+            } catch (failure: Exception) {
+                cacheActionError = failure.message ?: "Não foi possível preparar o vídeo."
+            } finally {
+                cachePreparing = false
+                cachePreparationJob = null
+            }
+        }
+    }
+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (!granted) {
-            // A preparação exige notificação visível para acompanhar/cancelar o serviço.
-            cacheActionError = "Permita notificações para iniciar a preparação em segundo plano."
+        val pending = pendingCachePreparation
+        pendingCachePreparation = null
+        if (pending != null) {
+            if (granted) {
+                beginCachePreparation(pending.first, pending.second)
+            } else {
+                // POST_NOTIFICATIONS não é requisito para iniciar um foreground service.
+                // Sem permissão, o Android pode ocultar a notificação da gaveta, mas
+                // mantém a informação do serviço no gerenciador de tarefas.
+                notificationPermissionDeclined = true
+                beginCachePreparation(pending.first, pending.second, withoutNotificationPermission = true)
+            }
         }
     }
-    var cacheActionNotice by remember { mutableStateOf<String?>(null) }
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
-    val scope = rememberCoroutineScope()
     LaunchedEffect(cachedVideos) {
         cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
     }
@@ -244,35 +285,16 @@ fun YouTubeScreen(onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in availableCacheQualities && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    val video = videoForCache ?: return@TextButton
+                    val quality = selectedCacheQuality
+                    val permissionMissing = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                    ) {
+                    if (permissionMissing && !notificationPermissionDeclined) {
+                        pendingCachePreparation = video to quality
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         return@TextButton
                     }
-                    val video = videoForCache ?: return@TextButton
-                    cachePreparing = true
-                    cacheActionError = null
-                    cacheActionNotice = null
-                    cacheProgress = null
-                    cachePreparationJob = scope.launch {
-                        try {
-                            val source = app.videoCacheSourceRegistry.resolve("youtube", video.videoId, selectedCacheQuality)
-                                ?: throw IllegalStateException("A fonte não disponibilizou essa qualidade.")
-                            VideoCacheDownloadService.start(context, source)
-                            cacheActionNotice = "Preparação iniciada em segundo plano. Você pode sair da tela; o progresso ficará na notificação."
-                            videoForCache = null
-                        } catch (cancelled: CancellationException) {
-                            // O coordenador preserva o .part e marca o item como interrompido.
-                            cacheActionNotice = "Preparação cancelada. O arquivo parcial foi preservado quando já havia transferência iniciada."
-                            throw cancelled
-                        } catch (failure: Exception) {
-                            cacheActionError = failure.message ?: "Não foi possível preparar o vídeo."
-                        } finally {
-                            cachePreparing = false
-                            cachePreparationJob = null
-                        }
-                    }
+                    beginCachePreparation(video, quality, withoutNotificationPermission = permissionMissing)
                 }) { Text(if (cachePreparing) "Preparando..." else "Preparar") }
             },
             dismissButton = {
