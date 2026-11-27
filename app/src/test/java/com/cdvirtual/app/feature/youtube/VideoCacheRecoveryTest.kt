@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class VideoCacheRecoveryTest {
     @Test
@@ -45,23 +46,29 @@ class VideoCacheRecoveryTest {
     @Test
     fun missingAndCorruptFilesAreReportedWithoutDeletingThem() = runBlocking {
         val missing = item("missing", VideoCacheStatus.READY, "/cache/missing.mp4", 20)
-        val corrupt = item("corrupt", VideoCacheStatus.READY, "/cache/corrupt.mp4", 30)
-        val corruptFile = File("/cache/corrupt.mp4")
-        val repository = FakeRepository(listOf(missing, corrupt))
-        val files = FakeFiles(
-            published = listOf(corruptFile),
-            validFiles = emptyMap()
-        )
+        val corruptFile = Files.createTempFile("corrupt-video-cache", ".mp4").toFile()
+        try {
+            corruptFile.writeBytes(byteArrayOf(1, 2, 3))
+            val corrupt = item("corrupt", VideoCacheStatus.READY, corruptFile.path, 30)
+            val repository = FakeRepository(listOf(missing, corrupt))
+            val files = FakeFiles(
+                published = listOf(corruptFile),
+                validFiles = emptyMap()
+            )
 
-        val report = VideoCacheRecovery(repository, files).recover()
+            val report = VideoCacheRecovery(repository, files).recover()
 
-        assertEquals(VideoCacheStatus.INTERRUPTED, repository.items.getValue("missing").status)
-        assertNull(repository.items.getValue("missing").filePath)
-        assertEquals(VideoCacheStatus.INTERRUPTED, repository.items.getValue("corrupt").status)
-        assertEquals(corruptFile.path, repository.items.getValue("corrupt").filePath)
-        assertEquals(listOf(corruptFile.path), report.orphanedFiles)
-        assertEquals(2, report.missingFiles)
-        assertTrue(files.deletedPublished.isEmpty())
+            assertEquals(VideoCacheStatus.INTERRUPTED, repository.items.getValue("missing").status)
+            assertNull(repository.items.getValue("missing").filePath)
+            assertEquals(VideoCacheStatus.INTERRUPTED, repository.items.getValue("corrupt").status)
+            assertEquals(corruptFile.path, repository.items.getValue("corrupt").filePath)
+            assertEquals(listOf(corruptFile.path), report.orphanedFiles)
+            assertEquals(2, report.missingFiles)
+            assertTrue(files.deletedPublished.isEmpty())
+            assertTrue("O arquivo corrompido deve ser preservado para remoção manual.", corruptFile.isFile)
+        } finally {
+            corruptFile.delete()
+        }
     }
 
     @Test
