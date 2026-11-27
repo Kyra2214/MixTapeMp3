@@ -471,3 +471,15 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Confirmadas as fronteiras da Central de Vídeos: arquivos/serviços/tabelas de áudio não fazem parte do diff; não há importação de arquivos locais.
 - Documentado o bloqueio do provedor autorizado e mantida a integração YouTube offline desativada.
 - A Fase 10 (build, testes e validação em aparelho) permanece pendente; nenhuma validação foi alegada como executada.
+
+ 
+## [fix] 2026-11-27 — Auditoria de robustez do cache de vídeo
+- Notificações de progresso limitadas a 300 ms por transferência.
+- Deduplicação ocorre antes de promover o serviço para foreground; duplicatas não alteram a contagem de tarefas.
+- Android 13+: solicitação de `POST_NOTIFICATIONS` antes de iniciar a preparação.
+- URLs assinadas e headers foram retirados dos extras da Intent; o handoff usa token em memória no mesmo processo para evitar limite Binder.
+- Testes unitários adicionados para parser de `Content-Range` e máquina de estados.
+- R8 permanece desligado no release por cautela com JNI/LAME; habilitação depende de regras keep verificadas e build minificado de release.
+- Build/testes/CI destas correções ainda pendentes. Não declarar validação concluída.
+- Nenhum arquivo da Central de Áudio foi intencionalmente alterado; regressão ainda deve ser validada.
+- Provedor autorizado segue vazio; cache offline do YouTube não está habilitado.
