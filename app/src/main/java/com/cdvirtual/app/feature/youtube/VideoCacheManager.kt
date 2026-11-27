@@ -156,6 +156,11 @@ class VideoCacheManager(
     /** Exclusão explícita do usuário, mesmo que o vídeo ainda não tenha sido assistido. */
     suspend fun removeManually(cacheId: String): Boolean = deletionMutex.withLock {
         val item = repository.find(cacheId) ?: return@withLock false
+        // Registrar a intenção antes de remover bytes. Se o processo cair durante a
+        // exclusão, a recuperação reconhecerá REMOVED e repetirá a limpeza com segurança.
+        if (item.status != VideoCacheStatus.REMOVED) {
+            repository.updateStatus(cacheId, VideoCacheStatus.REMOVED)
+        }
         val (finalRemoved, partialRemoved) = withContext(Dispatchers.IO) {
             val final = item.filePath.isNullOrBlank() ||
                 fileStore.deleteManagedFile(item.filePath)
