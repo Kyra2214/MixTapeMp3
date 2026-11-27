@@ -76,7 +76,8 @@ class VideoCacheDownloadService : Service() {
                         NOTIFICATION_ID,
                         buildNotification(
                             "Recebidos ${formatBytes(progress.downloadedBytes)} de $total",
-                            true
+                            true,
+                            progress.fraction
                         )
                     )
                 }
@@ -127,7 +128,7 @@ class VideoCacheDownloadService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(message: String, ongoing: Boolean): Notification {
+    private fun buildNotification(message: String, ongoing: Boolean, progress: Float? = null): Notification {
         val openApp = PendingIntent.getActivity(
             this,
             1,
@@ -144,6 +145,8 @@ class VideoCacheDownloadService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
 
         if (ongoing) {
+            if (progress == null) builder.setProgress(0, 0, true)
+            else builder.setProgress(100, (progress * 100).toInt().coerceIn(0, 100), false)
             val cancel = PendingIntent.getService(
                 this,
                 2,
