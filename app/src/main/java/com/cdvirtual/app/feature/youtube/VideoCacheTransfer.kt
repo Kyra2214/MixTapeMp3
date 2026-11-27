@@ -139,6 +139,10 @@ class VideoCacheTransfer(
                                 if (declaredTotal != null && declaredTotal <= rangeEnd) {
                                     throw IOException("A fonte informou um tamanho total incompatível com o intervalo.")
                                 }
+                                val expectedTotal = declaredTotal ?: request.expectedBytes.takeIf { it > 0L }
+                                if (expectedTotal != null && rangeEnd != expectedTotal - 1L) {
+                                    throw IOException("A fonte retornou somente parte do intervalo solicitado; o parcial foi preservado para retomada.")
+                                }
                             }
 
                             val responseMime = http.header("Content-Type")
