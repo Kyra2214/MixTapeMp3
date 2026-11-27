@@ -129,7 +129,7 @@
 ## FASE 9 — DOCUMENTAÇÃO E INTEGRAÇÃO
 
 - [x] Atualizar arquitetura, changelog, progresso e instruções de retomada para refletir a implementação desta etapa.
-- [ ] Documentar estados, diretórios, migrações e política de retenção.
+- [x] Documentar estados, diretórios, migrações e política de retenção em ARQUITETURA.md e neste roadmap.
 - [ ] Integrar as alterações na `main` sem force push.
 - [ ] Gerar checkpoints completos quando o ambiente permitir obter o arquivo-fonte integral.
 
@@ -154,7 +154,7 @@
 
 - Fases 0–3.1: auditoria, separação dos domínios, persistência, recuperação inicial e gerenciador implementados; validação funcional reservada à Fase 10.
 - Fase 3.2: contrato de admissão de fontes, registro de provedores, downloader HTTP exclusivo de vídeo, progresso, cancelamento com preservação do parcial, retomada por Range, verificação de espaço e serviço de primeiro plano exclusivo de vídeo implementados.
-- Fase 4: núcleo de transferência, publicação atômica, verificação de espaço conhecido, validação de contêiner/faixa de vídeo e serviço de primeiro plano implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local e integrar a seleção de qualidade às qualidades realmente oferecidas por ele.
+- Fase 4: núcleo de transferência, publicação atômica, verificação/reserva concorrente de espaço conhecido, validação de contêiner/faixa de vídeo, serviço de primeiro plano e consulta das qualidades realmente oferecidas pelo provedor implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local.
 - Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
 - Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
 - Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar, remoção manual, lista vazia, erros de fonte/espaço, seletor 240p/360p/480p e progresso de transferência. Cancelamento manual preserva o parcial. Miniatura/duração e progresso da visualização permanecem pendentes.
