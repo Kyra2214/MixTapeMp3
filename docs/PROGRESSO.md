@@ -250,3 +250,10 @@
 - Removida qualquer previsão de importação de vídeos locais: essa funcionalidade não faz parte do produto.
 - Diálogo de preparação agora exibe uma mensagem informativa após cancelamento, esclarecendo a preservação do parcial quando a transferência já havia iniciado.
 - Cache permanece restrito a provedores remotos com autorização expressa de armazenamento temporário.
+
+### Robustez do motor de cache
+- Recuperação de ausentes/corrompidos implementada com preservação e reporte de órfãos.
+- Validação de Content-Range reforçada para retomada HTTP.
+- Exclusão manual agora persiste REMOVED antes da operação física, para retry seguro após interrupção.
+- Ação de apagar desabilitada durante fila/transferência ativa.
+- Ainda sem build ou testes, conforme ordem definida: validação somente após concluir o roadmap.
