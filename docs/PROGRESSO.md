@@ -273,3 +273,7 @@
 - Reserva concorrente de espaço implementada para downloads com tamanho conhecido, ajustada conforme bytes recebidos.
 
 - Recuperação reconcilia arquivo já promovido com estado DOWNLOADING, concluindo READY sem baixar novamente; `completedAt` é persistido ao marcar conclusão natural.
+
+- Validação HTTP Range reforçada para rejeitar respostas 206 incompletas/incoerentes antes da publicação.
+- Recuperação evita validar duas vezes o mesmo arquivo e conclui publicação que ficou entre rename e commit Room.
+- Reserva de espaço estimado compartilhada entre transferências concorrentes.
