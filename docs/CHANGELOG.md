@@ -429,3 +429,7 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 
 - Recuperação aproveita arquivos íntegros já promovidos quando o processo caiu antes de persistir READY no Room.
 - Timestamp `completedAt` passa a ser persistido ao registrar conclusão natural, antes da limpeza do arquivo.
+
+- Respostas HTTP 206 agora precisam declarar intervalo coerente e cobrir até o fim do recurso conhecido; comprimentos parciais não são confundidos com tamanho total.
+- Recuperação valida cada arquivo publicado uma única vez e conclui arquivos já promovidos quando o processo caiu antes de gravar READY.
+- A reserva de espaço é compartilhada entre preparações concorrentes e diminui conforme o progresso de cada transferência.
