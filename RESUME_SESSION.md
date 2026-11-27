@@ -41,3 +41,5 @@
 - Coordenador agora trata cancelamento em toda a preparação, inclusive antes de entrar no HTTP, e persiste INTERRUPTED para permitir retry/remoção.
 
 - A seção Cache ganhou ação Retomar preparação para itens INTERRUPTED; a UI resolve novamente a mesma fonte/qualidade e entrega ao serviço de primeiro plano para retomar o parcial.
+
+- Notificação do serviço agora mostra barra de progresso quando disponível e informa falha/cancelamento ao finalizar; ação Cancelar interrompe as transferências preservando parciais.
