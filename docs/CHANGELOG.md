@@ -464,3 +464,10 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 ## [dev] Central de Vídeos — validação completa de respostas HTTP 206
 - Respostas parciais precisam declarar tamanho total numérico e cobrir até o último byte; respostas ambíguas/incompletas são rejeitadas antes de publicar o arquivo.
 - O `.part` é preservado para retomada/inspeção; nenhuma mudança na Central de Áudio.
+
+
+## [dev] 2026-11-27 — Fechamento da implementação do motor de cache temporário
+- Revisado estaticamente o ciclo reserva, transferência, publicação, reprodução, retenção e recuperação.
+- Confirmadas as fronteiras da Central de Vídeos: arquivos/serviços/tabelas de áudio não fazem parte do diff; não há importação de arquivos locais.
+- Documentado o bloqueio do provedor autorizado e mantida a integração YouTube offline desativada.
+- A Fase 10 (build, testes e validação em aparelho) permanece pendente; nenhuma validação foi alegada como executada.
