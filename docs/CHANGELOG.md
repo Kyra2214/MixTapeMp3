@@ -426,3 +426,6 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 
 - Provedor agora declara as qualidades disponíveis por vídeo; a interface só apresenta e habilita resoluções efetivamente retornadas (240p/360p/480p).
 - Coordenador reserva espaço estimado entre transferências concorrentes e atualiza a reserva conforme o progresso, evitando que downloads conhecidos comprometam o mesmo espaço livre.
+
+- Recuperação aproveita arquivos íntegros já promovidos quando o processo caiu antes de persistir READY no Room.
+- Timestamp `completedAt` passa a ser persistido ao registrar conclusão natural, antes da limpeza do arquivo.
