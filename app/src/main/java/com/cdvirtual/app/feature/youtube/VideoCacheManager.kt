@@ -82,6 +82,17 @@ class VideoCacheManager(
 
     suspend fun find(cacheId: String): VideoCacheEntity? = repository.find(cacheId)
 
+    /** Reaproveita uma publicação íntegra que ainda esteja marcada como INTERRUPTED. */
+    suspend fun restoreReadyIfValid(cacheId: String): VideoCacheEntity? {
+        val item = repository.find(cacheId) ?: return null
+        if (item.status != VideoCacheStatus.INTERRUPTED) return null
+        val validFile = withContext(Dispatchers.IO) {
+            fileStore.resolveValidFile(item.filePath, item.sizeBytes)
+        } ?: return null
+        repository.markReadyAfterPromotion(cacheId, validFile)
+        return repository.find(cacheId)
+    }
+
     suspend fun startDownload(cacheId: String) =
         repository.updateStatus(cacheId, VideoCacheStatus.DOWNLOADING)
 
