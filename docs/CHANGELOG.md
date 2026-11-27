@@ -419,3 +419,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - A interface agora delega a preparação ao serviço; sair da tela ou minimizar o app não cancela a transferência.
 - O serviço não reutiliza o serviço de download da Central de Áudio. Limite de três transferências permanece no coordenador.
 - Cancelamento enquanto aguarda vaga também deixa o item em estado INTERRUPTED.
+
+- Registros em estado REMOVED permanecem visíveis quando a exclusão física falha, permitindo nova tentativa manual; a recuperação também repete a limpeza no próximo início.
