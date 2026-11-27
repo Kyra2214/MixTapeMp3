@@ -91,6 +91,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var cachePreparationJob by remember { mutableStateOf<Job?>(null) }
     var cacheProgress by remember { mutableStateOf<VideoCacheTransferProgress?>(null) }
     var cacheActionError by remember { mutableStateOf<String?>(null) }
+    var cacheActionNotice by remember { mutableStateOf<String?>(null) }
     val playbackError by YouTubePlaybackStatus.error.collectAsState()
     val scope = rememberCoroutineScope()
     LaunchedEffect(cachedVideos) {
@@ -197,6 +198,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         Text("${formatBytes(progress.downloadedBytes)} de ${progress.totalBytes?.let(::formatBytes) ?: "tamanho desconhecido"}")
                     }
                     cacheActionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    cacheActionNotice?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                     if (!app.videoCacheSourceRegistry.hasProvider("youtube")) {
                         Text("Nenhum provedor autorizado está conectado. A preparação ficará disponível quando uma fonte compatível for integrada.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
@@ -207,6 +209,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     val video = videoForCache ?: return@TextButton
                     cachePreparing = true
                     cacheActionError = null
+                    cacheActionNotice = null
                     cacheProgress = null
                     cachePreparationJob = scope.launch {
                         try {
@@ -217,6 +220,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             videoForCache = null
                         } catch (cancelled: CancellationException) {
                             // O coordenador preserva o .part e marca o item como interrompido.
+                            cacheActionNotice = "Preparação cancelada. O arquivo parcial foi preservado quando já havia transferência iniciada."
                             throw cancelled
                         } catch (failure: Exception) {
                             cacheActionError = failure.message ?: "Não foi possível preparar o vídeo."
@@ -577,7 +581,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     items(homeVideos, key = { "followed-" + it.videoId }) { video ->
                         VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {
                             video.channelUrl?.let { openChannel(it, video.channel, video.channelAvatarUrl) }
-                        }, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheProgress = null }) else null)
+                        }, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheActionNotice = null; cacheProgress = null }) else null)
                     }
                 } else if (results.isNotEmpty()) item { Text("Vídeos da última pesquisa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
