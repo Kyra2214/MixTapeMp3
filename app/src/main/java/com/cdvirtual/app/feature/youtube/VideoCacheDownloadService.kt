@@ -234,18 +234,6 @@ class VideoCacheDownloadService : Service() {
         private const val ACTION_CANCEL_ALL = "com.cdvirtual.app.video_cache.CANCEL_ALL"
         private const val EXTRA_REQUEST_TOKEN = "request_token"
         private const val PROGRESS_NOTIFICATION_INTERVAL_MS = 300L
-        private const val EXTRA_SOURCE_ID = "source_id"
-        private const val EXTRA_VIDEO_ID = "video_id"
-        private const val EXTRA_TITLE = "title"
-        private const val EXTRA_UPLOADER = "uploader"
-        private const val EXTRA_THUMBNAIL = "thumbnail"
-        private const val EXTRA_DURATION = "duration"
-        private const val EXTRA_QUALITY = "quality"
-        private const val EXTRA_URL = "media_url"
-        private const val EXTRA_MIME = "mime"
-        private const val EXTRA_EXTENSION = "extension"
-        private const val EXTRA_HEADERS = "headers"
-        private const val EXTRA_EXPECTED_BYTES = "expected_bytes"
 
         fun start(context: Context, source: VideoCacheResolvedSource) {
             // URLs assinadas e cabeçalhos podem ser grandes. Não os serializamos no
