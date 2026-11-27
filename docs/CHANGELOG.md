@@ -460,3 +460,7 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 ## [dev] Central de Vídeos — isolamento de intents inválidas no serviço
 - `VideoCacheDownloadService` não encerra transferências existentes quando recebe Intent inválida/nula; só encerra a instância quando não há trabalho ativo.
 - Nenhuma alteração na Central de Áudio. Build/testes permanecem reservados à fase final.
+
+## [dev] Central de Vídeos — validação completa de respostas HTTP 206
+- Respostas parciais precisam declarar tamanho total numérico e cobrir até o último byte; respostas ambíguas/incompletas são rejeitadas antes de publicar o arquivo.
+- O `.part` é preservado para retomada/inspeção; nenhuma mudança na Central de Áudio.
