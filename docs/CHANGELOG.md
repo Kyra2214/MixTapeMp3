@@ -393,3 +393,10 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Interface de preparação inclui seletor 240p/360p/480p e progresso em bytes/barra, com indicação de total desconhecido.
 - A ação de preparação só é oferecida quando existe provedor autorizado registrado; nenhum provedor YouTube foi ativado.
 - Nenhum arquivo da Central de Áudio foi alterado.
+
+
+## [dev] Central de Vídeos — cancelamento controlado da preparação
+- Adicionado botão para cancelar uma preparação em andamento diretamente no diálogo.
+- O cancelamento cancela a coroutine da transferência; o coordenador mantém o `.part` e marca o item como INTERRUPTED para permitir retomada quando a fonte oferecer HTTP Range.
+- A interface distingue cancelamento de falha e não fecha o diálogo antes de a operação terminar.
+- Nenhuma alteração na Central de Áudio. Nenhum build/teste executado.
