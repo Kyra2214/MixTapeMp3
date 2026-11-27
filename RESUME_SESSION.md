@@ -37,3 +37,5 @@
 - Recuperação agora reconhece arquivo válido promovido antes de uma queda ocorrida no commit Room READY; conclusão natural grava `completedAt` antes da limpeza.
 
 - HTTP 206 valida Content-Range e rejeita intervalos que não chegam ao fim do tamanho total conhecido; progresso parcial não é tratado como tamanho total. Recuperação faz uma única validação por arquivo e recupera rename concluído antes do commit READY.
+
+- Coordenador agora trata cancelamento em toda a preparação, inclusive antes de entrar no HTTP, e persiste INTERRUPTED para permitir retry/remoção.
