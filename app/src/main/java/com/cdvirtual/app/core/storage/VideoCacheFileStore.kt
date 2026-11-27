@@ -22,7 +22,11 @@ interface VideoCacheRecoveryFileStore {
     fun listPartialFiles(): List<File>
 }
 
-class VideoCacheFileStore(context: Context) : VideoCacheRecoveryFileStore {
+interface VideoCacheTransferFileStore {
+    fun getOrCreatePartialFile(cacheId: String): File
+}
+
+class VideoCacheFileStore(context: Context) : VideoCacheRecoveryFileStore, VideoCacheTransferFileStore {
     private val directory = MediaStorageLayout.videoCacheDir(context).canonicalFile
 
     fun cacheDirectory(): File = directory
@@ -42,7 +46,7 @@ class VideoCacheFileStore(context: Context) : VideoCacheRecoveryFileStore {
      * Retorna o parcial existente para retomada ou cria um novo arquivo.
      * O arquivo permanece restrito ao diretório exclusivo de vídeos.
      */
-    fun getOrCreatePartialFile(cacheId: String): File {
+    override fun getOrCreatePartialFile(cacheId: String): File {
         requireSafeId(cacheId)
         if (!directory.exists() && !directory.mkdirs()) {
             throw IOException("Não foi possível criar o diretório do cache de vídeos.")
