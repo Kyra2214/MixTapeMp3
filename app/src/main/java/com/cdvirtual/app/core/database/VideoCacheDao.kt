@@ -23,7 +23,7 @@ interface VideoCacheDao {
     @Query("SELECT * FROM video_cache WHERE sourceId = :sourceId AND sourceVideoId = :sourceVideoId LIMIT 1")
     suspend fun findBySource(sourceId: String, sourceVideoId: String): VideoCacheEntity?
 
-    @Query("SELECT * FROM video_cache WHERE status != 'REMOVED' ORDER BY createdAt DESC")
+    @Query("SELECT * FROM video_cache ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<VideoCacheEntity>>
 
     @Query("SELECT COUNT(*) FROM video_cache WHERE status != 'REMOVED'")
