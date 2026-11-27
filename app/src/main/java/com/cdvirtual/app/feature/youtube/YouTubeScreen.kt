@@ -215,8 +215,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         try {
                             val source = app.videoCacheSourceRegistry.resolve("youtube", video.videoId, selectedCacheQuality)
                                 ?: throw IllegalStateException("A fonte não disponibilizou essa qualidade.")
-                            app.videoCacheDownloadCoordinator.prepare(source) { progress -> cacheProgress = progress }
-                            cacheCapacity = app.videoCacheManager.capacity()
+                            VideoCacheDownloadService.start(context, source)
+                            cacheActionNotice = "Preparação iniciada em segundo plano. Você pode sair da tela; o progresso ficará na notificação."
                             videoForCache = null
                         } catch (cancelled: CancellationException) {
                             // O coordenador preserva o .part e marca o item como interrompido.
