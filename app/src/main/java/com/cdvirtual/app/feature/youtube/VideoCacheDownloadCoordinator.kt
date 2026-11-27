@@ -93,6 +93,13 @@ class VideoCacheDownloadCoordinator(
             }
             return manager.find(item.cacheId)
                 ?: throw IllegalStateException("O item desapareceu após a preparação.")
+        } catch (cancelled: CancellationException) {
+            // Também cobre cancelamento durante reserva de espaço ou resolução do fluxo,
+            // antes de a transferência HTTP entrar no coordenador.
+            withContext(NonCancellable) {
+                runCatching { manager.markInterrupted(item.cacheId) }
+            }
+            throw cancelled
         } finally {
             preparingCacheIds.remove(item.cacheId)
             reservedSpaceBytes.remove(item.cacheId)
