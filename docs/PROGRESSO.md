@@ -232,3 +232,9 @@
 - Pendentes: integração de provedor permitido, seletor de qualidade por vídeo, progresso visual, estados de erro/armazenamento e validação final.
 - Builds/testes não executados por determinação do roadmap: somente após a implementação completa.
 - Regra de escopo respeitada: nenhuma alteração em arquivos da Central de Áudio.
+
+### Continuação — UI e concorrência do cache de vídeos
+- Interface de preparação com seletor 240p/360p/480p, progresso em bytes e barra de progresso; controles só aparecem com provedor autorizado registrado.
+- Coordenador com limite de 3 transferências simultâneas por padrão e bloqueio de duplicidade por cacheId.
+- Provedor YouTube permanece desativado até existir integração que autorize expressamente o armazenamento local.
+- Sem build/testes nesta etapa, conforme instrução de executar validação somente ao fim do roadmap.
