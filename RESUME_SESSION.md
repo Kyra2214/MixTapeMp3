@@ -43,3 +43,5 @@
 - A seção Cache ganhou ação Retomar preparação para itens INTERRUPTED; a UI resolve novamente a mesma fonte/qualidade e entrega ao serviço de primeiro plano para retomar o parcial.
 
 - Notificação do serviço agora mostra barra de progresso quando disponível e informa falha/cancelamento ao finalizar; ação Cancelar interrompe as transferências preservando parciais.
+
+- Recuperação mantém caminho de arquivo corrompido para remoção manual; retry bloqueia sobrescrita silenciosa. Se o arquivo publicado estiver íntegro mas ainda INTERRUPTED, o gerenciador restaura READY sem baixar de novo.
