@@ -72,26 +72,25 @@ class VideoCacheDownloadCoordinator(
         try {
             transferSemaphore.withPermit {
                 manager.startDownload(cacheId)
-                try {
-                    val partial = transfer.download(cacheId, request, onProgress)
-                    manager.publishDownloadedFile(
-                        cacheId = cacheId,
-                        partialFile = partial,
-                        extension = request.extension,
-                        expectedBytes = request.expectedBytes
-                    )
-                } catch (cancelled: CancellationException) {
-                    withContext(NonCancellable) {
-                        runCatching { manager.markInterrupted(cacheId) }
-                    }
-                    throw cancelled
-                } catch (failure: Exception) {
-                    withContext(NonCancellable) {
-                        runCatching { manager.markInterrupted(cacheId) }
-                    }
-                    throw failure
-                }
+                val partial = transfer.download(cacheId, request, onProgress)
+                manager.publishDownloadedFile(
+                    cacheId = cacheId,
+                    partialFile = partial,
+                    extension = request.extension,
+                    expectedBytes = request.expectedBytes
+                )
             }
+        } catch (cancelled: CancellationException) {
+            // Também cobre cancelamento enquanto aguarda uma das três vagas.
+            withContext(NonCancellable) {
+                runCatching { manager.markInterrupted(cacheId) }
+            }
+            throw cancelled
+        } catch (failure: Exception) {
+            withContext(NonCancellable) {
+                runCatching { manager.markInterrupted(cacheId) }
+            }
+            throw failure
         } finally {
             activeCacheIds.remove(cacheId)
         }
