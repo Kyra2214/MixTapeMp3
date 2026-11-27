@@ -31,3 +31,5 @@
 - Registros REMOVED com falha de exclusão permanecem visíveis para retry; a recuperação tenta novamente na próxima inicialização.
 
 - Recuperação também converte reservas QUEUED abandonadas em INTERRUPTED, mantendo parciais e permitindo retry/remoção manual.
+
+- Contrato de fonte ganhou consulta de qualidades por vídeo; a UI só oferece 240p/360p/480p confirmados. Coordenador reserva espaço para downloads conhecidos em paralelo e reduz a reserva com o progresso.
