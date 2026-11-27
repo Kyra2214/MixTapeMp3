@@ -6,6 +6,24 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** Narrow persistence contract keeps startup recovery testable without Room or Android. */
+interface VideoCacheRecoveryRepository {
+    suspend fun all(): List<com.cdvirtual.app.core.database.VideoCacheEntity>
+    suspend fun updateStatus(cacheId: String, status: String)
+    suspend fun markReadyAfterPromotion(cacheId: String, publishedFile: File)
+    suspend fun save(item: com.cdvirtual.app.core.database.VideoCacheEntity)
+    suspend fun deleteRecordAfterFileRemoval(cacheId: String)
+}
+
+/** File operations used by recovery; production implementation remains video-cache-only. */
+interface VideoCacheRecoveryFileStore {
+    fun resolveValidFile(path: String?, expectedBytes: Long = 0L): File?
+    fun deleteManagedFile(path: String?): Boolean
+    fun deletePartialFile(cacheId: String): Boolean
+    fun listPublishedFiles(): List<File>
+    fun listPartialFiles(): List<File>
+}
+
 data class VideoCacheRecoveryReport(
     val interruptedDownloads: Int,
     val pausedPlayback: Int,
