@@ -312,3 +312,15 @@
 - **Validação pendente por decisão do roadmap:** nenhum build/teste foi executado. Fase 10 continua pendente, incluindo migração Room, concorrência, regressão da Central de Áudio, reprodução/background e validação em aparelho.
 - PR #11 permanece draft e a branch não foi integrada à main. Não integrar enquanto a validação final não for realizada e o provedor não for resolvido/explicitamente retirado do escopo.
 - Status honesto: motor e UI implementados estaticamente; integração de provedor autorizado e validação final não concluídas. Não declarar 100% nem release pronto.
+
+ 
+## 2026-11-27 — Correções pós-auditoria aplicadas na main
+- Notificações de progresso limitadas a 300 ms por transferência.
+- Deduplicação ocorre antes de promover o serviço para foreground; duplicatas não alteram a contagem de tarefas.
+- Android 13+: solicitação de `POST_NOTIFICATIONS` antes de iniciar a preparação.
+- URLs assinadas e headers foram retirados dos extras da Intent; o handoff usa token em memória no mesmo processo para evitar limite Binder.
+- Testes unitários adicionados para parser de `Content-Range` e máquina de estados.
+- R8 permanece desligado no release por cautela com JNI/LAME; habilitação depende de regras keep verificadas e build minificado de release.
+- Build/testes/CI destas correções ainda pendentes. Não declarar validação concluída.
+- Nenhum arquivo da Central de Áudio foi intencionalmente alterado; regressão ainda deve ser validada.
+- Provedor autorizado segue vazio; cache offline do YouTube não está habilitado.
