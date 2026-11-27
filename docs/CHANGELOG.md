@@ -400,3 +400,8 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - O cancelamento cancela a coroutine da transferência; o coordenador mantém o `.part` e marca o item como INTERRUPTED para permitir retomada quando a fonte oferecer HTTP Range.
 - A interface distingue cancelamento de falha e não fecha o diálogo antes de a operação terminar.
 - Nenhuma alteração na Central de Áudio. Nenhum build/teste executado.
+
+## [dev] Central de Vídeos — cancelamento e escopo
+- O diálogo agora informa quando uma preparação foi cancelada e esclarece que o parcial é preservado quando a transferência já havia começado.
+- Escopo reafirmado: não haverá importação de arquivos locais, galeria ou SAF; somente fontes remotas autorizadas poderão alimentar o cache temporário.
+- Central de Áudio permanece intocada. Nenhum build/teste executado.
