@@ -12,6 +12,9 @@ import com.cdvirtual.app.core.database.VideoCacheQuality
 interface VideoCacheSourceProvider {
     val sourceId: String
 
+    /** Retorna apenas qualidades que a fonte confirmou para este vídeo. */
+    suspend fun availableQualities(sourceVideoId: String): Set<Int> = emptySet()
+
     suspend fun resolve(
         sourceVideoId: String,
         qualityHeight: Int
@@ -55,6 +58,14 @@ class VideoCacheSourceRegistry(
     }
 
     fun hasProvider(sourceId: String): Boolean = providers.containsKey(sourceId)
+
+    suspend fun availableQualities(sourceId: String, sourceVideoId: String): Set<Int> {
+        require(sourceVideoId.isNotBlank())
+        return providers[sourceId]?.availableQualities(sourceVideoId)
+            ?.filter { it in VideoCacheQuality.supportedHeights }
+            ?.toSet()
+            .orEmpty()
+    }
 
     suspend fun resolve(
         sourceId: String,
