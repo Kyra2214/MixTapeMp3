@@ -33,11 +33,12 @@ class VideoCacheRecovery(
         var completedItemsRemoved = 0
 
         val entries = repository.all()
-        val knownPaths = entries.mapNotNull { entry ->
-            fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)?.canonicalPath
-        }.toSet()
+        val validFiles = entries.associate { entry ->
+            entry.cacheId to fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
+        }
+        val knownPaths = validFiles.values.filterNotNull().map { it.canonicalPath }.toSet()
         for (entry in entries) {
-            val validFile = fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
+            val validFile = validFiles[entry.cacheId]
 
             when (entry.status) {
                 VideoCacheStatus.QUEUED -> {
