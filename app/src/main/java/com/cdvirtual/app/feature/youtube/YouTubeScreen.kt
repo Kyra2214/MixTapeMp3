@@ -558,7 +558,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                     items(homeVideos, key = { "followed-" + it.videoId }) { video ->
                         VideoResultRow(video, { startYouTubePlayback(video.videoId) }, { startYouTubePlayback(video.videoId, true) }, {}, {
                             video.channelUrl?.let { openChannel(it, video.channel, video.channelAvatarUrl) }
-                        })
+                        }, if (app.videoCacheSourceRegistry.hasProvider("youtube")) ({ videoForCache = video; cacheActionError = null; cacheProgress = null }) else null)
                     }
                 } else if (results.isNotEmpty()) item { Text("Vídeos da última pesquisa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
             }
