@@ -109,8 +109,8 @@
 ## FASE 7 — INTERFACE DA CENTRAL DE VÍDEOS
 
 - [x] Criar seção Cache temporário dentro da Central de Vídeos, independente da biblioteca de áudio.
-- [x] Exibir título, qualidade, tamanho e estado; miniatura e duração na listagem ficam pendentes.
-- [x] Exibir progresso do download (barra e bytes recebidos/total); progresso da visualização permanece pendente.
+- [x] Exibir título, miniatura, duração, qualidade, tamanho e estado na listagem do cache.
+- [x] Exibir progresso do download (barra e bytes recebidos/total) e progresso de visualização com posição/duração persistidas.
 - [x] Oferecer assistir/retomar e remover manualmente.
 - [x] Exibir limite de itens e armazenamento ocupado.
 - [x] Permitir qualidade padrão e alteração individual por vídeo na preparação.
@@ -157,7 +157,7 @@
 - Fase 4: núcleo de transferência, publicação atômica, verificação/reserva concorrente de espaço conhecido, validação de contêiner/faixa de vídeo, serviço de primeiro plano e consulta das qualidades realmente oferecidas pelo provedor implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local.
 - Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
 - Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
-- Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar, remoção manual, lista vazia, erros de fonte/espaço, seletor 240p/360p/480p e progresso de transferência. Cancelamento manual preserva o parcial. Miniatura/duração e progresso da visualização permanecem pendentes.
+- Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, miniatura, duração, assistir/retomar, remoção manual, lista vazia, erros de fonte/espaço, seletor 240p/360p/480p, progresso de transferência e posição/progresso de visualização persistidos.
 - Fase 8: recuperação trata arquivos ausentes/corrompidos sem apagá-los silenciosamente, preserva parciais/órfãos e reconcilia estados. Remoção manual persiste REMOVED antes da exclusão; conclusão natural persiste COMPLETED. Concorrência real permanece para a Fase 10.
 - Fase 10: reservada exclusivamente à validação final. Nenhum teste ou build foi executado nesta etapa.
 - Bloqueio conhecido: não há provedor oficialmente autorizado confirmado para cache temporário de vídeos do YouTube. O registro de provedores permanece vazio; a reprodução online continua intacta. Não contornar restrições da fonte.
