@@ -185,8 +185,12 @@ fun YouTubeScreen(onBack: () -> Unit) {
                         }
                     }
                     cacheProgress?.let { progress ->
-                        if (progress.fraction != null) androidx.compose.material3.LinearProgressIndicator(progress = { progress.fraction }, modifier = Modifier.fillMaxWidth())
-                        else androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        val fraction = progress.fraction
+                        if (fraction != null) {
+                            androidx.compose.material3.LinearProgressIndicator(progress = fraction, modifier = Modifier.fillMaxWidth())
+                        } else {
+                            androidx.compose.material3.LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                         Text("${formatBytes(progress.downloadedBytes)} de ${progress.totalBytes?.let(::formatBytes) ?: "tamanho desconhecido"}")
                     }
                     cacheActionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
