@@ -1,6 +1,6 @@
 package com.cdvirtual.app.feature.youtube
 
-import com.cdvirtual.app.core.storage.VideoCacheFileStore
+import com.cdvirtual.app.core.storage.VideoCacheTransferFileStore
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -91,7 +91,7 @@ internal fun parseVideoCacheContentRange(header: String?): VideoCacheContentRang
  * oferece HTTP Range. Não acessa tabelas, filas, arquivos ou serviços da Central de Áudio.
  */
 class VideoCacheTransfer(
-    private val fileStore: VideoCacheFileStore,
+    private val fileStore: VideoCacheTransferFileStore,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
