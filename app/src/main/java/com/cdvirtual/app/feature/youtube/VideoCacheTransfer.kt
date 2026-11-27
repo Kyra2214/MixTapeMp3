@@ -75,7 +75,7 @@ internal data class VideoCacheContentRange(
 
 /** Strict parser for RFC 7233 Content-Range values used by resumable transfers. */
 internal fun parseVideoCacheContentRange(header: String?): VideoCacheContentRange? {
-    val match = Regex("""^bytes\\s+(\\d+)-(\\d+)/(\\d+)$""", RegexOption.IGNORE_CASE)
+    val match = Regex("""^bytes\s+(\d+)-(\d+)/(\d+)$""", RegexOption.IGNORE_CASE)
         .matchEntire(header?.trim().orEmpty()) ?: return null
     val start = match.groupValues[1].toLongOrNull() ?: return null
     val end = match.groupValues[2].toLongOrNull() ?: return null
