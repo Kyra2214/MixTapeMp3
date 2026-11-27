@@ -166,8 +166,8 @@ class VideoCacheTransfer(
                             }
                             val effectiveOffset = if (append) requestedOffset else 0L
                             val totalBytes = totalFromRange
-                                ?: responseLength?.let { it + effectiveOffset }
                                 ?: request.expectedBytes.takeIf { it > 0L }
+                                ?: if (http.code == 206) null else responseLength
 
                             if (request.expectedBytes > 0L && totalBytes != null &&
                                 totalBytes != request.expectedBytes
