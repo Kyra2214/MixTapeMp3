@@ -2,6 +2,9 @@ package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.database.VideoCacheStatus
 import com.cdvirtual.app.core.storage.VideoCacheFileStore
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class VideoCacheRecoveryReport(
     val interruptedDownloads: Int,
@@ -15,28 +18,36 @@ data class VideoCacheRecoveryReport(
 /**
  * Reconcilia Room e arquivos no início do app.
  *
- * Nunca apaga arquivos .part nem arquivos publicados sem registro: ambos são reportados
- * para decisão posterior do gerenciador, pois podem representar downloads retomáveis ou
- * um arquivo completo cujo registro ainda não foi persistido.
+ * Arquivos parciais e arquivos publicados sem registro íntegro nunca são apagados
+ * automaticamente. Arquivos ausentes/corrompidos são desassociados do item e
+ * reportados para que a interface possa orientar uma nova preparação.
  */
 class VideoCacheRecovery(
     private val repository: VideoCacheRepository,
     private val fileStore: VideoCacheFileStore
 ) {
-    suspend fun recover(): VideoCacheRecoveryReport {
+    suspend fun recover(): VideoCacheRecoveryReport = withContext(Dispatchers.IO) {
         var interruptedDownloads = 0
         var pausedPlayback = 0
         var missingFiles = 0
         var completedItemsRemoved = 0
 
         val entries = repository.all()
-        val knownPaths = entries.mapNotNull { it.filePath }
-            .mapNotNull { path -> runCatching { java.io.File(path).canonicalPath }.getOrNull() }
-            .toSet()
+        val knownPaths = entries.mapNotNull { entry ->
+            fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)?.canonicalPath
+        }.toSet()
 
         for (entry in entries) {
             val validFile = fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
+            val hasPartial = fileStore.listPartialFiles().any { it.name == "${entry.cacheId}.part" }
+
             when (entry.status) {
+                VideoCacheStatus.QUEUED -> {
+                    if (hasPartial) {
+                        repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
+                        interruptedDownloads++
+                    }
+                }
                 VideoCacheStatus.DOWNLOADING -> {
                     repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
                     interruptedDownloads++
@@ -46,25 +57,13 @@ class VideoCacheRecovery(
                         repository.updateStatus(entry.cacheId, VideoCacheStatus.PAUSED)
                         pausedPlayback++
                     } else {
-                        repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
-                        repository.save(entry.copy(
-                            filePath = null,
-                            sizeBytes = 0L,
-                            status = VideoCacheStatus.INTERRUPTED,
-                            updatedAt = System.currentTimeMillis()
-                        ))
+                        markMissing(entry)
                         missingFiles++
                     }
                 }
                 VideoCacheStatus.READY, VideoCacheStatus.PAUSED -> {
                     if (validFile == null) {
-                        repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
-                        repository.save(entry.copy(
-                            filePath = null,
-                            sizeBytes = 0L,
-                            status = VideoCacheStatus.INTERRUPTED,
-                            updatedAt = System.currentTimeMillis()
-                        ))
+                        markMissing(entry)
                         missingFiles++
                     }
                 }
@@ -74,8 +73,8 @@ class VideoCacheRecovery(
                     }
                 }
                 VideoCacheStatus.COMPLETED, VideoCacheStatus.REMOVED -> {
-                    // Uma interrupção entre a conclusão natural e a limpeza pode deixar
-                    // um .part residual. A recuperação remove ambos antes de apagar o registro.
+                    // A conclusão/remoção já foi solicitada. Final e parcial são
+                    // limpos antes do registro; falhas mantêm o registro para retry.
                     val finalRemoved = entry.filePath.isNullOrBlank() ||
                         fileStore.deleteManagedFile(entry.filePath)
                     val partialRemoved = fileStore.deletePartialFile(entry.cacheId)
@@ -87,13 +86,13 @@ class VideoCacheRecovery(
             }
         }
 
+        // Somente arquivos íntegros referenciados por registros são considerados conhecidos.
+        // Um arquivo corrompido permanece no disco, mas aparece como órfão para inspeção.
         val orphanedFiles = fileStore.listPublishedFiles()
-            .filter { file ->
-                runCatching { file.canonicalPath }.getOrNull() !in knownPaths
-            }
+            .filter { file -> runCatching { file.canonicalPath }.getOrNull() !in knownPaths }
             .map { it.absolutePath }
 
-        return VideoCacheRecoveryReport(
+        VideoCacheRecoveryReport(
             interruptedDownloads = interruptedDownloads,
             pausedPlayback = pausedPlayback,
             missingFiles = missingFiles,
@@ -101,5 +100,14 @@ class VideoCacheRecovery(
             orphanedFiles = orphanedFiles,
             partialFiles = fileStore.listPartialFiles().map { it.absolutePath }
         )
+    }
+
+    private suspend fun markMissing(entry: com.cdvirtual.app.core.database.VideoCacheEntity) {
+        repository.save(entry.copy(
+            filePath = null,
+            sizeBytes = 0L,
+            status = VideoCacheStatus.INTERRUPTED,
+            updatedAt = System.currentTimeMillis()
+        ))
     }
 }
