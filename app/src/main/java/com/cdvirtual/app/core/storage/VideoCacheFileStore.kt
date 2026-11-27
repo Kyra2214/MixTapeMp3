@@ -83,7 +83,7 @@ class VideoCacheFileStore(context: Context) : com.cdvirtual.app.feature.youtube.
         rollbackVideoCachePromotion(publishedFile, directory, cacheId)
 
     /** Retorna somente arquivos completos e contidos no diretório exclusivo de vídeo. */
-    fun resolveValidFile(path: String?, expectedBytes: Long = 0L): File? {
+    override fun resolveValidFile(path: String?, expectedBytes: Long): File? {
         if (path.isNullOrBlank()) return null
         val file = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
         if (!isManaged(file) || !file.isFile || file.length() <= 0L) return null
@@ -93,7 +93,7 @@ class VideoCacheFileStore(context: Context) : com.cdvirtual.app.feature.youtube.
     }
 
     /** Remove somente um arquivo cujo caminho canônico pertença ao diretório de vídeo. */
-    fun deleteManagedFile(path: String?): Boolean {
+    override fun deleteManagedFile(path: String?): Boolean {
         if (path.isNullOrBlank()) return false
         val file = runCatching { File(path).canonicalFile }.getOrNull() ?: return false
         if (!isManaged(file)) return false
@@ -101,7 +101,7 @@ class VideoCacheFileStore(context: Context) : com.cdvirtual.app.feature.youtube.
     }
 
     /** Remove um parcial identificado por cacheId, sem tocar em arquivos fora do diretório de vídeo. */
-    fun deletePartialFile(cacheId: String): Boolean {
+    override fun deletePartialFile(cacheId: String): Boolean {
         requireSafeId(cacheId)
         val partial = File(directory, "$cacheId.part").canonicalFile
         if (!isManaged(partial)) return false
@@ -109,12 +109,12 @@ class VideoCacheFileStore(context: Context) : com.cdvirtual.app.feature.youtube.
     }
 
     /** Lista arquivos publicados; a recuperação usa a lista para identificar órfãos sem apagá-los. */
-    fun listPublishedFiles(): List<File> =
+    override fun listPublishedFiles(): List<File> =
         directory.listFiles { file -> file.isFile && file.extension.lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS }
             ?.toList().orEmpty()
 
     /** Lista parciais para recuperação posterior; não os apaga automaticamente. */
-    fun listPartialFiles(): List<File> =
+    override fun listPartialFiles(): List<File> =
         directory.listFiles { file -> file.isFile && file.name.endsWith(".part") }?.toList().orEmpty()
 
     private fun containsVideoTrack(file: File): Boolean {
