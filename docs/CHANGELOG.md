@@ -421,3 +421,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Cancelamento enquanto aguarda vaga também deixa o item em estado INTERRUPTED.
 
 - Registros em estado REMOVED permanecem visíveis quando a exclusão física falha, permitindo nova tentativa manual; a recuperação também repete a limpeza no próximo início.
+
+- Reservas QUEUED encontradas após reinício agora viram INTERRUPTED, preservando qualquer parcial e liberando retry ou remoção manual.
