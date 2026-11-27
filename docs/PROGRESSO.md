@@ -268,3 +268,6 @@
 - Exclusões manuais que falham permanecem registradas como REMOVED e visíveis para nova tentativa; recuperação repete a limpeza no próximo início.
 
 - Reservas QUEUED abandonadas por encerramento do processo são recuperadas como INTERRUPTED; arquivos parciais permanecem intactos.
+
+- Qualidades disponíveis são consultadas no provedor por vídeo; UI não oferece opções que a fonte não confirmou.
+- Reserva concorrente de espaço implementada para downloads com tamanho conhecido, ajustada conforme bytes recebidos.
