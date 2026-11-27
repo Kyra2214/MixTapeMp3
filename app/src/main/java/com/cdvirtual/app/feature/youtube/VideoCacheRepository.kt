@@ -72,7 +72,7 @@ class VideoCacheRepository(
         require(VideoCacheStateMachine.canTransition(current.status, VideoCacheStatus.READY)) {
             "O item não pode passar de ${current.status} para READY."
         }
-        val validFile = fileStore.resolveValidFile(publishedFile.absolutePath)
+        val validFile = fileStore.resolveValidFile(publishedFile.absolutePath, 0L)
             ?: throw IllegalArgumentException("O arquivo publicado não passou pela validação do cache.")
         val now = System.currentTimeMillis()
         dao.upsert(
