@@ -29,3 +29,5 @@
 - Serviço de primeiro plano de vídeo adicionado em `VideoCacheDownloadService`, registrado no Manifest e chamado pela UI. Usa notificação com progresso/cancelamento e mantém as transferências fora do ciclo de vida da tela; serviço de áudio permanece separado. Coordenador continua limitando a três transferências.
 
 - Registros REMOVED com falha de exclusão permanecem visíveis para retry; a recuperação tenta novamente na próxima inicialização.
+
+- Recuperação também converte reservas QUEUED abandonadas em INTERRUPTED, mantendo parciais e permitindo retry/remoção manual.
