@@ -283,3 +283,6 @@
 - UI da seção Cache agora permite retomar itens INTERRUPTED pelo provedor registrado, mantendo a qualidade original e reaproveitando parcial compatível.
 
 - Notificação do serviço de primeiro plano exibe barra de progresso (ou indeterminada), resultado final de falha/cancelamento e ação de cancelar.
+
+- Arquivos corrompidos mantêm o caminho gerenciado para remoção manual; o coordenador bloqueia uma nova publicação sobre a cópia inválida até o usuário removê-la.
+- Arquivo publicado íntegro em estado INTERRUPTED é restaurado para READY ao retomar, sem transferir novamente.
