@@ -264,3 +264,5 @@
 - UI delega o trabalho ao serviço, sem manter o download preso ao ciclo de vida da tela.
 - Cancelamento inclusive durante espera pelo semáforo persiste INTERRUPTED.
 - O serviço de áudio existente não foi reutilizado nem alterado.
+
+- Exclusões manuais que falham permanecem registradas como REMOVED e visíveis para nova tentativa; recuperação repete a limpeza no próximo início.
