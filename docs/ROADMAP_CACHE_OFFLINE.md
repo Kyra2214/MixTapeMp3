@@ -144,6 +144,11 @@
 - [ ] Build debug/release e validação em dispositivo.
 - [ ] Corrigir falhas e repetir testes afetados.
 
+## Escopo explícito
+
+- O cache não terá importação de vídeos locais, galeria ou arquivos escolhidos pelo usuário. O domínio atende exclusivamente conteúdos fornecidos por fontes remotas que autorizem expressamente o armazenamento temporário.
+- Não criar fluxo de seleção/cópia de arquivos locais nem ampliar a entidade para acomodá-los.
+
 ## Estado atual
 
 - Fases 0–3.1: auditoria, separação dos domínios, persistência, recuperação inicial e gerenciador implementados; validação funcional reservada à Fase 10.
