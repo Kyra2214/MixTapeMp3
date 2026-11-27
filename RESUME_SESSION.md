@@ -25,3 +25,5 @@
 
 - Commit `c93d804`: recuperação de cache reforçada para arquivos ausentes/corrompidos, órfãos preservados e varredura única de parciais. Commits seguintes validam intervalos HTTP 206 e persistem REMOVED antes da exclusão manual; UI bloqueia apagar durante fila/download.
 - Próxima frente: concluir detalhes restantes do motor, revisar lifecycle/retomada e integração de recuperação; não executar build/testes até finalizar o roadmap. Provedor remoto autorizado segue como dependência externa, não deve ser simulado.
+
+- Serviço de primeiro plano de vídeo adicionado em `VideoCacheDownloadService`, registrado no Manifest e chamado pela UI. Usa notificação com progresso/cancelamento e mantém as transferências fora do ciclo de vida da tela; serviço de áudio permanece separado. Coordenador continua limitando a três transferências.
