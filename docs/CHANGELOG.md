@@ -413,3 +413,9 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Exclusão manual grava o estado REMOVED antes de apagar os arquivos; falhas podem ser repetidas pela recuperação.
 - A interface impede apagar itens enquanto aguardam ou executam transferência.
 - Central de Áudio preservada; build/testes continuam reservados à fase final.
+
+## [dev] Transferências em segundo plano
+- Criado `VideoCacheDownloadService`, serviço de primeiro plano exclusivo da Central de Vídeos, com notificação, progresso e ação de cancelar transferências.
+- A interface agora delega a preparação ao serviço; sair da tela ou minimizar o app não cancela a transferência.
+- O serviço não reutiliza o serviço de download da Central de Áudio. Limite de três transferências permanece no coordenador.
+- Cancelamento enquanto aguarda vaga também deixa o item em estado INTERRUPTED.
