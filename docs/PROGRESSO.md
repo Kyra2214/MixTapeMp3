@@ -279,3 +279,5 @@
 - Reserva de espaço estimado compartilhada entre transferências concorrentes.
 
 - Cancelamento antes do início do HTTP, inclusive durante a reserva de espaço, também deixa o item INTERRUPTED e retomável.
+
+- UI da seção Cache agora permite retomar itens INTERRUPTED pelo provedor registrado, mantendo a qualidade original e reaproveitando parcial compatível.
