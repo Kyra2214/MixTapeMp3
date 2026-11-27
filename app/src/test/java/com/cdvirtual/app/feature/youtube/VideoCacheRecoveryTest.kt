@@ -32,16 +32,21 @@ class VideoCacheRecoveryTest {
 
     @Test
     fun playingEntryIsPausedWhenItsPublishedFileIsValid() = runBlocking {
-        val entry = item("playing", VideoCacheStatus.PLAYING, "/cache/playing.mp4", 12)
-        val valid = File("/cache/playing.mp4")
-        val repository = FakeRepository(listOf(entry))
-        val files = FakeFiles(validFiles = mapOf(valid.path to valid))
+        val valid = Files.createTempFile("playing-video-cache", ".mp4").toFile()
+        try {
+            valid.writeBytes(ByteArray(12) { it.toByte() })
+            val entry = item("playing", VideoCacheStatus.PLAYING, valid.path, 12)
+            val repository = FakeRepository(listOf(entry))
+            val files = FakeFiles(validFiles = mapOf(valid.path to valid))
 
-        val report = VideoCacheRecovery(repository, files).recover()
+            val report = VideoCacheRecovery(repository, files).recover()
 
-        assertEquals(VideoCacheStatus.PAUSED, repository.items.getValue("playing").status)
-        assertEquals(1, report.pausedPlayback)
-        assertTrue(report.orphanedFiles.isEmpty())
+            assertEquals(VideoCacheStatus.PAUSED, repository.items.getValue("playing").status)
+            assertEquals(1, report.pausedPlayback)
+            assertTrue(report.orphanedFiles.isEmpty())
+        } finally {
+            valid.delete()
+        }
     }
 
     @Test
