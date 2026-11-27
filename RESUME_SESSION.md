@@ -33,3 +33,5 @@
 - Recuperação também converte reservas QUEUED abandonadas em INTERRUPTED, mantendo parciais e permitindo retry/remoção manual.
 
 - Contrato de fonte ganhou consulta de qualidades por vídeo; a UI só oferece 240p/360p/480p confirmados. Coordenador reserva espaço para downloads conhecidos em paralelo e reduz a reserva com o progresso.
+
+- Recuperação agora reconhece arquivo válido promovido antes de uma queda ocorrida no commit Room READY; conclusão natural grava `completedAt` antes da limpeza.
