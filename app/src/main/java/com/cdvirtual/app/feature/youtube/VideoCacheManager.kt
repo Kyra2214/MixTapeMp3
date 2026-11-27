@@ -32,6 +32,33 @@ data class VideoCacheCapacity(
  * Não resolve URLs nem baixa conteúdo. Um provedor separado deverá entregar somente
  * arquivos de fontes que autorizem armazenamento offline.
  */
+/**
+ * Executable publication transaction shared by VideoCacheManager and JVM integration tests.
+ * A failed Room write rolls the rename back unless READY was already durably committed.
+ */
+internal suspend fun publishVideoCacheFileWithRollback(
+    promote: suspend () -> File,
+    markReady: suspend (File) -> Unit,
+    readyWasPersisted: suspend () -> Boolean,
+    rollback: suspend (File) -> Unit
+): File {
+    val published = promote()
+    try {
+        withContext(NonCancellable) { markReady(published) }
+    } catch (failure: Throwable) {
+        val committed = withContext(NonCancellable) {
+            runCatching { readyWasPersisted() }.getOrDefault(false)
+        }
+        if (!committed) {
+            withContext(NonCancellable) {
+                runCatching { rollback(published) }
+            }
+        }
+        throw failure
+    }
+    return published
+}
+
 class VideoCacheManager(
     private val repository: VideoCacheRepository,
     private val fileStore: VideoCacheFileStore,
@@ -116,29 +143,26 @@ class VideoCacheManager(
         extension: String,
         expectedBytes: Long = 0L
     ): VideoCacheEntity {
-        val published = withContext(Dispatchers.IO) {
-            fileStore.promotePartialFile(partialFile, extension, expectedBytes)
-        }
-        try {
-            // Depois do rename, concluir a gravação do estado sem deixar uma janela
-            // de cancelamento entre o arquivo publicado e o registro READY.
-            withContext(NonCancellable + Dispatchers.IO) {
-                repository.markReadyAfterPromotion(cacheId, published)
-            }
-        } catch (failure: Throwable) {
-            // Diferenciar falha anterior ao commit de cancelamento ocorrido depois
-            // que Room já gravou READY. Nunca mover um arquivo que o banco referencia.
-            val readyWasPersisted = withContext(NonCancellable) {
-                runCatching { repository.find(cacheId)?.status == VideoCacheStatus.READY }
-                    .getOrDefault(false)
-            }
-            if (!readyWasPersisted) {
+        publishVideoCacheFileWithRollback(
+            promote = {
                 withContext(Dispatchers.IO) {
-                    runCatching { fileStore.rollbackPromotion(published, cacheId) }
+                    fileStore.promotePartialFile(partialFile, extension, expectedBytes)
+                }
+            },
+            markReady = { published ->
+                withContext(Dispatchers.IO) {
+                    repository.markReadyAfterPromotion(cacheId, published)
+                }
+            },
+            readyWasPersisted = {
+                repository.find(cacheId)?.status == VideoCacheStatus.READY
+            },
+            rollback = { published ->
+                withContext(Dispatchers.IO) {
+                    fileStore.rollbackPromotion(published, cacheId)
                 }
             }
-            throw failure
-        }
+        )
         return repository.find(cacheId) ?: throw IllegalStateException("Registro do cache desapareceu.")
     }
 
