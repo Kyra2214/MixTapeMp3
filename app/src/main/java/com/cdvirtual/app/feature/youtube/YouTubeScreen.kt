@@ -87,6 +87,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
     var cacheCapacity by remember { mutableStateOf<VideoCacheCapacity?>(null) }
     var videoForCache by remember { mutableStateOf<YouTubeVideo?>(null) }
     var selectedCacheQuality by remember { mutableStateOf(VideoCacheQuality.DEFAULT) }
+    var availableCacheQualities by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var loadingCacheQualities by remember { mutableStateOf(false) }
     var cachePreparing by remember { mutableStateOf(false) }
     var cachePreparationJob by remember { mutableStateOf<Job?>(null) }
     var cacheProgress by remember { mutableStateOf<VideoCacheTransferProgress?>(null) }
@@ -96,6 +98,25 @@ fun YouTubeScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(cachedVideos) {
         cacheCapacity = runCatching { app.videoCacheManager.capacity() }.getOrNull()
+    }
+    LaunchedEffect(videoForCache?.videoId) {
+        val video = videoForCache
+        availableCacheQualities = emptySet()
+        if (video != null && app.videoCacheSourceRegistry.hasProvider("youtube")) {
+            loadingCacheQualities = true
+            try {
+                availableCacheQualities = app.videoCacheSourceRegistry.availableQualities("youtube", video.videoId)
+                if (selectedCacheQuality !in availableCacheQualities) {
+                    selectedCacheQuality = availableCacheQualities.firstOrNull() ?: VideoCacheQuality.DEFAULT
+                }
+            } catch (failure: Exception) {
+                cacheActionError = failure.message ?: "Não foi possível consultar as qualidades disponíveis."
+            } finally {
+                loadingCacheQualities = false
+            }
+        } else {
+            loadingCacheQualities = false
+        }
     }
     var query by remember { mutableStateOf("") }
     var activeQuery by remember { mutableStateOf("") }
@@ -181,11 +202,15 @@ fun YouTubeScreen(onBack: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(videoForCache?.title.orEmpty())
-                    Text("Escolha a qualidade oferecida pela fonte.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(VideoCacheQuality.P240, VideoCacheQuality.P360, VideoCacheQuality.P480).forEach { height ->
-                            if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
-                            else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                    Text("Escolha uma qualidade confirmada pela fonte.")
+                    when {
+                        loadingCacheQualities -> Text("Consultando qualidades disponíveis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        availableCacheQualities.isEmpty() -> Text("A fonte não informou qualidades autorizadas para este vídeo.", color = MaterialTheme.colorScheme.error)
+                        else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            availableCacheQualities.sorted().forEach { height ->
+                                if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                                else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                            }
                         }
                     }
                     cacheProgress?.let { progress ->
@@ -205,7 +230,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(enabled = !cachePreparing && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
+                TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in availableCacheQualities && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
                     val video = videoForCache ?: return@TextButton
                     cachePreparing = true
                     cacheActionError = null
