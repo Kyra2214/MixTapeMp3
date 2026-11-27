@@ -136,12 +136,15 @@ class VideoCacheTransfer(
                                 }
                                 responseRangeLength = rangeEnd - expectedStart + 1L
                                 val declaredTotal = rangeParts.getOrNull(1)?.toLongOrNull()
-                                if (declaredTotal != null && declaredTotal <= rangeEnd) {
+                                    ?: throw IOException("A fonte retornou HTTP 206 sem informar o tamanho total do vídeo.")
+                                if (declaredTotal <= rangeEnd) {
                                     throw IOException("A fonte informou um tamanho total incompatível com o intervalo.")
                                 }
-                                val expectedTotal = declaredTotal ?: request.expectedBytes.takeIf { it > 0L }
-                                if (expectedTotal != null && rangeEnd != expectedTotal - 1L) {
+                                if (rangeEnd != declaredTotal - 1L) {
                                     throw IOException("A fonte retornou somente parte do intervalo solicitado; o parcial foi preservado para retomada.")
+                                }
+                                if (request.expectedBytes > 0L && declaredTotal != request.expectedBytes) {
+                                    throw IOException("O tamanho total informado pela fonte não corresponde ao esperado.")
                                 }
                             }
 
