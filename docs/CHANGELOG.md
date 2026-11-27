@@ -450,3 +450,9 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Tratado o callback de timeout de serviços dataSync do Android: transferências são canceladas e o parcial permanece recuperável.
 - O resumo da recuperação inicial agora registra contagens de itens interrompidos, reproduções pausadas, arquivos ausentes/corrompidos, órfãos e parciais preservados. Nenhum arquivo é apagado por essa observabilidade.
 - Nenhum build ou teste foi executado; validação permanece na Fase 10.
+
+
+## [dev] Central de Vídeos: apresentação do cache
+- Cartões do cache agora exibem miniatura e duração quando fornecidas pela fonte.
+- A posição assistida e a duração mostram uma barra de progresso de visualização para itens em reprodução/pausados; a posição é persistida pelo monitor do serviço Media3.
+- Fase 7 do roadmap atualizada. Nenhum teste/build foi executado.
