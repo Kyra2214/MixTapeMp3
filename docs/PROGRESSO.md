@@ -277,3 +277,5 @@
 - Validação HTTP Range reforçada para rejeitar respostas 206 incompletas/incoerentes antes da publicação.
 - Recuperação evita validar duas vezes o mesmo arquivo e conclui publicação que ficou entre rename e commit Room.
 - Reserva de espaço estimado compartilhada entre transferências concorrentes.
+
+- Cancelamento antes do início do HTTP, inclusive durante a reserva de espaço, também deixa o item INTERRUPTED e retomável.
