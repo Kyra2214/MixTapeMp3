@@ -567,12 +567,50 @@ fun YouTubeScreen(onBack: () -> Unit) {
                             Modifier.fillMaxWidth().padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(cached.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "${cached.qualityHeight}p • ${formatBytes(cached.sizeBytes)} • ${cacheStatusLabel(cached.status)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (!cached.thumbnailUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = cached.thumbnailUrl,
+                                        contentDescription = "Miniatura de ${cached.title}",
+                                        modifier = Modifier.size(width = 112.dp, height = 64.dp),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(cached.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "${cached.qualityHeight}p • ${formatBytes(cached.sizeBytes)} • ${cacheStatusLabel(cached.status)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        formatDuration(cached.durationMs / 1000L),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            if (cached.durationMs > 0L && cached.lastPositionMs > 0L &&
+                                cached.status in setOf(VideoCacheStatus.PLAYING, VideoCacheStatus.PAUSED)
+                            ) {
+                                val playbackProgress = (cached.lastPositionMs.toFloat() / cached.durationMs.toFloat()).coerceIn(0f, 1f)
+                                androidx.compose.material3.LinearProgressIndicator(
+                                    progress = playbackProgress,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    "${formatDuration(cached.lastPositionMs / 1000L)} / ${formatDuration(cached.durationMs / 1000L)} assistidos",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (cached.status == VideoCacheStatus.READY || cached.status == VideoCacheStatus.PAUSED) {
                                     Button(onClick = { YouTubePlaybackService.playCached(context, cached.cacheId) }) {
