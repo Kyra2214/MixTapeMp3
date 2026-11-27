@@ -437,3 +437,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Cancelamento durante a preparação inicial/reserva de espaço também persiste INTERRUPTED, não deixando reservas QUEUED presas.
 
 - Itens INTERRUPTED agora oferecem ação explícita de Retomar preparação, que resolve novamente a fonte autorizada e continua do parcial quando HTTP Range for suportado.
+
+- Notificação do serviço agora apresenta barra de progresso quando o tamanho é conhecido, progresso indeterminado quando não é e resultado final distinto para falha/cancelamento.
