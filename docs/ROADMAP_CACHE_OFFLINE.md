@@ -102,7 +102,7 @@
 - [x] Excluir automaticamente somente após conclusão natural confirmada pelo player; seek manual até o fim preserva o arquivo.
 - [x] Manter arquivo ao pausar, sair do vídeo, trocar de aba, fechar o app, reiniciar aparelho ou perder conexão.
 - [x] Permitir exclusão manual pela seção Cache da Central de Vídeos.
-- [ ] Remoção deve ser idempotente e sincronizar arquivo e banco.
+- [x] Remoção deve ser idempotente e sincronizar arquivo e banco (mutex serializa exclusões; arquivo final e parcial são removidos antes do registro).
 - [x] Nunca apagar cache não assistido durante limpeza de recuperação.
 
 ## FASE 7 — INTERFACE DA CENTRAL DE VÍDEOS
@@ -119,7 +119,8 @@
 
 - [x] Preservar `.part` e retomar via Range quando suportado pela fonte.
 - [x] Reconciliar registros e arquivos físicos sem apagar parciais ou órfãos automaticamente.
-- [ ] Não apagar arquivos completos ainda não assistidos.
+- [x] Não apagar arquivos completos ainda não assistidos durante recuperação; itens READY/PAUSED são preservados.
+- [x] Recuperação de itens COMPLETED/REMOVED tenta remover também parciais residuais antes de apagar o registro.
 - [ ] Tratar arquivo ausente, corrompido ou incompleto.
 - [ ] Evitar exclusões duplicadas e condições de corrida.
 - [ ] Persistir estado antes de liberar arquivo após conclusão.
@@ -151,7 +152,7 @@
 - Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
 - Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
 - Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar e remoção manual. Progresso visual de transferência, miniatura/duração e seletor de qualidade ainda pendentes.
-- Fases 8–9: reconciliação e documentação atualizadas; parser MediaExtractor valida faixa de vídeo; testes de concorrência e integração final ainda pendentes.
+- Fases 8–9: reconciliação e documentação atualizadas; limpeza de conclusão natural/manual serializada e recuperação remove parciais residuais de itens concluídos. Testes de concorrência e integração final ainda pendentes.
 - Fase 10: reservada exclusivamente à validação final. Nenhum teste ou build foi executado nesta etapa.
 - Bloqueio conhecido: não há provedor oficialmente autorizado confirmado para cache temporário de vídeos do YouTube. O registro de provedores permanece vazio; a reprodução online continua intacta. Não contornar restrições da fonte.
 - Regra de escopo: nenhum arquivo, classe, serviço, fila, histórico ou biblioteca da Central de Áudio foi alterado nesta etapa.
