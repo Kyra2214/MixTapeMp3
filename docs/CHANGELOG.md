@@ -381,3 +381,9 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Complemento da etapa: retomada de cache pela MediaSession; posição gravada durante reprodução; seek manual até o fim volta à posição inicial e preserva o arquivo; validação com `MediaExtractor` exige uma faixa `video/*`; falha ao gravar READY tenta reverter a promoção sem remover bytes já baixados.
 
 - Endurecimento do transporte: bloqueio de downgrade HTTPS, verificação de MIME de resposta e retomada Range validada pelo offset; operações de arquivo e parser MediaExtractor executados em Dispatchers.IO.
+
+## [dev] Central de Vídeos — robustez da limpeza temporária
+- Serializar exclusão natural e manual para evitar operações concorrentes no mesmo cache.
+- Conclusão natural remove também parciais residuais; registro só é apagado após confirmação das remoções.
+- Recuperação de itens COMPLETED/REMOVED tenta limpar final e parcial, preservando registro quando a limpeza falha.
+- Escopo exclusivo da Central de Vídeos; nenhum arquivo da Central de Áudio alterado.
