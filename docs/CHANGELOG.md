@@ -387,3 +387,9 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Conclusão natural remove também parciais residuais; registro só é apagado após confirmação das remoções.
 - Recuperação de itens COMPLETED/REMOVED tenta limpar final e parcial, preservando registro quando a limpeza falha.
 - Escopo exclusivo da Central de Vídeos; nenhum arquivo da Central de Áudio alterado.
+
+## [dev] Central de Vídeos — concorrência e preparação por qualidade
+- Coordenador limita transferências simultâneas a 3 por padrão e impede duplicidade concorrente para o mesmo cacheId.
+- Interface de preparação inclui seletor 240p/360p/480p e progresso em bytes/barra, com indicação de total desconhecido.
+- A ação de preparação só é oferecida quando existe provedor autorizado registrado; nenhum provedor YouTube foi ativado.
+- Nenhum arquivo da Central de Áudio foi alterado.
