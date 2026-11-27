@@ -38,6 +38,7 @@ class VideoCacheDownloadService : Service() {
     private val cancelledCount = AtomicInteger(0)
     private val lastFailureMessage = AtomicReference<String?>(null)
     private lateinit var notifications: NotificationManager
+    private var latestStartId: Int = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -46,6 +47,7 @@ class VideoCacheDownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         if (intent?.action == ACTION_CANCEL_ALL) {
             jobs.values.toList().forEach { it.cancel(CancellationException("Cancelado pelo usuário")) }
             return START_NOT_STICKY
@@ -103,7 +105,7 @@ class VideoCacheDownloadService : Service() {
                         buildNotification(finalMessage, false)
                     )
                     stopForeground(STOP_FOREGROUND_DETACH)
-                    stopSelfResult(startId)
+                    stopSelfResult(latestStartId)
                 } else {
                     notifications.notify(
                         NOTIFICATION_ID,
