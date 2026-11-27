@@ -79,10 +79,11 @@
 
 ## FASE 4 — PREPARAÇÃO OFFLINE E QUALIDADE
 
-- [ ] Implementar adaptador de fonte para conteúdo que autorize download e armazenamento local.
+- [ ] Implementar adaptador de fonte para conteúdo que autorize download e armazenamento local (provedor real autorizado continua pendente).
 - [x] Seletor individual 240p (padrão), 360p e 480p na interface de preparação; a fonte deve confirmar a qualidade solicitada. Integração funcional depende de provedor autorizado.
 - [ ] Exibir somente qualidades realmente disponíveis.
-- [x] Núcleo de transferência próprio da Central de Vídeos com progresso, cancelamento preservando `.part` e retomada HTTP Range quando suportada. Integração com serviço de download em primeiro plano permanece pendente.
+- [x] Núcleo de transferência próprio da Central de Vídeos com progresso, cancelamento preservando `.part` e retomada HTTP Range quando suportada; valida limites e tamanho de respostas HTTP 206.
+- [x] Serviço de primeiro plano exclusivo da Central de Vídeos, com notificação de progresso e cancelamento, permitindo continuar transferências fora da tela. O serviço usa o coordenador com limite de três transferências e não reutiliza o serviço de downloads de áudio.
 - [x] Gravar em `.part` e promover atomicamente após conclusão e validação de tamanho.
 - [x] Validar contêiner e existência de faixa de vídeo via `MediaExtractor` antes de marcar READY.
 - [x] Verificar espaço disponível quando a fonte informa o tamanho total.
@@ -152,8 +153,8 @@
 ## Estado atual
 
 - Fases 0–3.1: auditoria, separação dos domínios, persistência, recuperação inicial e gerenciador implementados; validação funcional reservada à Fase 10.
-- Fase 3.2: contrato de admissão de fontes, registro de provedores, downloader HTTP exclusivo de vídeo, progresso, cancelamento com preservação do parcial, retomada por Range e verificação de espaço implementados.
-- Fase 4: núcleo de transferência, publicação atômica, verificação de espaço conhecido e validação de contêiner/faixa de vídeo implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local e integrar a seleção de qualidade a esse provedor.
+- Fase 3.2: contrato de admissão de fontes, registro de provedores, downloader HTTP exclusivo de vídeo, progresso, cancelamento com preservação do parcial, retomada por Range, verificação de espaço e serviço de primeiro plano exclusivo de vídeo implementados.
+- Fase 4: núcleo de transferência, publicação atômica, verificação de espaço conhecido, validação de contêiner/faixa de vídeo e serviço de primeiro plano implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local e integrar a seleção de qualidade às qualidades realmente oferecidas por ele.
 - Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
 - Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
 - Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar, remoção manual, lista vazia, erros de fonte/espaço, seletor 240p/360p/480p e progresso de transferência. Cancelamento manual preserva o parcial. Miniatura/duração e progresso da visualização permanecem pendentes.
