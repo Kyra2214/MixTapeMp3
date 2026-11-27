@@ -14,3 +14,9 @@
 - Robustez recém-implementada: exclusão natural/manual serializada por mutex; conclusão limpa arquivo publicado e `.part`; registro só é removido quando ambas as operações confirmam sucesso; recuperação repete a limpeza de resíduos COMPLETED/REMOVED. Operações de parser/arquivo e resolução de candidatos da MediaSession foram movidas para Dispatchers.IO.
 - Testes/build: não executar até completar o roadmap. Validação integral reservada à Fase 10.
 - Último ZIP completo: não gerado; ambiente não consegue resolver GitHub via rede direta.
+
+
+## Continuação mais recente
+- Commit `bae89fb`: diálogo de preparação ganhou ação **Cancelar preparação**. O cancelamento propaga `CancellationException`; o coordenador preserva o parcial e marca o item como `INTERRUPTED`.
+- UI de progresso do download e mensagens de erro/armazenamento/fonte já foram refletidas no roadmap. Permanecem pendentes progresso de visualização, miniatura/duração, fonte autorizada real e validação final.
+- Não executar build/testes até concluir o roadmap. Nenhum arquivo da Central de Áudio foi alterado.
