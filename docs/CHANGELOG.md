@@ -456,3 +456,7 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Cartões do cache agora exibem miniatura e duração quando fornecidas pela fonte.
 - A posição assistida e a duração mostram uma barra de progresso de visualização para itens em reprodução/pausados; a posição é persistida pelo monitor do serviço Media3.
 - Fase 7 do roadmap atualizada. Nenhum teste/build foi executado.
+
+## [dev] Central de Vídeos — isolamento de intents inválidas no serviço
+- `VideoCacheDownloadService` não encerra transferências existentes quando recebe Intent inválida/nula; só encerra a instância quando não há trabalho ativo.
+- Nenhuma alteração na Central de Áudio. Build/testes permanecem reservados à fase final.
