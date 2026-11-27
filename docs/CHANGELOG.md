@@ -442,3 +442,11 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 
 - Arquivos corrompidos continuam associados ao item interrompido para permitir exclusão manual explícita; a retomada não sobrescreve silenciosamente a cópia inválida.
 - Se a recuperação encontrar um arquivo íntegro já publicado em estado INTERRUPTED, ele é restaurado para READY sem novo download.
+
+
+## [dev] Central de Vídeos: revisão do serviço em primeiro plano
+- Corrigido o import de Dispatchers usado pelo serviço de cache.
+- O encerramento normal agora considera o último startId recebido, evitando parar o serviço enquanto outra preparação ainda foi solicitada.
+- Tratado o callback de timeout de serviços dataSync do Android: transferências são canceladas e o parcial permanece recuperável.
+- O resumo da recuperação inicial agora registra contagens de itens interrompidos, reproduções pausadas, arquivos ausentes/corrompidos, órfãos e parciais preservados. Nenhum arquivo é apagado por essa observabilidade.
+- Nenhum build ou teste foi executado; validação permanece na Fase 10.
