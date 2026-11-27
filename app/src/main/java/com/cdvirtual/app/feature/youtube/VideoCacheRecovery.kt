@@ -74,9 +74,12 @@ class VideoCacheRecovery(
                     }
                 }
                 VideoCacheStatus.COMPLETED, VideoCacheStatus.REMOVED -> {
-                    val fileRemoved = entry.filePath.isNullOrBlank() ||
+                    // Uma interrupção entre a conclusão natural e a limpeza pode deixar
+                    // um .part residual. A recuperação remove ambos antes de apagar o registro.
+                    val finalRemoved = entry.filePath.isNullOrBlank() ||
                         fileStore.deleteManagedFile(entry.filePath)
-                    if (fileRemoved) {
+                    val partialRemoved = fileStore.deletePartialFile(entry.cacheId)
+                    if (finalRemoved && partialRemoved) {
                         repository.deleteRecordAfterFileRemoval(entry.cacheId)
                         if (entry.status == VideoCacheStatus.COMPLETED) completedItemsRemoved++
                     }
