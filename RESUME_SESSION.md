@@ -39,3 +39,5 @@
 - HTTP 206 valida Content-Range e rejeita intervalos que não chegam ao fim do tamanho total conhecido; progresso parcial não é tratado como tamanho total. Recuperação faz uma única validação por arquivo e recupera rename concluído antes do commit READY.
 
 - Coordenador agora trata cancelamento em toda a preparação, inclusive antes de entrar no HTTP, e persiste INTERRUPTED para permitir retry/remoção.
+
+- A seção Cache ganhou ação Retomar preparação para itens INTERRUPTED; a UI resolve novamente a mesma fonte/qualidade e entrega ao serviço de primeiro plano para retomar o parcial.
