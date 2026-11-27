@@ -238,3 +238,10 @@
 - Coordenador com limite de 3 transferências simultâneas por padrão e bloqueio de duplicidade por cacheId.
 - Provedor YouTube permanece desativado até existir integração que autorize expressamente o armazenamento local.
 - Sem build/testes nesta etapa, conforme instrução de executar validação somente ao fim do roadmap.
+
+
+### Continuação — cancelamento da preparação offline
+- O diálogo de preparação agora permite cancelar a transferência em andamento.
+- O cancelamento propaga `CancellationException` ao coordenador, que preserva o `.part` e registra o item como interrompido; a retomada depende do suporte HTTP Range da fonte autorizada.
+- O roadmap foi atualizado: progresso visual do download, lista vazia e mensagens de falha/espaço/fonte incompatível já possuem UI; progresso da visualização e miniatura/duração seguem pendentes.
+- Nenhum build/teste executado; a Central de Áudio permanece fora do escopo.
