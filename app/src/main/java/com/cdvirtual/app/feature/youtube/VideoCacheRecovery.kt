@@ -107,9 +107,12 @@ class VideoCacheRecovery(
     }
 
     private suspend fun markMissing(entry: com.cdvirtual.app.core.database.VideoCacheEntity) {
+        val orphanStillExists = entry.filePath?.let { runCatching { File(it).isFile }.getOrDefault(false) } == true
         repository.save(entry.copy(
-            filePath = null,
-            sizeBytes = 0L,
+            // Preserva o caminho de um arquivo corrompido para que a remoção manual
+            // consiga alcançá-lo; caminhos realmente ausentes podem ser limpos do registro.
+            filePath = entry.filePath.takeIf { orphanStillExists },
+            sizeBytes = if (orphanStillExists) entry.sizeBytes else 0L,
             status = VideoCacheStatus.INTERRUPTED,
             updatedAt = System.currentTimeMillis()
         ))
