@@ -36,10 +36,13 @@ class VideoCacheRecovery(
         val knownPaths = entries.mapNotNull { entry ->
             fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)?.canonicalPath
         }.toSet()
+        val partialIds = fileStore.listPartialFiles()
+            .map { it.name.removeSuffix(".part") }
+            .toSet()
 
         for (entry in entries) {
             val validFile = fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
-            val hasPartial = fileStore.listPartialFiles().any { it.name == "${entry.cacheId}.part" }
+            val hasPartial = entry.cacheId in partialIds
 
             when (entry.status) {
                 VideoCacheStatus.QUEUED -> {
