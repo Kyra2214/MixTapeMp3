@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Não reutiliza o DownloadService da Central de Áudio.
  */
 class VideoCacheDownloadService : Service() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val jobs = ConcurrentHashMap<String, Job>()
     private val activeCount = AtomicInteger(0)
     private lateinit var notifications: NotificationManager
