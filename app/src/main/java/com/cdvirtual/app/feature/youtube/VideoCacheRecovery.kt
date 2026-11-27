@@ -36,20 +36,15 @@ class VideoCacheRecovery(
         val knownPaths = entries.mapNotNull { entry ->
             fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)?.canonicalPath
         }.toSet()
-        val partialIds = fileStore.listPartialFiles()
-            .map { it.name.removeSuffix(".part") }
-            .toSet()
-
         for (entry in entries) {
             val validFile = fileStore.resolveValidFile(entry.filePath, entry.sizeBytes)
-            val hasPartial = entry.cacheId in partialIds
 
             when (entry.status) {
                 VideoCacheStatus.QUEUED -> {
-                    if (hasPartial) {
-                        repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
-                        interruptedDownloads++
-                    }
+                    // Uma reserva que sobreviveu ao processo não tem mais um job dono.
+                    // Mantém qualquer .part e libera retry/remoção manual.
+                    repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
+                    interruptedDownloads++
                 }
                 VideoCacheStatus.DOWNLOADING -> {
                     repository.updateStatus(entry.cacheId, VideoCacheStatus.INTERRUPTED)
