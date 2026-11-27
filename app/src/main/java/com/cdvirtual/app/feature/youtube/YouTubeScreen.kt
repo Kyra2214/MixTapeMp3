@@ -107,7 +107,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
             try {
                 availableCacheQualities = app.videoCacheSourceRegistry.availableQualities("youtube", video.videoId)
                 if (selectedCacheQuality !in availableCacheQualities) {
-                    selectedCacheQuality = availableCacheQualities.firstOrNull() ?: VideoCacheQuality.DEFAULT
+                    selectedCacheQuality = if (VideoCacheQuality.DEFAULT in availableCacheQualities) VideoCacheQuality.DEFAULT else availableCacheQualities.minOrNull() ?: VideoCacheQuality.DEFAULT
                 }
             } catch (failure: Exception) {
                 cacheActionError = failure.message ?: "Não foi possível consultar as qualidades disponíveis."
