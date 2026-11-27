@@ -86,11 +86,22 @@ class VideoCacheManager(
     suspend fun restoreReadyIfValid(cacheId: String): VideoCacheEntity? {
         val item = repository.find(cacheId) ?: return null
         if (item.status != VideoCacheStatus.INTERRUPTED) return null
-        val validFile = withContext(Dispatchers.IO) {
-            fileStore.resolveValidFile(item.filePath, item.sizeBytes)
-        } ?: return null
-        repository.markReadyAfterPromotion(cacheId, validFile)
-        return repository.find(cacheId)
+        val (validFile, pathExists) = withContext(Dispatchers.IO) {
+            val candidateExists = item.filePath?.let { File(it).isFile } == true
+            fileStore.resolveValidFile(item.filePath, item.sizeBytes) to candidateExists
+        }
+        if (validFile != null) {
+            repository.markReadyAfterPromotion(cacheId, validFile)
+            return repository.find(cacheId)
+        }
+        if (item.filePath != null && !pathExists) {
+            repository.save(item.copy(
+                filePath = null,
+                sizeBytes = 0L,
+                updatedAt = System.currentTimeMillis()
+            ))
+        }
+        return null
     }
 
     suspend fun startDownload(cacheId: String) =
