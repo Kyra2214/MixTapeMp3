@@ -32,7 +32,7 @@ interface VideoCacheDao {
     @Query("SELECT COALESCE(SUM(sizeBytes), 0) FROM video_cache WHERE status != 'REMOVED'")
     suspend fun totalBytes(): Long
 
-    @Query("UPDATE video_cache SET status = :status, updatedAt = :updatedAt WHERE cacheId = :cacheId")
+    @Query("UPDATE video_cache SET status = :status, updatedAt = :updatedAt, completedAt = CASE WHEN :status = 'COMPLETED' THEN :updatedAt ELSE completedAt END WHERE cacheId = :cacheId")
     suspend fun updateStatus(cacheId: String, status: String, updatedAt: Long)
 
     @Query("UPDATE video_cache SET lastPositionMs = :positionMs, updatedAt = :updatedAt WHERE cacheId = :cacheId")
