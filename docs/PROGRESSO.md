@@ -223,3 +223,12 @@
 - Robustez adicional: retomada de itens locais via MediaSession; posição salva periodicamente; seek manual até o fim não apaga o vídeo e reinicia a posição; validação estrutural com `MediaExtractor`; rollback de promoção preserva o parcial quando a persistência Room falha.
 
 - Transporte reforçado contra downgrade HTTPS e resposta com MIME divergente; operações de arquivo e análise MediaExtractor movidas para Dispatchers.IO para evitar bloqueio da interface.
+
+## Central de Vídeos — Cache temporário (branch feature/video-temporary-cache)
+- Núcleo de transferência HTTPS, retomada HTTP Range, preservação de .part e validação de mídia implementados.
+- Gerenciador, recuperação, player Media3 offline e seção Cache implementados.
+- Robustez adicional: exclusões natural/manual serializadas; conclusão limpa arquivo final e parcial; recuperação repete limpeza de resíduos concluídos.
+- Não há provedor autorizado registrado; download offline de YouTube permanece bloqueado até uma via permitida. Reprodução online preservada.
+- Pendentes: integração de provedor permitido, seletor de qualidade por vídeo, progresso visual, estados de erro/armazenamento e validação final.
+- Builds/testes não executados por determinação do roadmap: somente após a implementação completa.
+- Regra de escopo respeitada: nenhuma alteração em arquivos da Central de Áudio.
