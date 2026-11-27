@@ -109,11 +109,11 @@
 
 - [x] Criar seção Cache temporário dentro da Central de Vídeos, independente da biblioteca de áudio.
 - [x] Exibir título, qualidade, tamanho e estado; miniatura e duração na listagem ficam pendentes.
-- [ ] Exibir progresso do download e da visualização.
+- [x] Exibir progresso do download (barra e bytes recebidos/total); progresso da visualização permanece pendente.
 - [x] Oferecer assistir/retomar e remover manualmente.
 - [x] Exibir limite de itens e armazenamento ocupado.
 - [ ] Permitir qualidade padrão e alteração individual por vídeo.
-- [ ] Tratar lista vazia, falha, armazenamento insuficiente e fonte não compatível.
+- [x] Tratar lista vazia, falha de preparação, armazenamento insuficiente e fonte não compatível na interface.
 
 ## FASE 8 — RECUPERAÇÃO E ROBUSTEZ
 
@@ -122,7 +122,7 @@
 - [x] Não apagar arquivos completos ainda não assistidos durante recuperação; itens READY/PAUSED são preservados.
 - [x] Recuperação de itens COMPLETED/REMOVED tenta remover também parciais residuais antes de apagar o registro.
 - [ ] Tratar arquivo ausente, corrompido ou incompleto.
-- [ ] Evitar exclusões duplicadas e condições de corrida.
+- [x] Evitar exclusões duplicadas e condições de corrida (mutex de exclusão e bloqueio por cacheId; validar sob concorrência na Fase 10).
 - [ ] Persistir estado antes de liberar arquivo após conclusão.
 
 ## FASE 9 — DOCUMENTAÇÃO E INTEGRAÇÃO
@@ -151,8 +151,8 @@
 - Fase 4: núcleo de transferência, publicação atômica, verificação de espaço conhecido e validação de contêiner/faixa de vídeo implementados. Falta registrar um provedor real cuja fonte autorize armazenamento local e integrar a seleção de qualidade a esse provedor.
 - Fase 5: reprodução de arquivos locais pelo serviço Media3 existente implementada; posição e estado são persistidos.
 - Fase 6: regra temporária de retenção implementada no player e na interface. A conclusão natural exclui o arquivo; pausa, troca de tela, encerramento e seek manual até o fim preservam o cache.
-- Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar e remoção manual. Progresso visual de transferência, miniatura/duração e seletor de qualidade ainda pendentes.
-- Fases 8–9: reconciliação e documentação atualizadas; limpeza de conclusão natural/manual serializada e recuperação remove parciais residuais de itens concluídos. Testes de concorrência e integração final ainda pendentes.
+- Fase 7: seção Cache na Central de Vídeos implementada com estado, qualidade, tamanho, limite, assistir/retomar, remoção manual, lista vazia, erros de fonte/espaço, seletor 240p/360p/480p e progresso de transferência. Cancelamento manual preserva o parcial. Miniatura/duração e progresso da visualização permanecem pendentes.
+- Fases 8–9: reconciliação e documentação atualizadas; limpeza de conclusão natural/manual serializada, bloqueio de transferência duplicada e recuperação de parciais concluídos. Concorrência real, cenários de arquivo ausente/corrompido e integração final ainda pendentes.
 - Fase 10: reservada exclusivamente à validação final. Nenhum teste ou build foi executado nesta etapa.
 - Bloqueio conhecido: não há provedor oficialmente autorizado confirmado para cache temporário de vídeos do YouTube. O registro de provedores permanece vazio; a reprodução online continua intacta. Não contornar restrições da fonte.
 - Regra de escopo: nenhum arquivo, classe, serviço, fila, histórico ou biblioteca da Central de Áudio foi alterado nesta etapa.
