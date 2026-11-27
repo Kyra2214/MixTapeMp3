@@ -27,3 +27,5 @@
 - Próxima frente: concluir detalhes restantes do motor, revisar lifecycle/retomada e integração de recuperação; não executar build/testes até finalizar o roadmap. Provedor remoto autorizado segue como dependência externa, não deve ser simulado.
 
 - Serviço de primeiro plano de vídeo adicionado em `VideoCacheDownloadService`, registrado no Manifest e chamado pela UI. Usa notificação com progresso/cancelamento e mantém as transferências fora do ciclo de vida da tela; serviço de áudio permanece separado. Coordenador continua limitando a três transferências.
+
+- Registros REMOVED com falha de exclusão permanecem visíveis para retry; a recuperação tenta novamente na próxima inicialização.
