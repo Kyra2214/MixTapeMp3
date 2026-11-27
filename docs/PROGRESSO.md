@@ -271,3 +271,5 @@
 
 - Qualidades disponíveis são consultadas no provedor por vídeo; UI não oferece opções que a fonte não confirmou.
 - Reserva concorrente de espaço implementada para downloads com tamanho conhecido, ajustada conforme bytes recebidos.
+
+- Recuperação reconcilia arquivo já promovido com estado DOWNLOADING, concluindo READY sem baixar novamente; `completedAt` é persistido ao marcar conclusão natural.
