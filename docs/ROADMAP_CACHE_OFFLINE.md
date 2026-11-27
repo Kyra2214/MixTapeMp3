@@ -83,7 +83,7 @@
 - [x] Seletor individual 240p (padrão), 360p e 480p na interface de preparação; a fonte deve confirmar a qualidade solicitada. Integração funcional depende de provedor autorizado.
 - [x] Exibir somente qualidades realmente disponíveis, consultadas no contrato do provedor e filtradas para 240p/360p/480p.
 - [x] Núcleo de transferência próprio da Central de Vídeos com progresso, cancelamento preservando `.part` e retomada HTTP Range quando suportada; valida limites e tamanho de respostas HTTP 206.
-- [x] Serviço de primeiro plano exclusivo da Central de Vídeos, com notificação de progresso e cancelamento, permitindo continuar transferências fora da tela. O serviço usa o coordenador com limite de três transferências e não reutiliza o serviço de downloads de áudio.
+- [x] Serviço de primeiro plano exclusivo da Central de Vídeos, com notificação de progresso e cancelamento, permitindo continuar transferências fora da tela. O serviço usa o coordenador com limite de três transferências, trata o timeout de execução `dataSync` do Android e não reutiliza o serviço de downloads de áudio.
 - [x] Gravar em `.part` e promover atomicamente após conclusão e validação de tamanho.
 - [x] Validar contêiner e existência de faixa de vídeo via `MediaExtractor` antes de marcar READY.
 - [x] Verificar espaço disponível quando a fonte informa o tamanho total e reservar capacidade entre preparações concorrentes para evitar supercompromisso de espaço.
