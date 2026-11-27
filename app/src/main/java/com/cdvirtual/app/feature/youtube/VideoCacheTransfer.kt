@@ -122,14 +122,22 @@ class VideoCacheTransfer(
                             if (requestedOffset > 0L && http.code != 200 && http.code != 206) {
                                 throw IOException("A fonte não aceitou a retomada do download.")
                             }
+                            var responseRangeLength: Long? = null
                             if (http.code == 206) {
-                                val rangeStart = http.header("Content-Range")
-                                    ?.substringAfter("bytes ", "")
-                                    ?.substringBefore('-')
-                                    ?.toLongOrNull()
+                                val contentRange = http.header("Content-Range")
+                                    ?: throw IOException("A fonte retornou HTTP 206 sem informar Content-Range.")
+                                val rangeParts = contentRange.removePrefix("bytes ").split("/", limit = 2)
+                                val bounds = rangeParts.firstOrNull()?.split("-", limit = 2)
+                                val rangeStart = bounds?.getOrNull(0)?.toLongOrNull()
+                                val rangeEnd = bounds?.getOrNull(1)?.toLongOrNull()
                                 val expectedStart = if (append) requestedOffset else 0L
-                                if (rangeStart != expectedStart) {
+                                if (rangeStart != expectedStart || rangeEnd == null || rangeEnd < expectedStart) {
                                     throw IOException("A fonte retornou um intervalo incompatível com o parcial.")
+                                }
+                                responseRangeLength = rangeEnd - expectedStart + 1L
+                                val declaredTotal = rangeParts.getOrNull(1)?.toLongOrNull()
+                                if (declaredTotal != null && declaredTotal <= rangeEnd) {
+                                    throw IOException("A fonte informou um tamanho total incompatível com o intervalo.")
                                 }
                             }
 
@@ -151,6 +159,11 @@ class VideoCacheTransfer(
                                 ?.substringAfterLast('/')
                                 ?.toLongOrNull()
                             val responseLength = body.contentLength().takeIf { it >= 0L }
+                            if (responseRangeLength != null && responseLength != null &&
+                                responseLength != responseRangeLength
+                            ) {
+                                throw IOException("O tamanho do corpo não corresponde ao intervalo HTTP informado.")
+                            }
                             val effectiveOffset = if (append) requestedOffset else 0L
                             val totalBytes = totalFromRange
                                 ?: responseLength?.let { it + effectiveOffset }
@@ -166,13 +179,18 @@ class VideoCacheTransfer(
                                 val input = body.byteStream()
                                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                                 var downloaded = effectiveOffset
+                                var receivedInResponse = 0L
                                 while (true) {
                                     if (!continuation.isActive) throw IOException("Download cancelado.")
                                     val count = input.read(buffer)
                                     if (count < 0) break
                                     output.write(buffer, 0, count)
                                     downloaded += count
+                                    receivedInResponse += count
                                     onProgress(VideoCacheTransferProgress(downloaded, totalBytes))
+                                }
+                                if (responseRangeLength != null && receivedInResponse != responseRangeLength) {
+                                    throw IOException("A transferência terminou antes de completar o intervalo HTTP informado.")
                                 }
                                 output.flush()
                                 output.fd.sync()
