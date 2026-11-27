@@ -47,3 +47,5 @@
 - Notificação do serviço agora mostra barra de progresso quando disponível e informa falha/cancelamento ao finalizar; ação Cancelar interrompe as transferências preservando parciais.
 
 - Recuperação mantém caminho de arquivo corrompido para remoção manual; retry bloqueia sobrescrita silenciosa. Se o arquivo publicado estiver íntegro mas ainda INTERRUPTED, o gerenciador restaura READY sem baixar de novo.
+
+- Commit `e66fda4`: respostas HTTP 206 sem tamanho total numérico, ou cujo intervalo não alcança o último byte do recurso, são rejeitadas antes da publicação. O parcial permanece preservado. Nenhum build/teste executado.
