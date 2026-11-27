@@ -1,7 +1,6 @@
 package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.database.VideoCacheStatus
-import com.cdvirtual.app.core.storage.VideoCacheFileStore
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,8 +40,8 @@ data class VideoCacheRecoveryReport(
  * reportados para que a interface possa orientar uma nova preparação.
  */
 class VideoCacheRecovery(
-    private val repository: VideoCacheRepository,
-    private val fileStore: VideoCacheFileStore
+    private val repository: VideoCacheRecoveryRepository,
+    private val fileStore: VideoCacheRecoveryFileStore
 ) {
     suspend fun recover(): VideoCacheRecoveryReport = withContext(Dispatchers.IO) {
         var interruptedDownloads = 0
