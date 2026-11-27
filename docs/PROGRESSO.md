@@ -310,7 +310,7 @@
 - Interface: miniatura, duração, qualidade suportada, tamanho, estado, progresso de transferência e progresso de visualização.
 - **Bloqueio externo não resolvido:** não há provedor real confirmado que autorize download e armazenamento local do conteúdo do YouTube. O registro de provedores permanece vazio. Não implementar bypass nem declarar o fluxo YouTube offline operacional.
 - **Validação pendente por decisão do roadmap:** nenhum build/teste foi executado. Fase 10 continua pendente, incluindo migração Room, concorrência, regressão da Central de Áudio, reprodução/background e validação em aparelho.
-- PR #11 permanece draft e a branch não foi integrada à main. Não integrar enquanto a validação final não for realizada e o provedor não for resolvido/explicitamente retirado do escopo.
+- PR #11 foi integrada à main em 2026-11-27 (merge squash `c547cd2a1c3b83df470680b190a5d4f42d972dbc`). A validação inicial daquela integração passou; as correções pós-auditoria descritas abaixo possuem CI próprio ainda em execução.
 - Status honesto: motor e UI implementados estaticamente; integração de provedor autorizado e validação final não concluídas. Não declarar 100% nem release pronto.
 
  
