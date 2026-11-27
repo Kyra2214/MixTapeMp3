@@ -266,3 +266,5 @@
 - O serviço de áudio existente não foi reutilizado nem alterado.
 
 - Exclusões manuais que falham permanecem registradas como REMOVED e visíveis para nova tentativa; recuperação repete a limpeza no próximo início.
+
+- Reservas QUEUED abandonadas por encerramento do processo são recuperadas como INTERRUPTED; arquivos parciais permanecem intactos.
