@@ -2,6 +2,7 @@ package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.database.VideoCacheStatus
 import java.io.File
+import com.cdvirtual.app.core.storage.VideoCacheRecoveryFileStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -12,15 +13,6 @@ interface VideoCacheRecoveryRepository {
     suspend fun markReadyAfterPromotion(cacheId: String, publishedFile: File)
     suspend fun save(item: com.cdvirtual.app.core.database.VideoCacheEntity)
     suspend fun deleteRecordAfterFileRemoval(cacheId: String)
-}
-
-/** File operations used by recovery; production implementation remains video-cache-only. */
-interface VideoCacheRecoveryFileStore {
-    fun resolveValidFile(path: String?, expectedBytes: Long = 0L): File?
-    fun deleteManagedFile(path: String?): Boolean
-    fun deletePartialFile(cacheId: String): Boolean
-    fun listPublishedFiles(): List<File>
-    fun listPartialFiles(): List<File>
 }
 
 data class VideoCacheRecoveryReport(
