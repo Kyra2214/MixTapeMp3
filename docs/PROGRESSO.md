@@ -299,3 +299,16 @@
 
 - Arquivos corrompidos mantêm o caminho gerenciado para remoção manual; o coordenador bloqueia uma nova publicação sobre a cópia inválida até o usuário removê-la.
 - Arquivo publicado íntegro em estado INTERRUPTED é restaurado para READY ao retomar, sem transferir novamente.
+
+
+## 2026-11-27 — Fechamento da implementação do motor de cache temporário
+- Revisão estática final do fluxo: reserva → transferência → publicação → reprodução → conclusão/remoção → recuperação.
+- Confirmados os limites de escopo: cache exclusivo de vídeo; nenhuma importação de arquivos locais; nenhuma alteração em arquivos da Central de Áudio nesta branch.
+- Confirmada a retenção: pausa, troca de tela, encerramento, reinício, perda de conexão e seek manual até o fim não autorizam apagar o arquivo. A remoção natural depende do evento de conclusão do player; remoção manual permanece disponível.
+- Transferência: HTTPS, retomada HTTP Range validada, parcial preservado em falhas/cancelamentos, limite padrão de três operações simultâneas, reserva concorrente de espaço quando o tamanho é conhecido e validação de faixa de vídeo antes de READY.
+- Recuperação: estados e arquivos reconciliados; órfãos, corrompidos e parciais preservados para inspeção/ação explícita; operações de exclusão pendentes podem ser repetidas.
+- Interface: miniatura, duração, qualidade suportada, tamanho, estado, progresso de transferência e progresso de visualização.
+- **Bloqueio externo não resolvido:** não há provedor real confirmado que autorize download e armazenamento local do conteúdo do YouTube. O registro de provedores permanece vazio. Não implementar bypass nem declarar o fluxo YouTube offline operacional.
+- **Validação pendente por decisão do roadmap:** nenhum build/teste foi executado. Fase 10 continua pendente, incluindo migração Room, concorrência, regressão da Central de Áudio, reprodução/background e validação em aparelho.
+- PR #11 permanece draft e a branch não foi integrada à main. Não integrar enquanto a validação final não for realizada e o provedor não for resolvido/explicitamente retirado do escopo.
+- Status honesto: motor e UI implementados estaticamente; integração de provedor autorizado e validação final não concluídas. Não declarar 100% nem release pronto.
