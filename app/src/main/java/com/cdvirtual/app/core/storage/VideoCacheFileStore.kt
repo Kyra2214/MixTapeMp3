@@ -13,7 +13,7 @@ import java.util.Locale
  * Este componente não acessa a rede nem extrai streams. Ele só organiza arquivos
  * recebidos de uma fonte que autorize armazenamento offline.
  */
-class VideoCacheFileStore(context: Context) {
+class VideoCacheFileStore(context: Context) : com.cdvirtual.app.feature.youtube.VideoCacheRecoveryFileStore {
     private val directory = MediaStorageLayout.videoCacheDir(context).canonicalFile
 
     fun cacheDirectory(): File = directory
@@ -79,18 +79,8 @@ class VideoCacheFileStore(context: Context) {
      * Reverte a promoção se a persistência Room falhar, mantendo os bytes para nova tentativa.
      * Se o parcial já existir, preserva ambos os arquivos para reconciliação posterior.
      */
-    fun rollbackPromotion(publishedFile: File, cacheId: String): Boolean {
-        requireSafeId(cacheId)
-        val published = publishedFile.canonicalFile
-        requireManaged(published)
-        require(published.name.startsWith("$cacheId.") &&
-            published.extension.lowercase(Locale.ROOT) in SUPPORTED_EXTENSIONS
-        ) { "O arquivo publicado não pertence ao item de cache informado." }
-        val partial = File(directory, "$cacheId.part").canonicalFile
-        requireManaged(partial)
-        if (!published.isFile || partial.exists()) return false
-        return published.renameTo(partial)
-    }
+    fun rollbackPromotion(publishedFile: File, cacheId: String): Boolean =
+        rollbackVideoCachePromotion(publishedFile, directory, cacheId)
 
     /** Retorna somente arquivos completos e contidos no diretório exclusivo de vídeo. */
     fun resolveValidFile(path: String?, expectedBytes: Long = 0L): File? {
@@ -161,4 +151,33 @@ class VideoCacheFileStore(context: Context) {
     companion object {
         private val SUPPORTED_EXTENSIONS = setOf("mp4", "webm")
     }
+}
+
+
+/**
+ * Pure filesystem rollback primitive. Kept outside the Android-backed store so its
+ * safety properties can be exercised by local JVM tests using temporary directories.
+ */
+internal fun rollbackVideoCachePromotion(
+    publishedFile: File,
+    cacheDirectory: File,
+    cacheId: String
+): Boolean {
+    require(cacheId.matches(Regex("^[A-Za-z0-9_-]{1,100}$"))) {
+        "Identificador de cache inválido."
+    }
+    val directory = cacheDirectory.canonicalFile
+    val published = publishedFile.canonicalFile
+    require(published.parentFile == directory) {
+        "O arquivo está fora do diretório exclusivo do cache de vídeos."
+    }
+    require(published.name.startsWith("$cacheId.") &&
+        published.extension.lowercase(Locale.ROOT) in setOf("mp4", "webm")
+    ) { "O arquivo publicado não pertence ao item de cache informado." }
+    val partial = File(directory, "$cacheId.part").canonicalFile
+    require(partial.parentFile == directory) {
+        "O arquivo parcial está fora do diretório exclusivo do cache de vídeos."
+    }
+    if (!published.isFile || partial.exists()) return false
+    return published.renameTo(partial)
 }
