@@ -433,3 +433,5 @@ Base oficial: branch `feat/youtube-connector` (navegador integrado, fila de até
 - Respostas HTTP 206 agora precisam declarar intervalo coerente e cobrir até o fim do recurso conhecido; comprimentos parciais não são confundidos com tamanho total.
 - Recuperação valida cada arquivo publicado uma única vez e conclui arquivos já promovidos quando o processo caiu antes de gravar READY.
 - A reserva de espaço é compartilhada entre preparações concorrentes e diminui conforme o progresso de cada transferência.
+
+- Cancelamento durante a preparação inicial/reserva de espaço também persiste INTERRUPTED, não deixando reservas QUEUED presas.
