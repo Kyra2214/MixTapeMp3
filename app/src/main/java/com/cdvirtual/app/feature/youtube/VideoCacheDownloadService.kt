@@ -17,6 +17,7 @@ import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.MainActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -64,10 +65,7 @@ class VideoCacheDownloadService : Service() {
         )
 
         val cacheKey = "${source.sourceId}:${source.sourceVideoId}:${source.qualityHeight}"
-        if (jobs.containsKey(cacheKey)) return START_NOT_STICKY
-
-        activeCount.incrementAndGet()
-        val job = scope.launch {
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 val app = application as CDVirtualApp
                 app.videoCacheDownloadCoordinator.prepare(source) { progress ->
@@ -105,7 +103,13 @@ class VideoCacheDownloadService : Service() {
                 }
             }
         }
-        jobs[cacheKey] = job
+        val existing = jobs.putIfAbsent(cacheKey, job)
+        if (existing != null) {
+            job.cancel()
+            return START_NOT_STICKY
+        }
+        activeCount.incrementAndGet()
+        job.start()
         return START_NOT_STICKY
     }
 
