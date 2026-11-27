@@ -13,7 +13,16 @@ import java.util.Locale
  * Este componente não acessa a rede nem extrai streams. Ele só organiza arquivos
  * recebidos de uma fonte que autorize armazenamento offline.
  */
-class VideoCacheFileStore(context: Context) : com.cdvirtual.app.feature.youtube.VideoCacheRecoveryFileStore {
+/** File operations consumed by startup recovery and implemented only for the video cache. */
+interface VideoCacheRecoveryFileStore {
+    fun resolveValidFile(path: String?, expectedBytes: Long = 0L): File?
+    fun deleteManagedFile(path: String?): Boolean
+    fun deletePartialFile(cacheId: String): Boolean
+    fun listPublishedFiles(): List<File>
+    fun listPartialFiles(): List<File>
+}
+
+class VideoCacheFileStore(context: Context) : VideoCacheRecoveryFileStore {
     private val directory = MediaStorageLayout.videoCacheDir(context).canonicalFile
 
     fun cacheDirectory(): File = directory
