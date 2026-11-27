@@ -245,3 +245,8 @@
 - O cancelamento propaga `CancellationException` ao coordenador, que preserva o `.part` e registra o item como interrompido; a retomada depende do suporte HTTP Range da fonte autorizada.
 - O roadmap foi atualizado: progresso visual do download, lista vazia e mensagens de falha/espaço/fonte incompatível já possuem UI; progresso da visualização e miniatura/duração seguem pendentes.
 - Nenhum build/teste executado; a Central de Áudio permanece fora do escopo.
+
+### Ajuste de escopo e feedback de cancelamento
+- Removida qualquer previsão de importação de vídeos locais: essa funcionalidade não faz parte do produto.
+- Diálogo de preparação agora exibe uma mensagem informativa após cancelamento, esclarecendo a preservação do parcial quando a transferência já havia iniciado.
+- Cache permanece restrito a provedores remotos com autorização expressa de armazenamento temporário.
