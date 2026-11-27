@@ -39,6 +39,7 @@ class VideoCacheManager(
 ) {
     val items: Flow<List<VideoCacheEntity>> = repository.items
     private val reservationMutex = Mutex()
+    private val deletionMutex = Mutex()
 
     suspend fun reserve(
         sourceId: String,
@@ -129,32 +130,41 @@ class VideoCacheManager(
         repository.updatePosition(cacheId, positionMs)
 
     /** Chamado somente pelo player ao receber conclusão natural, nunca por seek manual. */
-    suspend fun finishNaturally(cacheId: String): Boolean {
-        val current = repository.find(cacheId) ?: return false
-        require(current.status == VideoCacheStatus.PLAYING) {
-            "Somente um vídeo em reprodução pode ser concluído."
-        }
-        repository.updateStatus(cacheId, VideoCacheStatus.COMPLETED)
-        val completed = repository.find(cacheId) ?: return false
-        val fileRemoved = completed.filePath.isNullOrBlank() || withContext(Dispatchers.IO) {
-            fileStore.deleteManagedFile(completed.filePath)
-        }
-        if (fileRemoved) repository.deleteRecordAfterFileRemoval(cacheId)
-        return fileRemoved
-    }
+    suspend fun finishNaturally(cacheId: String): Boolean = deletionMutex.withLock {
+        val current = repository.find(cacheId) ?: return@withLock false
+        if (current.status != VideoCacheStatus.PLAYING) return@withLock false
 
-    /** Exclusão explícita do usuário, mesmo que o vídeo ainda não tenha sido assistido. */
-    suspend fun removeManually(cacheId: String): Boolean {
-        val item = repository.find(cacheId) ?: return false
+        repository.updateStatus(cacheId, VideoCacheStatus.COMPLETED)
+        val completed = repository.find(cacheId) ?: return@withLock false
+
+        // Remove arquivo publicado e parcial residual apenas deste item.
         val (finalRemoved, partialRemoved) = withContext(Dispatchers.IO) {
-            val final = item.filePath.isNullOrBlank() || fileStore.deleteManagedFile(item.filePath)
-            final to fileStore.deletePartialFile(cacheId)
+            val final = completed.filePath.isNullOrBlank() ||
+                fileStore.deleteManagedFile(completed.filePath)
+            val partial = fileStore.deletePartialFile(cacheId)
+            final to partial
         }
         if (finalRemoved && partialRemoved) {
             repository.deleteRecordAfterFileRemoval(cacheId)
-            return true
+            true
+        } else {
+            // Mantém o registro COMPLETED para recuperação ou nova tentativa manual.
+            false
         }
-        return false
+    }
+
+    /** Exclusão explícita do usuário, mesmo que o vídeo ainda não tenha sido assistido. */
+    suspend fun removeManually(cacheId: String): Boolean = deletionMutex.withLock {
+        val item = repository.find(cacheId) ?: return@withLock false
+        val (finalRemoved, partialRemoved) = withContext(Dispatchers.IO) {
+            val final = item.filePath.isNullOrBlank() ||
+                fileStore.deleteManagedFile(item.filePath)
+            val partial = fileStore.deletePartialFile(cacheId)
+            final to partial
+        }
+        if (!finalRemoved || !partialRemoved) return@withLock false
+        repository.deleteRecordAfterFileRemoval(cacheId)
+        true
     }
 
     fun setMaxItems(value: Int) = settings.setMaxItems(value)
