@@ -41,7 +41,7 @@ object AppDiagnostics {
         val timestamp = formatter.get().format(Date())
         val thread = Thread.currentThread().name
         val safeEvent = event.replace('\n', ' ').take(300)
-        val safeDetails = details?.replace(Regex("https?://\\\\S+"), "<url-redacted>")?.take(12000)
+        val safeDetails = details?.replace(Regex("https?://\\S+"), "<url-redacted>")?.take(12000)
         val line = buildString {
             append(timestamp).append(" [").append(level.uppercase(Locale.ROOT)).append("] ")
             append("[").append(thread).append("] ").append(safeEvent)
