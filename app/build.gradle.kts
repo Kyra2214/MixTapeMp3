@@ -35,9 +35,22 @@ android {
         }
     }
     buildTypes {
+        debug {
+            isMinifyEnabled = false
+        }
         release {
+            // Continua desligado até o build minificado ser validado em aparelho.
             isMinifyEnabled = false // LAME é nativo (JNI); sem R8 para não quebrar nomes de classes chamadas pelo código nativo
             signingConfigs.findByName("release")?.let { signingConfig = it }
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        // Build type de validação: minificado, assinado como debug, sem tocar no E2E.
+        create("minified") {
+            initWith(getByName("debug"))
+            matchingFallbacks += listOf("debug")
+            isMinifyEnabled = true
+            isShrinkResources = false
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
         }
     }
     compileOptions {
