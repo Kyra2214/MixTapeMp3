@@ -12,8 +12,8 @@ import java.io.IOException
  * Só publica MP4 com codecs que o MediaMuxer do Android consegue gravar.
  */
 internal object VideoCacheMuxer {
-    private const val MIN_BUFFER_BYTES = 1024 * 1024
-    private const val MAX_BUFFER_BYTES = 16 * 1024 * 1024
+    private const val MIN_BUFFER_BYTES = 4 * 1024 * 1024
+    private const val MAX_BUFFER_BYTES = 32 * 1024 * 1024
 
     private data class TrackCursor(
         val extractor: MediaExtractor,
