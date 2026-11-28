@@ -33,8 +33,8 @@ class VideoCacheRepository(
         require(item.sourceId.isNotBlank()) { "Identificador da fonte vazio." }
         require(item.sourceVideoId.isNotBlank()) { "Identificador do vídeo vazio." }
         require(item.title.isNotBlank()) { "Título do vídeo vazio." }
-        require(item.qualityHeight in VideoCacheQuality.supportedHeights) {
-            "Qualidade não suportada. Use 240p, 360p ou 480p."
+        require(VideoCacheQuality.isValidHeight(item.qualityHeight)) {
+            "Resolução real do vídeo inválida."
         }
         require(item.status in setOf(
             VideoCacheStatus.QUEUED, VideoCacheStatus.DOWNLOADING, VideoCacheStatus.INTERRUPTED,
