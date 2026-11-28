@@ -157,7 +157,7 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
         }.getOrDefault(emptyList())
 
     private fun describeStream(stream: Any): String {
-        val format = readProperty(stream, "getFormat")
+        val format = invokeProperty(stream, "getFormat")
         val mime = format?.let { readProperty(it, "getMimeType") } ?: "?"
         val resolution = readProperty(stream, "getResolution") ?: "?"
         val videoOnly = readProperty(stream, "isVideoOnly")
@@ -170,14 +170,15 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
         return "type=${stream.javaClass.simpleName},res=$resolution,mime=$mime,videoOnly=$videoOnly,delivery=$delivery,bytes=$size,bitrate=$bitrate,url=$hasUrl"
     }
 
-    private fun readProperty(target: Any, getter: String): String? =
+    private fun invokeProperty(target: Any, getter: String): Any? =
         runCatching {
             target.javaClass.methods
                 .firstOrNull { it.name == getter && it.parameterCount == 0 }
                 ?.invoke(target)
-                ?.toString()
-                ?.take(120)
         }.getOrNull()
+
+    private fun readProperty(target: Any, getter: String): String? =
+        invokeProperty(target, getter)?.toString()?.take(120)
 
     /** Somente streams progressivos com altura dentro do contrato do cache. */
     private fun candidates(info: StreamInfo): List<Pair<Int, VideoStream>> =
