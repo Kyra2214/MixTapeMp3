@@ -1,6 +1,7 @@
 package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.database.VideoCacheQuality
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import com.cdvirtual.app.media.youtube.YouTubeExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,29 +22,54 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
 
     override suspend fun availableQualities(sourceVideoId: String): Set<Int> =
         withContext(Dispatchers.IO) {
-            val info = infoOf(sourceVideoId) ?: return@withContext emptySet()
-            candidates(info).map { it.first }.toSet()
+            val startedAt = System.currentTimeMillis()
+            AppDiagnostics.record("VIDEO_EXTRACT", "Consulta de qualidades iniciada", "videoId=$sourceVideoId provider=$SOURCE_ID")
+            val info = infoOf(sourceVideoId) ?: run {
+                AppDiagnostics.record("WARN", "Consulta de qualidades sem resultado", "videoId=$sourceVideoId durationMs=${System.currentTimeMillis() - startedAt}")
+                return@withContext emptySet()
+            }
+            val qualities = candidates(info).map { it.first }.toSet()
+            AppDiagnostics.record("VIDEO_EXTRACT", "Qualidades identificadas", "videoId=$sourceVideoId qualities=${qualities.sorted()} durationMs=${System.currentTimeMillis() - startedAt} streamsTotal=${info.videoStreams.size}")
+            qualities
         }
 
     override suspend fun resolve(
         sourceVideoId: String,
         qualityHeight: Int
     ): VideoCacheResolvedSource? = withContext(Dispatchers.IO) {
-        val info = infoOf(sourceVideoId) ?: return@withContext null
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_EXTRACT", "Resolução de stream iniciada", "videoId=$sourceVideoId quality=${qualityHeight}p")
+        val info = infoOf(sourceVideoId) ?: run {
+            AppDiagnostics.record("WARN", "Resolução de stream sem informações", "videoId=$sourceVideoId quality=${qualityHeight}p")
+            return@withContext null
+        }
         val stream = candidates(info).firstOrNull { it.first == qualityHeight }?.second
-            ?: return@withContext null
+            ?: run {
+                AppDiagnostics.record("WARN", "Qualidade solicitada indisponível", "videoId=$sourceVideoId requested=${qualityHeight}p available=${candidates(info).map { it.first }}")
+                return@withContext null
+            }
 
-        val url = stream.url?.takeIf { it.isNotBlank() } ?: return@withContext null
+        val url = stream.url?.takeIf { it.isNotBlank() } ?: run {
+            AppDiagnostics.record("ERROR", "Stream sem URL utilizável", "videoId=$sourceVideoId quality=${qualityHeight}p")
+            return@withContext null
+        }
         val mime = stream.format?.mimeType
             ?.substringBefore(';')
             ?.trim()
             ?.lowercase(Locale.ROOT)
-            ?: return@withContext null
+            ?: run {
+                AppDiagnostics.record("ERROR", "Stream sem MIME reconhecido", "videoId=$sourceVideoId quality=${qualityHeight}p")
+                return@withContext null
+            }
         val extension = when (mime) {
             "video/mp4" -> "mp4"
             "video/webm", "video/x-matroska" -> "webm"
-            else -> return@withContext null
+            else -> {
+                AppDiagnostics.record("ERROR", "Formato de stream não suportado", "videoId=$sourceVideoId mime=$mime")
+                return@withContext null
+            }
         }
+        AppDiagnostics.record("VIDEO_EXTRACT", "Stream resolvido", "videoId=$sourceVideoId quality=${qualityHeight}p mime=$mime expectedBytes=${contentLengthOf(stream)} durationMs=${System.currentTimeMillis() - startedAt}")
 
         VideoCacheResolvedSource(
             sourceId = SOURCE_ID,
@@ -63,10 +89,13 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
         )
     }
 
-    private fun infoOf(videoId: String): StreamInfo? = runCatching {
+    private fun infoOf(videoId: String): StreamInfo? = try {
         YouTubeExtractor.initialize()
         StreamInfo.getInfo(WATCH_URL + videoId)
-    }.getOrNull()
+    } catch (failure: Exception) {
+        AppDiagnostics.record("ERROR", "Falha na extração NewPipe", "videoId=$videoId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}")
+        null
+    }
 
     /** Somente streams progressivos com altura dentro do contrato do cache. */
     private fun candidates(info: StreamInfo): List<Pair<Int, VideoStream>> =
