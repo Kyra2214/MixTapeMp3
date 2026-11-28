@@ -170,7 +170,6 @@ class VideoCacheTransfer(
         onProgress: (VideoCacheTransferProgress) -> Unit
     ): File {
         if (expectedBytes > 0L && partial.length() == expectedBytes) return partial
-        val partial = fileStore.getOrCreatePartialFile(cacheId)
         val requestedOffset = partial.length()
         AppDiagnostics.record("VIDEO_HTTP", "Requisição HTTP de vídeo", "cacheId=$cacheId resumeOffset=$requestedOffset expectedBytes=${expectedBytes} mime=${mimeType} extension=${request.extension}")
         val builder = Request.Builder().url(mediaUrl)
