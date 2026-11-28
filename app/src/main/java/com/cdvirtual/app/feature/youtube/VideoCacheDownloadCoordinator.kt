@@ -96,7 +96,7 @@ class VideoCacheDownloadCoordinator(
                         (source.transferRequest.audioTrack?.expectedBytes ?: 0L)
                     if (expectedTotal > 0L) {
                         reservedSpaceBytes[item.cacheId]?.set(
-                            (expectedTotal - progress.downloadedBytes).coerceAtLeast(0L)
+                            ((expectedTotal * 2L) - progress.downloadedBytes).coerceAtLeast(expectedTotal)
                         )
                     }
                     onProgress(progress)
