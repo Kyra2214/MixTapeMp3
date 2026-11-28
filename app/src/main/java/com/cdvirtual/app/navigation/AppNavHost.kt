@@ -44,6 +44,12 @@ fun AppNavHost() {
     val browserWebView = remember { WebView(context) }
     // Escopo da Activity: a fila não morre quando a tela Importar sai da navegação.
     val importerVm: ImporterViewModel = viewModel()
+    val currentEntry by nav.currentBackStackEntryAsState()
+    LaunchedEffect(currentEntry?.destination?.route) {
+        currentEntry?.destination?.route?.substringBefore("?")?.let { route ->
+            AppDiagnostics.record("NAV", "Tela aberta", "route=$route")
+        }
+    }
     NavHost(navController = nav, startDestination = Destination.Welcome.route) {
         composable(Destination.Welcome.route) {
             WelcomeScreen(onFinished = {
@@ -86,6 +92,7 @@ fun AppNavHost() {
         composable(Destination.Equalizer.route) { EqualizerScreen(onBack = back) }
         composable(Destination.Player.route) { PlayerScreen(onBack = back) }
         composable(Destination.Export.route) { ExportScreen(onBack = back) }
-        composable(Destination.Settings.route) { SettingsScreen(onBack = back) }\n        composable(Destination.Logs.route) { LogsScreen(onBack = back) }
+        composable(Destination.Settings.route) { SettingsScreen(onBack = back) }
+        composable(Destination.Logs.route) { LogsScreen(onBack = back) }
     }
 }
