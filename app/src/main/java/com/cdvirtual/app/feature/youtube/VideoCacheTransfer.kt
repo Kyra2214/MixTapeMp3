@@ -171,7 +171,7 @@ class VideoCacheTransfer(
     ): File {
         if (expectedBytes > 0L && partial.length() == expectedBytes) return partial
         val requestedOffset = partial.length()
-        AppDiagnostics.record("VIDEO_HTTP", "Requisição HTTP de vídeo", "cacheId=$cacheId resumeOffset=$requestedOffset expectedBytes=${expectedBytes} mime=${mimeType} extension=${request.extension}")
+        AppDiagnostics.record("VIDEO_HTTP", "Requisição HTTP de vídeo", "cacheId=$cacheId resumeOffset=$requestedOffset expectedBytes=${expectedBytes} mime=${mimeType} track=${if (mimeType.startsWith("audio/")) "audio" else "video"}")
         val builder = Request.Builder().url(mediaUrl)
         headers.forEach { (name, value) -> builder.header(name, value) }
         if (requestedOffset > 0L) builder.header("Range", "bytes=$requestedOffset-")
