@@ -43,6 +43,8 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
                 "Qualidades identificadas",
                 "videoId=$sourceVideoId qualities=${qualities.sorted()} progressiveCandidates=${candidates(info).size} " +
                     "videoStreams=${info.videoStreams.size} videoOnlyStreams=${streamCollection(info, "getVideoOnlyStreams").size} " +
+                    "progressiveInVideoList=${info.videoStreams.count { !it.isVideoOnly }} " +
+                    "videoOnlyInVideoList=${info.videoStreams.count { it.isVideoOnly }} " +
                     "audioStreams=${streamCollection(info, "getAudioStreams").size} elapsedMs=${System.currentTimeMillis() - startedAt}"
             )
             qualities
@@ -116,7 +118,9 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
                 "videoId=$videoId elapsedMs=${System.currentTimeMillis() - startedAt} " +
                     "titlePresent=${!info.name.isNullOrBlank()} uploaderPresent=${!info.uploaderName.isNullOrBlank()} " +
                     "durationSeconds=${info.duration} videoStreams=${info.videoStreams.size} " +
-                    "videoOnlyStreams=${streamCollection(info, "getVideoOnlyStreams").size} " +
+                    "videoOnlyStreamsGetter=${streamCollection(info, "getVideoOnlyStreams").size} " +
+                    "progressiveInVideoList=${info.videoStreams.count { !it.isVideoOnly }} " +
+                    "videoOnlyInVideoList=${info.videoStreams.count { it.isVideoOnly }} " +
                     "audioStreams=${streamCollection(info, "getAudioStreams").size}"
             )
             info
