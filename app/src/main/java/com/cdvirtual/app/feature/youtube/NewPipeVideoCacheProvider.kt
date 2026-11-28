@@ -5,6 +5,7 @@ import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import com.cdvirtual.app.media.youtube.YouTubeExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.VideoStream
 import java.util.Locale
@@ -29,7 +30,7 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
                 return@withContext emptySet()
             }
             val groups = streamDiagnostics(info)
-            val qualities = candidates(info).map { it.first }.toSet()
+            val qualities = candidates(info).map { it.height }.toSet()
             AppDiagnostics.record(
                 "VIDEO_EXTRACT",
                 "Inventário de streams retornado pelo NewPipe",
@@ -41,7 +42,7 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             AppDiagnostics.record(
                 "VIDEO_EXTRACT",
                 "Qualidades identificadas",
-                "videoId=$sourceVideoId qualities=${qualities.sorted()} progressiveCandidates=${candidates(info).size} " +
+                "videoId=$sourceVideoId qualities=${qualities.sorted()} compatibleCandidates=${candidates(info).size} " +
                     "videoStreams=${info.videoStreams.size} videoOnlyStreams=${streamCollection(info, "getVideoOnlyStreams").size} " +
                     "progressiveInVideoList=${info.videoStreams.count { !it.isVideoOnly }} " +
                     "videoOnlyInVideoList=${info.videoStreams.count { it.isVideoOnly }} " +
@@ -61,39 +62,41 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             return@withContext null
         }
         val availableCandidates = candidates(info)
-        val resolvedHeight = VideoCacheQuality.selectFallback(qualityHeight, availableCandidates.map { it.first }.toSet())
+        val resolvedHeight = VideoCacheQuality.selectFallback(qualityHeight, availableCandidates.map { it.height }.toSet())
             ?: run {
-                AppDiagnostics.record("WARN", "Nenhuma qualidade compatível disponível", "videoId=$sourceVideoId requested=${qualityHeight}p")
+                AppDiagnostics.record("WARN", "Nenhuma qualidade com áudio compatível disponível", "videoId=$sourceVideoId requested=${qualityHeight}p")
                 return@withContext null
             }
-        val stream = availableCandidates.firstOrNull { it.first == resolvedHeight }?.second
-            ?: return@withContext null
+        val candidate = availableCandidates.firstOrNull { it.height == resolvedHeight } ?: return@withContext null
+        val stream = candidate.video
+        val audio = candidate.audio
         if (resolvedHeight != qualityHeight) {
-            AppDiagnostics.record("VIDEO_EXTRACT", "Fallback de qualidade aplicado", "videoId=$sourceVideoId requested=${qualityHeight}p selected=${resolvedHeight}p available=${availableCandidates.map { it.first }}")
+            AppDiagnostics.record("VIDEO_EXTRACT", "Fallback de qualidade aplicado", "videoId=$sourceVideoId requested=${qualityHeight}p selected=${resolvedHeight}p available=${availableCandidates.map { it.height }}")
         }
-
-        val url = stream.url?.takeIf { it.isNotBlank() } ?: run {
-            AppDiagnostics.record("ERROR", "Stream sem URL utilizável", "videoId=$sourceVideoId quality=${qualityHeight}p")
+        val url = stream.url?.takeIf { it.isNotBlank() } ?: return@withContext null
+        val mime = stream.format?.mimeType?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT) ?: return@withContext null
+        if (mime != "video/mp4") return@withContext null
+        val audioRequest = audio?.let { audioStream ->
+            val audioUrl = audioStream.url?.takeIf { it.isNotBlank() } ?: return@let null
+            val audioMime = audioStream.format?.mimeType?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT) ?: return@let null
+            VideoCacheAudioTrackRequest(
+                mediaUrl = audioUrl,
+                mimeType = audioMime,
+                headers = REQUEST_HEADERS,
+                expectedBytes = contentLengthOf(audioStream)
+            )
+        }
+        if (stream.isVideoOnly && audioRequest == null) {
+            AppDiagnostics.record("ERROR", "Faixa de áudio MP4 não encontrada para o vídeo", "videoId=$sourceVideoId quality=${resolvedHeight}p")
             return@withContext null
         }
-        val mime = stream.format?.mimeType
-            ?.substringBefore(';')
-            ?.trim()
-            ?.lowercase(Locale.ROOT)
-            ?: run {
-                AppDiagnostics.record("ERROR", "Stream sem MIME reconhecido", "videoId=$sourceVideoId quality=${qualityHeight}p")
-                return@withContext null
-            }
-        val extension = when (mime) {
-            "video/mp4" -> "mp4"
-            "video/webm", "video/x-matroska" -> "webm"
-            else -> {
-                AppDiagnostics.record("ERROR", "Formato de stream não suportado", "videoId=$sourceVideoId mime=$mime")
-                return@withContext null
-            }
-        }
-        AppDiagnostics.record("VIDEO_EXTRACT", "Stream resolvido", "videoId=$sourceVideoId quality=${qualityHeight}p mime=$mime expectedBytes=${contentLengthOf(stream)} durationMs=${System.currentTimeMillis() - startedAt}")
-
+        AppDiagnostics.record(
+            "VIDEO_EXTRACT",
+            "Streams de vídeo e áudio resolvidos",
+            "videoId=$sourceVideoId quality=${resolvedHeight}p videoMime=$mime videoCodec=${codecOf(stream)} " +
+                "videoBytes=${contentLengthOf(stream)} audioMime=${audioRequest?.mimeType ?: "embedded"} " +
+                "audioCodec=${audio?.let(::codecOf) ?: "embedded"} audioBytes=${audioRequest?.expectedBytes ?: 0L}"
+        )
         VideoCacheResolvedSource(
             sourceId = SOURCE_ID,
             sourceVideoId = sourceVideoId,
@@ -105,9 +108,10 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             transferRequest = VideoCacheTransferRequest(
                 mediaUrl = url,
                 mimeType = mime,
-                extension = extension,
+                extension = "mp4",
                 headers = REQUEST_HEADERS,
-                expectedBytes = contentLengthOf(stream)
+                expectedBytes = contentLengthOf(stream),
+                audioTrack = audioRequest
             )
         )
     }
@@ -176,8 +180,9 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
         val delivery = readProperty(stream, "getDeliveryMethod") ?: "?"
         val size = readProperty(stream, "getContentLength") ?: "?"
         val bitrate = readProperty(stream, "getAverageBitrate") ?: "?"
+        val codec = readProperty(stream, "getCodec") ?: "?"
         val hasUrl = readProperty(stream, "getUrl")?.isNotBlank() == true
-        return "type=${stream.javaClass.simpleName},res=$resolution,mime=$mime,videoOnly=$videoOnly,delivery=$delivery,bytes=$size,bitrate=$bitrate,url=$hasUrl"
+        return "type=${stream.javaClass.simpleName},res=$resolution,mime=$mime,videoOnly=$videoOnly,delivery=$delivery,bytes=$size,bitrate=$bitrate,codec=$codec,url=$hasUrl"
     }
 
     private fun invokeProperty(target: Any, getter: String): Any? =
@@ -190,22 +195,36 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
     private fun readProperty(target: Any, getter: String): String? =
         invokeProperty(target, getter)?.toString()?.take(120)
 
-    /** Somente streams progressivos com altura dentro do contrato do cache. */
-    private fun candidates(info: StreamInfo): List<Pair<Int, VideoStream>> =
-        info.videoStreams
-            .asSequence()
-            .filter { !it.isVideoOnly }
-            .mapNotNull { stream ->
-                val height = stream.resolution
-                    ?.takeWhile { it.isDigit() }
-                    ?.toIntOrNull()
-                    ?: return@mapNotNull null
-                if (height !in VideoCacheQuality.supportedHeights) return@mapNotNull null
-                height to stream
-            }
-            .distinctBy { it.first }
-            .sortedBy { it.first }
-            .toList()
+    private data class VideoCandidate(val height: Int, val video: VideoStream, val audio: AudioStream?)
+
+    /**
+     * O YouTube pode entregar DASH com vídeo e áudio em URLs separadas.
+     * Para esses casos, só oferecemos combinações MP4 que podem ser muxadas localmente.
+     */
+    private fun candidates(info: StreamInfo): List<VideoCandidate> {
+        val audios = streamCollection(info, "getAudioStreams")
+            .filterIsInstance<AudioStream>()
+            .filter { it.format?.mimeType?.substringBefore(';')?.equals("audio/mp4", true) == true }
+            .filter { it.url?.startsWith("https://", true) == true }
+            .sortedByDescending { it.averageBitrate }
+        val progressive = info.videoStreams.filter { !it.isVideoOnly }
+        val videoOnly = streamCollection(info, "getVideoOnlyStreams").filterIsInstance<VideoStream>()
+        return (progressive + videoOnly).mapNotNull { stream ->
+            val mime = stream.format?.mimeType?.substringBefore(';')?.lowercase(Locale.ROOT)
+            if (mime != "video/mp4" || !stream.url.orEmpty().startsWith("https://", true)) return@mapNotNull null
+            val height = stream.resolution?.takeWhile { it.isDigit() }?.toIntOrNull() ?: return@mapNotNull null
+            if (!VideoCacheQuality.isValidHeight(height)) return@mapNotNull null
+            val audio = if (stream.isVideoOnly) audios.firstOrNull() ?: return@mapNotNull null else null
+            val codec = codecOf(stream)?.lowercase(Locale.ROOT).orEmpty()
+            if (codec.isNotBlank() && !codec.startsWithAny("avc", "h264", "hev", "h265", "mp4v")) return@mapNotNull null
+            VideoCandidate(height, stream, audio)
+        }.distinctBy { it.height }.sortedBy { it.height }
+    }
+
+    private fun codecOf(stream: Any): String? = readProperty(stream, "getCodec")
+
+    private fun String.startsWithAny(vararg prefixes: String): Boolean =
+        prefixes.any { startsWith(it, ignoreCase = true) }
 
     /**
      * A API de thumbnail mudou entre versões do NewPipe (getThumbnailUrl -> getThumbnails).
@@ -230,9 +249,9 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
      * quebraria a checagem final. Lido por reflexão para não depender da assinatura
      * exata da versão do NewPipe; ausente, fica 0 (tamanho desconhecido).
      */
-    private fun contentLengthOf(stream: VideoStream): Long =
+    private fun contentLengthOf(stream: Any): Long =
         runCatching {
-            VideoStream::class.java.methods
+            stream.javaClass.methods
                 .firstOrNull { it.name == "getContentLength" && it.parameterCount == 0 }
                 ?.invoke(stream) as? Long
         }.getOrNull()?.takeIf { it > 0L } ?: 0L
