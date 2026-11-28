@@ -40,6 +40,7 @@ object VideoCacheQuality {
     const val DEFAULT = P240
 
     val supportedHeights = setOf(P240, P360, P480)
+    fun isValidHeight(height: Int): Boolean = height in 1..4320
 
     /**
      * Retorna a resolução real a usar para uma qualidade preferida:
