@@ -203,6 +203,7 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             .filterIsInstance<AudioStream>()
             .filter { it.format?.mimeType?.substringBefore(';')?.equals("audio/mp4", true) == true }
             .filter { it.url?.startsWith("https://", true) == true }
+            .filter { codecOf(it)?.startsWith("mp4a", true) == true }
             .sortedByDescending { it.averageBitrate }
         val progressive = info.videoStreams.filter { !it.isVideoOnly }
         val videoOnly = streamCollection(info, "getVideoOnlyStreams").filterIsInstance<VideoStream>()
@@ -213,7 +214,7 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             if (!VideoCacheQuality.isValidHeight(height)) return@mapNotNull null
             val audio = if (stream.isVideoOnly) audios.firstOrNull() ?: return@mapNotNull null else null
             val codec = codecOf(stream)?.lowercase(Locale.ROOT).orEmpty()
-            if (codec.isNotBlank() && !codec.startsWithAny("avc", "h264", "hev", "hvc", "h265", "mp4v")) return@mapNotNull null
+            if (!codec.startsWithAny("avc", "h264", "hev", "hvc", "h265", "mp4v")) return@mapNotNull null
             VideoCandidate(height, stream, audio)
         }.distinctBy { it.height }.sortedBy { it.height }
     }
