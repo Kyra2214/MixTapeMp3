@@ -158,16 +158,36 @@ class VideoCacheTransfer(
         coroutineScope {
             val videoDownloaded = AtomicLong(videoPartial.length())
             val audioDownloaded = AtomicLong(audioPartial.length())
+            val videoTotal = AtomicLong(request.expectedBytes)
+            val audioTotal = AtomicLong(audioRequest.expectedBytes)
+            val lastSpeedLogAt = AtomicLong(System.nanoTime())
+            val lastSpeedLogBytes = AtomicLong(videoPartial.length() + audioPartial.length())
             fun reportCombinedProgress() {
                 val combinedDownloaded = videoDownloaded.get() + audioDownloaded.get()
-                onProgress(VideoCacheTransferProgress(combinedDownloaded, combinedTotal))
+                val discoveredTotal = videoTotal.get() + audioTotal.get()
+                val total = combinedTotal ?: discoveredTotal.takeIf { it > 0L }
+                onProgress(VideoCacheTransferProgress(combinedDownloaded, total))
+                val now = System.nanoTime()
+                val previousAt = lastSpeedLogAt.get()
+                val elapsedMs = (now - previousAt) / 1_000_000L
+                if (elapsedMs >= 5_000L && lastSpeedLogAt.compareAndSet(previousAt, now)) {
+                    val previousBytes = lastSpeedLogBytes.getAndSet(combinedDownloaded)
+                    val deltaBytes = (combinedDownloaded - previousBytes).coerceAtLeast(0L)
+                    val speedKib = deltaBytes * 1_000L / elapsedMs / 1_024L
+                    AppDiagnostics.record(
+                        "VIDEO_SPEED",
+                        "Velocidade agregada das faixas",
+                        "cacheId=$cacheId speedKiBps=$speedKib downloadedBytes=$combinedDownloaded totalBytes=${total ?: -1L} videoBytes=${videoDownloaded.get()} audioBytes=${audioDownloaded.get()}"
+                    )
+                }
             }
             val videoJob = async(Dispatchers.IO) {
                 downloadSingle(
                     cacheId, request.mediaUrl, request.mimeType, request.headers,
                     request.expectedBytes, videoPartial, 0L, null, {},
-                    onTrackProgress = { bytes ->
+                    onTrackProgress = { bytes, total ->
                         videoDownloaded.set(bytes)
+                        if (total != null && total > 0L) videoTotal.set(total)
                         reportCombinedProgress()
                     }
                 )
@@ -176,8 +196,9 @@ class VideoCacheTransfer(
                 downloadSingle(
                     cacheId, audioRequest.mediaUrl, audioRequest.mimeType, audioRequest.headers,
                     audioRequest.expectedBytes, audioPartial, 0L, null, {},
-                    onTrackProgress = { bytes ->
+                    onTrackProgress = { bytes, total ->
                         audioDownloaded.set(bytes)
+                        if (total != null && total > 0L) audioTotal.set(total)
                         reportCombinedProgress()
                     }
                 )
@@ -208,7 +229,7 @@ class VideoCacheTransfer(
         progressOffset: Long,
         combinedTotalBytes: Long?,
         onProgress: (VideoCacheTransferProgress) -> Unit,
-        onTrackProgress: ((Long) -> Unit)? = null
+        onTrackProgress: ((Long, Long?) -> Unit)? = null
     ): File {
         if (expectedBytes > 0L && partial.length() == expectedBytes) return partial
         val requestedOffset = partial.length()
@@ -308,7 +329,7 @@ class VideoCacheTransfer(
                                     downloaded += count
                                     receivedInResponse += count
                                     if (onTrackProgress != null) {
-                                        onTrackProgress(downloaded)
+                                        onTrackProgress(downloaded, totalBytes)
                                     } else {
                                         onProgress(VideoCacheTransferProgress(progressOffset + downloaded, combinedTotalBytes ?: totalBytes?.let { progressOffset + it }))
                                     }
