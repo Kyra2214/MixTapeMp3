@@ -21,7 +21,9 @@ import com.cdvirtual.app.feature.youtube.VideoCacheTransfer
 import com.cdvirtual.app.feature.youtube.VideoCacheDownloadCoordinator
 import com.cdvirtual.app.feature.youtube.VideoCacheSourceRegistry
 import com.cdvirtual.app.media.connectors.ImportRecovery
-import com.cdvirtual.app.media.service.ExportRecovery\nimport com.cdvirtual.app.core.diagnostics.AppDiagnostics
+import com.cdvirtual.app.media.service.ExportRecovery
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 
 class CDVirtualApp : Application() {
     val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -43,11 +45,17 @@ class CDVirtualApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        ExportRecovery.recoverOnLaunch(this)
-        ImportRecovery.cleanPartials(this)
+        AppDiagnostics.initialize(this)
+        AppDiagnostics.record("APP", "CDVirtualApp.onCreate")
+        runCatching { ExportRecovery.recoverOnLaunch(this) }
+            .onFailure { AppDiagnostics.record("ERROR", "Falha na recuperação de exportações", it.stackTraceToString()) }
+        runCatching { ImportRecovery.cleanPartials(this) }
+            .onFailure { AppDiagnostics.record("ERROR", "Falha na limpeza de importações parciais", it.stackTraceToString()) }
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            ImportRecovery.cleanOrphans(this@CDVirtualApp) { trackRepository.findByUri(it) != null }
-            GenreBackfill.run(this@CDVirtualApp, trackRepository) // músicas anteriores à coluna de gênero
+            runCatching { ImportRecovery.cleanOrphans(this@CDVirtualApp) { trackRepository.findByUri(it) != null } }
+                .onFailure { AppDiagnostics.record("ERROR", "Falha ao reconciliar importações", it.stackTraceToString()) }
+            runCatching { GenreBackfill.run(this@CDVirtualApp, trackRepository) }
+                .onFailure { AppDiagnostics.record("ERROR", "Falha na atualização de gêneros", it.stackTraceToString()) }
             runCatching { videoCacheRecovery.recover() }
                 .onSuccess { report ->
                     android.util.Log.i(
@@ -60,6 +68,8 @@ class CDVirtualApp : Application() {
                 }
                 .onFailure { AppDiagnostics.record("ERROR", "Falha na recuperação do cache de vídeos", it.stackTraceToString()); android.util.Log.w("VideoCacheRecovery", "Não foi possível reconciliar o cache de vídeos", it) }
         }
-        runCatching { analysisRunner.kick() }\n            .onFailure { AppDiagnostics.record("ERROR", "Falha ao iniciar análise da biblioteca", it.stackTraceToString()) }\n        AppDiagnostics.record("APP", "Inicialização do aplicativo concluída")
+        runCatching { analysisRunner.kick() }
+            .onFailure { AppDiagnostics.record("ERROR", "Falha ao iniciar análise da biblioteca", it.stackTraceToString()) }
+        AppDiagnostics.record("APP", "Inicialização do aplicativo concluída")
     }
 }
