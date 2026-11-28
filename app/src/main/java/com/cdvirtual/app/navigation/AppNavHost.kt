@@ -2,15 +2,20 @@ package com.cdvirtual.app.navigation
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.compose.ui.platform.LocalContext
 import android.webkit.WebView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
+import com.cdvirtual.app.feature.diagnostics.LogsScreen
 import com.cdvirtual.app.feature.importer.ImporterViewModel
 import com.cdvirtual.app.feature.importer.DownloadsScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -81,6 +86,6 @@ fun AppNavHost() {
         composable(Destination.Equalizer.route) { EqualizerScreen(onBack = back) }
         composable(Destination.Player.route) { PlayerScreen(onBack = back) }
         composable(Destination.Export.route) { ExportScreen(onBack = back) }
-        composable(Destination.Settings.route) { SettingsScreen(onBack = back) }
+        composable(Destination.Settings.route) { SettingsScreen(onBack = back) }\n        composable(Destination.Logs.route) { LogsScreen(onBack = back) }
     }
 }
