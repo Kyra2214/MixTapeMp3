@@ -10,8 +10,8 @@ import java.util.Locale
 /**
  * Acesso seguro aos arquivos do cache de vídeo.
  *
- * Este componente não acessa a rede nem extrai streams. Ele só organiza arquivos
- * recebidos de uma fonte que autorize armazenamento offline.
+ * Este componente não acessa a rede nem extrai streams. Ele organiza os parciais
+ * de vídeo/áudio e os arquivos MP4 combinados da Central de Vídeos.
  */
 /** File operations consumed by startup recovery and implemented only for the video cache. */
 interface VideoCacheRecoveryFileStore {
@@ -65,6 +65,20 @@ class VideoCacheFileStore(context: Context) : VideoCacheRecoveryFileStore, Video
      * Publica um arquivo .part somente após confirmar tamanho não vazio e tamanho esperado,
      * usando rename no mesmo diretório para evitar expor arquivos incompletos.
      */
+    override fun getOrCreateAuxiliaryPartialFile(cacheId: String, role: String): File {
+        requireSafeId(cacheId)
+        require(role in setOf("audio", "mux")) { "Tipo de arquivo auxiliar inválido." }
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw IOException("Não foi possível criar o diretório do cache de vídeos.")
+        }
+        val partial = File(directory, "$cacheId.$role.part").canonicalFile
+        requireManaged(partial)
+        if (partial.exists() && !partial.isFile) {
+            throw IOException("O caminho auxiliar já existe e não é um arquivo regular.")
+        }
+        return partial
+    }
+
     fun promotePartialFile(partialFile: File, extension: String, expectedBytes: Long = 0L): File {
         val partial = partialFile.canonicalFile
         requireManaged(partial)
