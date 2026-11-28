@@ -207,7 +207,12 @@ internal fun rollbackVideoCachePromotion(
     require(published.name.startsWith("$cacheId.") &&
         published.extension.lowercase(Locale.ROOT) in setOf("mp4", "webm")
     ) { "O arquivo publicado não pertence ao item de cache informado." }
-    val partial = File(directory, "$cacheId.part").canonicalFile
+    val partialName = when (published.name) {
+        "$cacheId.mp4", "$cacheId.webm" -> "$cacheId.part"
+        "$cacheId.mux.mp4" -> "$cacheId.mux.part"
+        else -> throw IllegalArgumentException("O arquivo publicado não corresponde a um formato de cache conhecido.")
+    }
+    val partial = File(directory, partialName).canonicalFile
     require(partial.parentFile == directory) {
         "O arquivo parcial está fora do diretório exclusivo do cache de vídeos."
     }
