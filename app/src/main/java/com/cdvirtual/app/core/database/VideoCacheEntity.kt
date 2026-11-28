@@ -40,6 +40,17 @@ object VideoCacheQuality {
     const val DEFAULT = P240
 
     val supportedHeights = setOf(P240, P360, P480)
+
+    /**
+     * Retorna a resolução real a usar para uma qualidade preferida:
+     * exata, senão a menor acima; se não existir acima, a maior abaixo.
+     */
+    fun selectFallback(requested: Int, available: Set<Int>): Int? {
+        if (available.isEmpty()) return null
+        return requested.takeIf { it in available }
+            ?: available.filter { it > requested }.minOrNull()
+            ?: available.filter { it < requested }.maxOrNull()
+    }
 }
 
 object VideoCacheStatus {
