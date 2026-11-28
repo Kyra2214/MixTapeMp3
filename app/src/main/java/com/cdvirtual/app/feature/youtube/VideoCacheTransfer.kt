@@ -214,7 +214,7 @@ class VideoCacheTransfer(
                                 if (parsedRange.endInclusive != declaredTotal - 1L) {
                                     throw IOException("A fonte retornou somente parte do intervalo solicitado; o parcial foi preservado para retomada.")
                                 }
-                                if (request.expectedBytes > 0L && declaredTotal != request.expectedBytes) {
+                                if (expectedBytes > 0L && declaredTotal != expectedBytes) {
                                     throw IOException("O tamanho total informado pela fonte não corresponde ao esperado.")
                                 }
                             }
@@ -223,7 +223,7 @@ class VideoCacheTransfer(
                                 ?.substringBefore(';')
                                 ?.trim()
                                 ?.lowercase(Locale.ROOT)
-                            val requestedMime = request.mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)
+                            val requestedMime = mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)
                             val mimeMatches = responseMime == null ||
                                 responseMime == "application/octet-stream" ||
                                 responseMime == requestedMime ||
@@ -244,11 +244,11 @@ class VideoCacheTransfer(
                             }
                             val effectiveOffset = if (append) requestedOffset else 0L
                             val totalBytes = totalFromRange
-                                ?: request.expectedBytes.takeIf { it > 0L }
+                                ?: expectedBytes.takeIf { it > 0L }
                                 ?: if (http.code == 206) null else responseLength
 
-                            if (request.expectedBytes > 0L && totalBytes != null &&
-                                totalBytes != request.expectedBytes
+                            if (expectedBytes > 0L && totalBytes != null &&
+                                totalBytes != expectedBytes
                             ) {
                                 throw IOException("O tamanho informado pela fonte não corresponde ao esperado.")
                             }
@@ -268,7 +268,7 @@ class VideoCacheTransfer(
                                     receivedInResponse += count
                                     onProgress(VideoCacheTransferProgress(progressOffset + downloaded, combinedTotalBytes ?: totalBytes?.let { progressOffset + it }))
                                     if (downloaded >= nextLogAt) {
-                                        val percent = totalBytes?.takeIf { it > 0L }?.let { downloaded * 100L / it }
+                                        val percent = (combinedTotalBytes ?: totalBytes?.let { progressOffset + it })?.takeIf { it > 0L }?.let { (progressOffset + downloaded) * 100L / it }
                                         AppDiagnostics.record("VIDEO_PROGRESS", "Progresso do download", "cacheId=$cacheId downloadedBytes=${progressOffset + downloaded} totalBytes=${combinedTotalBytes ?: totalBytes?.let { progressOffset + it } ?: -1L} percent=${percent ?: -1L}")
                                         nextLogAt = if (totalBytes != null && totalBytes > 0L) nextLogAt + (totalBytes / 10L).coerceAtLeast(1L) else nextLogAt + 5L * 1024L * 1024L
                                     }
@@ -281,10 +281,10 @@ class VideoCacheTransfer(
                             }
 
                             if (partial.length() <= 0L) throw IOException("O arquivo recebido está vazio.")
-                            if (request.expectedBytes > 0L && partial.length() != request.expectedBytes) {
+                            if (expectedBytes > 0L && partial.length() != expectedBytes) {
                                 throw IOException("O download terminou antes de receber todos os bytes.")
                             }
-                            AppDiagnostics.record("VIDEO_HTTP", "Corpo HTTP recebido e validado", "cacheId=$cacheId bytes=${partial.length()} expectedBytes=${request.expectedBytes} httpStatus=${http.code}")
+                            AppDiagnostics.record("VIDEO_HTTP", "Corpo HTTP recebido e validado", "cacheId=$cacheId bytes=${partial.length()} expectedBytes=${expectedBytes} httpStatus=${http.code}")
                             if (continuation.isActive) {
                                 continuation.resumeWith(Result.success(partial))
                             }
