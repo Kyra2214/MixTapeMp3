@@ -24,6 +24,8 @@ interface VideoCacheRecoveryFileStore {
 
 interface VideoCacheTransferFileStore {
     fun getOrCreatePartialFile(cacheId: String): File
+    fun getOrCreateAuxiliaryPartialFile(cacheId: String, role: String): File =
+        throw UnsupportedOperationException("Arquivos auxiliares não são suportados por este armazenamento.")
 }
 
 class VideoCacheFileStore(context: Context) : VideoCacheRecoveryFileStore, VideoCacheTransferFileStore {
@@ -116,9 +118,13 @@ class VideoCacheFileStore(context: Context) : VideoCacheRecoveryFileStore, Video
     /** Remove um parcial identificado por cacheId, sem tocar em arquivos fora do diretório de vídeo. */
     override fun deletePartialFile(cacheId: String): Boolean {
         requireSafeId(cacheId)
-        val partial = File(directory, "$cacheId.part").canonicalFile
-        if (!isManaged(partial)) return false
-        return !partial.exists() || partial.delete()
+        val partials = listOf(
+            File(directory, "$cacheId.part"),
+            File(directory, "$cacheId.audio.part"),
+            File(directory, "$cacheId.mux.part")
+        ).map { it.canonicalFile }
+        if (partials.any { !isManaged(it) }) return false
+        return partials.all { !it.exists() || it.delete() }
     }
 
     /** Lista arquivos publicados; a recuperação usa a lista para identificar órfãos sem apagá-los. */
