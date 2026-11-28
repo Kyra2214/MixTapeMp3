@@ -885,12 +885,40 @@ private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: ()
             Text(video.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(video.channel.ifBlank { "Canal não informado" } + " • " + formatDuration(video.durationSeconds),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                Button(onClick = onPlay) { Text("Assistir") }
-                if (onPrepareCache != null) TextButton(onClick = onPrepareCache) { Text("Preparar offline") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onPlay,
+                    modifier = Modifier.weight(if (onPrepareCache != null) 0.9f else 1f)
+                ) { Text("Assistir", maxLines = 1) }
+                if (onPrepareCache != null) {
+                    TextButton(
+                        onClick = onPrepareCache,
+                        modifier = Modifier.weight(1.5f)
+                    ) { Text("Preparar offline", maxLines = 1) }
+                }
+            }
+            if (video.channelUrl != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onListen, modifier = Modifier.weight(1f)) {
+                        Text("Só áudio", maxLines = 1)
+                    }
+                    TextButton(onClick = onAddChannel, modifier = Modifier.weight(1f)) {
+                        Text("+ Canal", maxLines = 1)
+                    }
+                    TextButton(onClick = onOpenChannel, modifier = Modifier.weight(1.2f)) {
+                        Text("Ver canal", maxLines = 1)
+                    }
+                }
+            } else {
                 TextButton(onClick = onListen) { Text("Só áudio") }
-                if (video.channelUrl != null) TextButton(onClick = onAddChannel) { Text("+ Canal") }
-                if (video.channelUrl != null) TextButton(onClick = onOpenChannel) { Text("Ver canal") }
             }
         }
     }
