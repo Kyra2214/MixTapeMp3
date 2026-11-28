@@ -1,6 +1,7 @@
 package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.storage.VideoCacheTransferFileStore
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -113,6 +114,7 @@ class VideoCacheTransfer(
     ): File {
         val partial = fileStore.getOrCreatePartialFile(cacheId)
         val requestedOffset = partial.length()
+        AppDiagnostics.record("VIDEO_HTTP", "Requisição HTTP de vídeo", "cacheId=$cacheId resumeOffset=$requestedOffset expectedBytes=${request.expectedBytes} mime=${request.mimeType} extension=${request.extension}")
         val builder = Request.Builder().url(request.mediaUrl)
         request.headers.forEach { (name, value) -> builder.header(name, value) }
         if (requestedOffset > 0L) builder.header("Range", "bytes=$requestedOffset-")
@@ -122,12 +124,14 @@ class VideoCacheTransfer(
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, failure: IOException) {
+                    AppDiagnostics.record("ERROR", "Falha de conexão no download", "cacheId=$cacheId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}")
                     if (continuation.isActive) continuation.resumeWithException(failure)
                 }
 
                 override fun onResponse(call: Call, response: Response) {
                     try {
                         response.use { http ->
+                            AppDiagnostics.record("VIDEO_HTTP", "Resposta HTTP recebida", "cacheId=$cacheId status=${http.code} contentType=${http.header("Content-Type") ?: "ausente"} contentLength=${http.body?.contentLength() ?: -1L} contentRange=${http.header("Content-Range") ?: "ausente"} resumed=${requestedOffset > 0L}")
                             if (!http.isSuccessful) {
                                 throw IOException("A fonte recusou o download (HTTP ${http.code}).")
                             }
@@ -194,6 +198,7 @@ class VideoCacheTransfer(
 
                             FileOutputStream(partial, append).use { output ->
                                 val input = body.byteStream()
+                                var nextLogAt = if (totalBytes != null && totalBytes > 0L) (totalBytes / 10L).coerceAtLeast(1L) else 5L * 1024L * 1024L
                                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                                 var downloaded = effectiveOffset
                                 var receivedInResponse = 0L
@@ -205,6 +210,11 @@ class VideoCacheTransfer(
                                     downloaded += count
                                     receivedInResponse += count
                                     onProgress(VideoCacheTransferProgress(downloaded, totalBytes))
+                                    if (downloaded >= nextLogAt) {
+                                        val percent = totalBytes?.takeIf { it > 0L }?.let { downloaded * 100L / it }
+                                        AppDiagnostics.record("VIDEO_PROGRESS", "Progresso do download", "cacheId=$cacheId downloadedBytes=$downloaded totalBytes=${totalBytes ?: -1L} percent=${percent ?: -1L}")
+                                        nextLogAt = if (totalBytes != null && totalBytes > 0L) nextLogAt + (totalBytes / 10L).coerceAtLeast(1L) else nextLogAt + 5L * 1024L * 1024L
+                                    }
                                 }
                                 if (responseRangeLength != null && receivedInResponse != responseRangeLength) {
                                     throw IOException("A transferência terminou antes de completar o intervalo HTTP informado.")
@@ -217,11 +227,13 @@ class VideoCacheTransfer(
                             if (request.expectedBytes > 0L && partial.length() != request.expectedBytes) {
                                 throw IOException("O download terminou antes de receber todos os bytes.")
                             }
+                            AppDiagnostics.record("VIDEO_HTTP", "Corpo HTTP recebido e validado", "cacheId=$cacheId bytes=${partial.length()} expectedBytes=${request.expectedBytes} httpStatus=${http.code}")
                             if (continuation.isActive) {
                                 continuation.resumeWith(Result.success(partial))
                             }
                         }
                     } catch (failure: Throwable) {
+                        AppDiagnostics.record("ERROR", "Resposta HTTP de vídeo rejeitada", "cacheId=$cacheId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}")
                         if (continuation.isActive) continuation.resumeWithException(failure)
                     }
                 }
