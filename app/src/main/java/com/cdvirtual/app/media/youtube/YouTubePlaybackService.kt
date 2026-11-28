@@ -24,6 +24,7 @@ import com.cdvirtual.app.CDVirtualApp
 import com.cdvirtual.app.MainActivity
 import com.cdvirtual.app.core.database.YouTubeHistoryEntity
 import com.cdvirtual.app.core.database.VideoCacheEntity
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -74,6 +75,7 @@ class YouTubePlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        AppDiagnostics.record("VIDEO_PLAYER", "Serviço de reprodução criado")
         val httpFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36")
             .setDefaultRequestProperties(
@@ -93,6 +95,7 @@ class YouTubePlaybackService : MediaSessionService() {
         player.setAudioAttributes(AudioAttributes.DEFAULT, true)
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                AppDiagnostics.record("VIDEO_PLAYER", "Mídia alterada", "mediaId=${mediaItem?.mediaId ?: "null"} reason=$reason")
                 hasStartedCurrentItem = false
                 currentCacheSeekedToEnd = false
                 val resumedId = mediaItem?.mediaId
@@ -109,6 +112,7 @@ class YouTubePlaybackService : MediaSessionService() {
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                AppDiagnostics.record("VIDEO_PLAYER", if (isPlaying) "Reprodução iniciada/retomada" else "Reprodução pausada", "mediaId=${player.currentMediaItem?.mediaId ?: "null"} positionMs=${player.currentPosition} state=${player.playbackState}")
                 val cacheId = currentCachedId()
                 if (isPlaying) {
                     hasStartedCurrentItem = true
@@ -134,6 +138,14 @@ class YouTubePlaybackService : MediaSessionService() {
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                val stateName = when (playbackState) {
+                    Player.STATE_IDLE -> "IDLE"
+                    Player.STATE_BUFFERING -> "BUFFERING"
+                    Player.STATE_READY -> "READY"
+                    Player.STATE_ENDED -> "ENDED"
+                    else -> "UNKNOWN"
+                }
+                AppDiagnostics.record("VIDEO_PLAYER", "Estado do player alterado", "state=$stateName mediaId=${player.currentMediaItem?.mediaId ?: "null"} positionMs=${player.currentPosition} durationMs=${player.duration}")
                 if (playbackState == Player.STATE_ENDED) {
                     val cacheId = currentCachedId()
                     if (cacheId != null) {
@@ -169,6 +181,7 @@ class YouTubePlaybackService : MediaSessionService() {
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                AppDiagnostics.record("ERROR", "Erro do ExoPlayer", "errorCode=${error.errorCode} errorName=${error.errorCodeName} message=${error.message ?: "sem mensagem"} mediaId=${player.currentMediaItem?.mediaId ?: "null"} positionMs=${player.currentPosition}\n${error.stackTraceToString()}")
                 val cacheId = currentCachedId()
                 if (cacheId != null) {
                     scope.launch {
@@ -304,6 +317,7 @@ class YouTubePlaybackService : MediaSessionService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        AppDiagnostics.record("VIDEO_PLAYER", "Comando recebido pelo serviço", "action=${intent?.action ?: "null"} startId=$startId")
         if (intent?.action == ACTION_PLAY_CACHED) {
             YouTubePlaybackStatus.clearError()
             val cacheId = intent.getStringExtra(EXTRA_CACHE_ID)?.takeIf { it.isNotBlank() }
@@ -357,6 +371,8 @@ class YouTubePlaybackService : MediaSessionService() {
     }
 
     private suspend fun loadAndPlay(videoId: String, audioOnly: Boolean, requestId: Long) {
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_PLAYER", "Carregamento de vídeo iniciado", "videoId=$videoId audioOnly=$audioOnly requestId=$requestId")
         try {
             val info = YouTubePlaybackRepository.resolve(videoId)
             if (!isCurrentRequest(videoId, audioOnly, requestId)) return
@@ -416,6 +432,7 @@ class YouTubePlaybackService : MediaSessionService() {
                 player.seekTo(previous!!.lastPositionMs)
             }
             player.play()
+            AppDiagnostics.record("VIDEO_PLAYER", "Comando de reprodução enviado", "videoId=$videoId audioOnly=$audioOnly mime=${selectedMimeType ?: "unknown"} elapsedMs=${System.currentTimeMillis() - startedAt}")
             startPlaybackMonitor(videoId, requestId)
             val sponsorEnabled = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
                 .getBoolean(KEY_SPONSOR_BLOCK, false)
@@ -425,6 +442,7 @@ class YouTubePlaybackService : MediaSessionService() {
             // Encerrar o serviço ou cancelar a tarefa não deve aparecer como erro ao usuário.
             throw cancelled
         } catch (failure: Exception) {
+            AppDiagnostics.record("ERROR", "Falha no carregamento do vídeo", "videoId=$videoId audioOnly=$audioOnly exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"} elapsedMs=${System.currentTimeMillis() - startedAt}\n${failure.stackTraceToString()}")
             android.util.Log.e(TAG, "Não foi possível iniciar o vídeo $videoId", failure)
             if (isCurrentRequest(videoId, audioOnly, requestId)) {
                 YouTubePlaybackStatus.reportError(failure.toYouTubePlaybackMessage())
@@ -434,6 +452,7 @@ class YouTubePlaybackService : MediaSessionService() {
     }
 
     private suspend fun loadAndPlayCached(cacheId: String) {
+        AppDiagnostics.record("VIDEO_PLAYER", "Abertura de vídeo em cache solicitada", "cacheId=$cacheId")
         try {
             val app = application as CDVirtualApp
             val item = app.videoCacheRepository.find(cacheId)
@@ -473,10 +492,12 @@ class YouTubePlaybackService : MediaSessionService() {
             )
             player.prepare()
             player.play()
+            AppDiagnostics.record("VIDEO_PLAYER", "Reprodução do cache iniciada", "cacheId=$cacheId bytes=${file.length()} mime=$mimeType startPositionMs=${item.lastPositionMs}")
             startCachePlaybackMonitor(cacheId)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
+            AppDiagnostics.record("ERROR", "Falha ao abrir vídeo em cache", "cacheId=$cacheId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}")
             runCatching { (application as CDVirtualApp).videoCacheManager.pausePlayback(cacheId) }
             android.util.Log.e(TAG, "Não foi possível reproduzir o vídeo temporário $cacheId", failure)
             YouTubePlaybackStatus.reportError(failure.message ?: "Não foi possível abrir o vídeo do cache.")
@@ -594,6 +615,7 @@ class YouTubePlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        AppDiagnostics.record("VIDEO_PLAYER", "Serviço de reprodução destruído", "mediaId=${player.currentMediaItem?.mediaId ?: "null"} positionMs=${if (::player.isInitialized) player.currentPosition else -1L}")
         // Faz uma última tentativa de salvar o ponto atual em um escopo independente,
         // pois o escopo principal será cancelado logo abaixo.
         val cachedIdAtDestroy = currentCachedId()
