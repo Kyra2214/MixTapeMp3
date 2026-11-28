@@ -80,7 +80,7 @@ class VideoCacheManager(
         require(sourceId.isNotBlank() && sourceVideoId.isNotBlank()) { "Fonte ou vídeo inválido." }
         require(title.isNotBlank()) { "O vídeo precisa ter um título." }
         require(durationMs >= 0L) { "Duração inválida." }
-        require(qualityHeight in VideoCacheQuality.supportedHeights) { "Escolha 240p, 360p ou 480p." }
+        require(VideoCacheQuality.isValidHeight(qualityHeight)) { "Resolução real do vídeo inválida." }
 
         val existing = repository.findBySource(sourceId, sourceVideoId)
         if (existing != null) return@withLock VideoCacheReserveResult.AlreadyExists(existing)

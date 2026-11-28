@@ -1,6 +1,11 @@
 package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.storage.VideoCacheTransferFileStore
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -12,18 +17,35 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resumeWithException
 
 /**
  * Requisição já resolvida por um provedor que tenha autorização para download
  * e armazenamento offline. Este componente não extrai URLs de plataformas.
  */
+data class VideoCacheAudioTrackRequest(
+    val mediaUrl: String,
+    val mimeType: String,
+    val headers: Map<String, String> = emptyMap(),
+    val expectedBytes: Long = 0L
+) {
+    init {
+        require(mediaUrl.startsWith("https://", ignoreCase = true)) { "A faixa de áudio exige URL HTTPS." }
+        require(mimeType.substringBefore(';').trim().lowercase(Locale.ROOT) == "audio/mp4") {
+            "A junção MP4 exige áudio AAC em contêiner MP4."
+        }
+        require(expectedBytes >= 0L) { "Tamanho esperado da faixa de áudio inválido." }
+    }
+}
+
 data class VideoCacheTransferRequest(
     val mediaUrl: String,
     val mimeType: String,
     val extension: String,
     val headers: Map<String, String> = emptyMap(),
-    val expectedBytes: Long = 0L
+    val expectedBytes: Long = 0L,
+    val audioTrack: VideoCacheAudioTrackRequest? = null
 ) {
     init {
         require(mediaUrl.startsWith("https://", ignoreCase = true)) {
@@ -100,10 +122,16 @@ class VideoCacheTransfer(
         .followSslRedirects(false)
         .build()
 ) {
-    fun requiredFreeBytes(cacheId: String, expectedBytes: Long): Long {
-        if (expectedBytes <= 0L) return 0L
-        val partial = fileStore.getOrCreatePartialFile(cacheId)
-        return (expectedBytes - partial.length()).coerceAtLeast(0L)
+    fun requiredFreeBytes(cacheId: String, request: VideoCacheTransferRequest): Long {
+        val videoPartial = fileStore.getOrCreatePartialFile(cacheId)
+        val videoMissing = (request.expectedBytes - videoPartial.length()).coerceAtLeast(0L)
+        val audioRequest = request.audioTrack ?: return videoMissing
+        val audioPartial = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "audio")
+        val audioMissing = (audioRequest.expectedBytes - audioPartial.length()).coerceAtLeast(0L)
+        val muxOutputBytes = if (request.expectedBytes > 0L && audioRequest.expectedBytes > 0L) {
+            request.expectedBytes + audioRequest.expectedBytes
+        } else 0L
+        return videoMissing + audioMissing + muxOutputBytes
     }
 
     suspend fun download(
@@ -111,10 +139,103 @@ class VideoCacheTransfer(
         request: VideoCacheTransferRequest,
         onProgress: (VideoCacheTransferProgress) -> Unit = {}
     ): File {
-        val partial = fileStore.getOrCreatePartialFile(cacheId)
+        val videoPartial = fileStore.getOrCreatePartialFile(cacheId)
+        val audioRequest = request.audioTrack
+            ?: return downloadSingle(
+                cacheId, request.mediaUrl, request.mimeType, request.headers,
+                request.expectedBytes, videoPartial, 0L, request.expectedBytes.takeIf { it > 0L }, onProgress
+            )
+
+        val audioPartial = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "audio")
+        val combinedTotal = if (request.expectedBytes > 0L && audioRequest.expectedBytes > 0L) {
+            request.expectedBytes + audioRequest.expectedBytes
+        } else null
+        AppDiagnostics.record(
+            "VIDEO_DOWNLOAD",
+            "Faixas de vídeo e áudio iniciadas em paralelo",
+            "cacheId=$cacheId videoResumeBytes=${videoPartial.length()} audioResumeBytes=${audioPartial.length()} combinedExpectedBytes=${combinedTotal ?: -1L}"
+        )
+        coroutineScope {
+            val videoDownloaded = AtomicLong(videoPartial.length())
+            val audioDownloaded = AtomicLong(audioPartial.length())
+            val videoTotal = AtomicLong(request.expectedBytes)
+            val audioTotal = AtomicLong(audioRequest.expectedBytes)
+            val lastSpeedLogAt = AtomicLong(System.nanoTime())
+            val lastSpeedLogBytes = AtomicLong(videoPartial.length() + audioPartial.length())
+            fun reportCombinedProgress() {
+                val combinedDownloaded = videoDownloaded.get() + audioDownloaded.get()
+                val discoveredTotal = videoTotal.get() + audioTotal.get()
+                val total = combinedTotal ?: discoveredTotal.takeIf { it > 0L }
+                onProgress(VideoCacheTransferProgress(combinedDownloaded, total))
+                val now = System.nanoTime()
+                val previousAt = lastSpeedLogAt.get()
+                val elapsedMs = (now - previousAt) / 1_000_000L
+                if (elapsedMs >= 5_000L && lastSpeedLogAt.compareAndSet(previousAt, now)) {
+                    val previousBytes = lastSpeedLogBytes.getAndSet(combinedDownloaded)
+                    val deltaBytes = (combinedDownloaded - previousBytes).coerceAtLeast(0L)
+                    val speedKib = deltaBytes * 1_000L / elapsedMs / 1_024L
+                    AppDiagnostics.record(
+                        "VIDEO_SPEED",
+                        "Velocidade agregada das faixas",
+                        "cacheId=$cacheId speedKiBps=$speedKib downloadedBytes=$combinedDownloaded totalBytes=${total ?: -1L} videoBytes=${videoDownloaded.get()} audioBytes=${audioDownloaded.get()}"
+                    )
+                }
+            }
+            val videoJob = async(Dispatchers.IO) {
+                downloadSingle(
+                    cacheId, request.mediaUrl, request.mimeType, request.headers,
+                    request.expectedBytes, videoPartial, 0L, null, {},
+                    onTrackProgress = { bytes, total ->
+                        videoDownloaded.set(bytes)
+                        if (total != null && total > 0L) videoTotal.set(total)
+                        reportCombinedProgress()
+                    }
+                )
+            }
+            val audioJob = async(Dispatchers.IO) {
+                downloadSingle(
+                    cacheId, audioRequest.mediaUrl, audioRequest.mimeType, audioRequest.headers,
+                    audioRequest.expectedBytes, audioPartial, 0L, null, {},
+                    onTrackProgress = { bytes, total ->
+                        audioDownloaded.set(bytes)
+                        if (total != null && total > 0L) audioTotal.set(total)
+                        reportCombinedProgress()
+                    }
+                )
+            }
+            videoJob.await()
+            audioJob.await()
+        }
+        AppDiagnostics.record(
+            "VIDEO_DOWNLOAD",
+            "Duas faixas recebidas",
+            "cacheId=$cacheId videoBytes=${videoPartial.length()} audioBytes=${audioPartial.length()}"
+        )
+
+        val muxed = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "mux")
+        AppDiagnostics.record("VIDEO_MUX", "Junção de áudio e vídeo iniciada", "cacheId=$cacheId videoBytes=${videoPartial.length()} audioBytes=${audioPartial.length()}")
+        withContext(Dispatchers.IO) { VideoCacheMuxer.mux(videoPartial, audioPartial, muxed) }
+        AppDiagnostics.record("VIDEO_MUX", "Junção de áudio e vídeo concluída", "cacheId=$cacheId outputBytes=${muxed.length()}")
+        return muxed
+    }
+
+    private suspend fun downloadSingle(
+        cacheId: String,
+        mediaUrl: String,
+        mimeType: String,
+        headers: Map<String, String>,
+        expectedBytes: Long,
+        partial: File,
+        progressOffset: Long,
+        combinedTotalBytes: Long?,
+        onProgress: (VideoCacheTransferProgress) -> Unit,
+        onTrackProgress: ((Long, Long?) -> Unit)? = null
+    ): File {
+        if (expectedBytes > 0L && partial.length() == expectedBytes) return partial
         val requestedOffset = partial.length()
-        val builder = Request.Builder().url(request.mediaUrl)
-        request.headers.forEach { (name, value) -> builder.header(name, value) }
+        AppDiagnostics.record("VIDEO_HTTP", "Requisição HTTP de vídeo", "cacheId=$cacheId resumeOffset=$requestedOffset expectedBytes=${expectedBytes} mime=${mimeType} track=${if (mimeType.startsWith("audio/")) "audio" else "video"}")
+        val builder = Request.Builder().url(mediaUrl)
+        headers.forEach { (name, value) -> builder.header(name, value) }
         if (requestedOffset > 0L) builder.header("Range", "bytes=$requestedOffset-")
         val call = client.newCall(builder.get().build())
 
@@ -122,12 +243,14 @@ class VideoCacheTransfer(
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, failure: IOException) {
+                    AppDiagnostics.record("ERROR", "Falha de conexão no download", "cacheId=$cacheId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}")
                     if (continuation.isActive) continuation.resumeWithException(failure)
                 }
 
                 override fun onResponse(call: Call, response: Response) {
                     try {
                         response.use { http ->
+                            AppDiagnostics.record("VIDEO_HTTP", "Resposta HTTP recebida", "cacheId=$cacheId status=${http.code} contentType=${http.header("Content-Type") ?: "ausente"} contentLength=${http.body?.contentLength() ?: -1L} contentRange=${http.header("Content-Range") ?: "ausente"} resumed=${requestedOffset > 0L}")
                             if (!http.isSuccessful) {
                                 throw IOException("A fonte recusou o download (HTTP ${http.code}).")
                             }
@@ -153,7 +276,7 @@ class VideoCacheTransfer(
                                 if (parsedRange.endInclusive != declaredTotal - 1L) {
                                     throw IOException("A fonte retornou somente parte do intervalo solicitado; o parcial foi preservado para retomada.")
                                 }
-                                if (request.expectedBytes > 0L && declaredTotal != request.expectedBytes) {
+                                if (expectedBytes > 0L && declaredTotal != expectedBytes) {
                                     throw IOException("O tamanho total informado pela fonte não corresponde ao esperado.")
                                 }
                             }
@@ -162,7 +285,7 @@ class VideoCacheTransfer(
                                 ?.substringBefore(';')
                                 ?.trim()
                                 ?.lowercase(Locale.ROOT)
-                            val requestedMime = request.mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)
+                            val requestedMime = mimeType.substringBefore(';').trim().lowercase(Locale.ROOT)
                             val mimeMatches = responseMime == null ||
                                 responseMime == "application/octet-stream" ||
                                 responseMime == requestedMime ||
@@ -183,17 +306,18 @@ class VideoCacheTransfer(
                             }
                             val effectiveOffset = if (append) requestedOffset else 0L
                             val totalBytes = totalFromRange
-                                ?: request.expectedBytes.takeIf { it > 0L }
+                                ?: expectedBytes.takeIf { it > 0L }
                                 ?: if (http.code == 206) null else responseLength
 
-                            if (request.expectedBytes > 0L && totalBytes != null &&
-                                totalBytes != request.expectedBytes
+                            if (expectedBytes > 0L && totalBytes != null &&
+                                totalBytes != expectedBytes
                             ) {
                                 throw IOException("O tamanho informado pela fonte não corresponde ao esperado.")
                             }
 
                             FileOutputStream(partial, append).use { output ->
                                 val input = body.byteStream()
+                                var nextLogAt = if (totalBytes != null && totalBytes > 0L) (totalBytes / 10L).coerceAtLeast(1L) else 5L * 1024L * 1024L
                                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                                 var downloaded = effectiveOffset
                                 var receivedInResponse = 0L
@@ -204,7 +328,16 @@ class VideoCacheTransfer(
                                     output.write(buffer, 0, count)
                                     downloaded += count
                                     receivedInResponse += count
-                                    onProgress(VideoCacheTransferProgress(downloaded, totalBytes))
+                                    if (onTrackProgress != null) {
+                                        onTrackProgress(downloaded, totalBytes)
+                                    } else {
+                                        onProgress(VideoCacheTransferProgress(progressOffset + downloaded, combinedTotalBytes ?: totalBytes?.let { progressOffset + it }))
+                                    }
+                                    if (downloaded >= nextLogAt) {
+                                        val percent = (combinedTotalBytes ?: totalBytes?.let { progressOffset + it })?.takeIf { it > 0L }?.let { (progressOffset + downloaded) * 100L / it }
+                                        AppDiagnostics.record("VIDEO_PROGRESS", "Progresso do download", "cacheId=$cacheId downloadedBytes=${progressOffset + downloaded} totalBytes=${combinedTotalBytes ?: totalBytes?.let { progressOffset + it } ?: -1L} percent=${percent ?: -1L}")
+                                        nextLogAt = if (totalBytes != null && totalBytes > 0L) nextLogAt + (totalBytes / 10L).coerceAtLeast(1L) else nextLogAt + 5L * 1024L * 1024L
+                                    }
                                 }
                                 if (responseRangeLength != null && receivedInResponse != responseRangeLength) {
                                     throw IOException("A transferência terminou antes de completar o intervalo HTTP informado.")
@@ -214,14 +347,16 @@ class VideoCacheTransfer(
                             }
 
                             if (partial.length() <= 0L) throw IOException("O arquivo recebido está vazio.")
-                            if (request.expectedBytes > 0L && partial.length() != request.expectedBytes) {
+                            if (expectedBytes > 0L && partial.length() != expectedBytes) {
                                 throw IOException("O download terminou antes de receber todos os bytes.")
                             }
+                            AppDiagnostics.record("VIDEO_HTTP", "Corpo HTTP recebido e validado", "cacheId=$cacheId bytes=${partial.length()} expectedBytes=${expectedBytes} httpStatus=${http.code}")
                             if (continuation.isActive) {
                                 continuation.resumeWith(Result.success(partial))
                             }
                         }
                     } catch (failure: Throwable) {
+                        AppDiagnostics.record("ERROR", "Resposta HTTP de vídeo rejeitada", "cacheId=$cacheId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}")
                         if (continuation.isActive) continuation.resumeWithException(failure)
                     }
                 }

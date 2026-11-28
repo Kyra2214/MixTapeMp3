@@ -130,11 +130,13 @@ class VideoCacheDownloadService : Service() {
                     if (now - previous < PROGRESS_NOTIFICATION_INTERVAL_MS ||
                         !lastProgressNotificationAt.compareAndSet(previous, now)
                     ) return@prepare
-                    val total = progress.totalBytes?.let(::formatBytes) ?: "tamanho desconhecido"
+                    val downloaded = formatBytes(progress.downloadedBytes)
+                    val total = progress.totalBytes?.let(::formatBytes)
+                    val compactProgress = if (total != null) "$downloaded / $total" else "$downloaded recebidos"
                     notifications.notify(
                         NOTIFICATION_ID,
                         buildNotification(
-                            "Recebidos ${formatBytes(progress.downloadedBytes)} de $total",
+                            compactProgress,
                             true,
                             progress.fraction
                         )
@@ -218,8 +220,9 @@ class VideoCacheDownloadService : Service() {
         )
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Cache de vídeo")
-            .setContentText(message)
+            .setContentTitle("Download de vídeo")
+            .setContentText(message.take(48))
+            .setSubText("Central de Vídeos")
             .setContentIntent(openApp)
             .setOnlyAlertOnce(true)
             .setOngoing(ongoing)

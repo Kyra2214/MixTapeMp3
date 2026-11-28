@@ -22,6 +22,24 @@ class VideoCacheRollbackTest {
     }
 
     @Test
+    fun rollbackMuxedPublicationReturnsToMuxPartialWithoutTouchingSourceTracks() {
+        val directory = Files.createTempDirectory("video-cache").toFile()
+        try {
+            val published = File(directory, "cache-5.mux.mp4").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+            val video = File(directory, "cache-5.part").apply { writeBytes(byteArrayOf(4)) }
+            val audio = File(directory, "cache-5.audio.part").apply { writeBytes(byteArrayOf(5)) }
+
+            assertTrue(rollbackVideoCachePromotion(published, directory, "cache-5"))
+            assertFalse(published.exists())
+            assertTrue(File(directory, "cache-5.mux.part").isFile)
+            assertTrue(video.isFile)
+            assertTrue(audio.isFile)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun rollbackPreservesBothFilesWhenPartialAlreadyExists() {
         val directory = Files.createTempDirectory("video-cache").toFile()
         try {

@@ -1,5 +1,6 @@
 package com.cdvirtual.app.media.youtube
 
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,6 +26,8 @@ object YouTubePlaybackRepository {
     private const val BASE_URL = "https://www.youtube.com/watch?v="
 
     suspend fun resolve(videoId: String): YouTubePlaybackInfo = withContext(Dispatchers.IO) {
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_PLAYBACK", "Resolução de reprodução iniciada", "videoId=$videoId")
         YouTubeExtractor.initialize()
         val info = try {
             StreamInfo.getInfo(BASE_URL + videoId)
@@ -32,7 +35,9 @@ object YouTubePlaybackRepository {
             // Cancelamento da tela/serviço não é falha de extração do YouTube.
             throw cancelled
         } catch (failure: Exception) {
-            throw classifyFailure(failure)
+            val classified = classifyFailure(failure)
+            AppDiagnostics.record("ERROR", "Falha ao resolver reprodução", "videoId=$videoId exception=${failure.javaClass.name} classified=${classified.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}")
+            throw classified
         }
         if (info.streamType.toString().contains("LIVE", ignoreCase = true)) {
             throw YouTubeUnavailableException(YouTubeFailure.LiveNotSupported)
@@ -58,6 +63,7 @@ object YouTubePlaybackRepository {
         val audioStreamUrl = audioStream?.url
         val audioMimeType = audioStream?.format?.mimeType
 
+        AppDiagnostics.record("VIDEO_PLAYBACK", "Streams de reprodução resolvidos", "videoId=$videoId streamMime=${mimeType ?: "desconhecido"} audioAvailable=${audioStreamUrl != null} durationSeconds=${info.duration} elapsedMs=${System.currentTimeMillis() - startedAt}")
         YouTubePlaybackInfo(
             videoId = videoId,
             title = info.name.orEmpty(),

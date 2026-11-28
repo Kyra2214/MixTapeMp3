@@ -1,6 +1,7 @@
 package com.cdvirtual.app.feature.youtube
 
 import com.cdvirtual.app.core.database.VideoCacheEntity
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import com.cdvirtual.app.core.database.VideoCacheStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -32,6 +33,8 @@ class VideoCacheDownloadCoordinator(
         source: VideoCacheResolvedSource,
         onProgress: (VideoCacheTransferProgress) -> Unit = {}
     ): VideoCacheEntity {
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_CACHE", "Preparação solicitada", "videoId=${source.sourceVideoId} quality=${source.qualityHeight}p expectedBytes=${source.transferRequest.expectedBytes} mime=${source.transferRequest.mimeType}")
         val reservation = manager.reserve(
             sourceId = source.sourceId,
             sourceVideoId = source.sourceVideoId,
@@ -48,6 +51,7 @@ class VideoCacheDownloadCoordinator(
                 throw IllegalStateException("Limite do cache atingido (${reservation.current}/${reservation.limit}). Remova um item manualmente para continuar.")
         }
         val isNewReservation = reservation is VideoCacheReserveResult.Reserved
+        AppDiagnostics.record("VIDEO_CACHE", "Reserva de cache definida", "cacheId=${item.cacheId} status=${item.status} new=$isNewReservation quality=${item.qualityHeight}p")
         require(item.qualityHeight == source.qualityHeight) {
             "Este vídeo já está reservado em ${item.qualityHeight}p. Remova o item para escolher outra qualidade."
         }
@@ -71,7 +75,7 @@ class VideoCacheDownloadCoordinator(
         try {
             var missingBytes = 0L
             val hasCapacity = spaceMutex.withLock {
-                val required = transfer.requiredFreeBytes(item.cacheId, source.transferRequest.expectedBytes)
+                val required = transfer.requiredFreeBytes(item.cacheId, source.transferRequest)
                 val available = manager.capacity().availableBytes
                 val reservedByOthers = reservedSpaceBytes.values.sumOf { it.get() }
                 val availableAfterReservations = (available - reservedByOthers).coerceAtLeast(0L)
@@ -88,9 +92,11 @@ class VideoCacheDownloadCoordinator(
 
             try {
                 download(item.cacheId, source.transferRequest) { progress ->
-                    if (source.transferRequest.expectedBytes > 0L) {
+                    val expectedTotal = source.transferRequest.expectedBytes +
+                        (source.transferRequest.audioTrack?.expectedBytes ?: 0L)
+                    if (expectedTotal > 0L) {
                         reservedSpaceBytes[item.cacheId]?.set(
-                            (source.transferRequest.expectedBytes - progress.downloadedBytes).coerceAtLeast(0L)
+                            ((expectedTotal * 2L) - progress.downloadedBytes).coerceAtLeast(expectedTotal)
                         )
                     }
                     onProgress(progress)
@@ -98,15 +104,21 @@ class VideoCacheDownloadCoordinator(
             } finally {
                 reservedSpaceBytes.remove(item.cacheId)
             }
-            return manager.find(item.cacheId)
+            val completed = manager.find(item.cacheId)
                 ?: throw IllegalStateException("O item desapareceu após a preparação.")
+            AppDiagnostics.record("VIDEO_CACHE", "Preparação concluída", "cacheId=${item.cacheId} status=${completed.status} bytes=${completed.sizeBytes} elapsedMs=${System.currentTimeMillis() - startedAt}")
+            return completed
         } catch (cancelled: CancellationException) {
+            AppDiagnostics.record("WARN", "Preparação cancelada", "cacheId=${item.cacheId} elapsedMs=${System.currentTimeMillis() - startedAt}")
             // Também cobre cancelamento durante reserva de espaço ou resolução do fluxo,
             // antes de a transferência HTTP entrar no coordenador.
             withContext(NonCancellable) {
                 runCatching { manager.markInterrupted(item.cacheId) }
             }
             throw cancelled
+        } catch (failure: Exception) {
+            AppDiagnostics.record("ERROR", "Falha na preparação do cache", "cacheId=${item.cacheId} exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}")
+            throw failure
         } finally {
             preparingCacheIds.remove(item.cacheId)
             reservedSpaceBytes.remove(item.cacheId)
@@ -119,24 +131,30 @@ class VideoCacheDownloadCoordinator(
         onProgress: (VideoCacheTransferProgress) -> Unit = {}
     ) {
         check(activeCacheIds.add(cacheId)) { "Este vídeo já possui uma transferência ativa." }
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_DOWNLOAD", "Download aguardando vaga", "cacheId=$cacheId expectedBytes=${request.expectedBytes} mime=${request.mimeType}")
         try {
             transferSemaphore.withPermit {
+                AppDiagnostics.record("VIDEO_DOWNLOAD", "Download iniciado", "cacheId=$cacheId")
                 manager.startDownload(cacheId)
                 val partial = transfer.download(cacheId, request, onProgress)
-                manager.publishDownloadedFile(
+                val published = manager.publishDownloadedFile(
                     cacheId = cacheId,
                     partialFile = partial,
                     extension = request.extension,
-                    expectedBytes = request.expectedBytes
+                    expectedBytes = if (request.audioTrack == null) request.expectedBytes else 0L
                 )
+                AppDiagnostics.record("VIDEO_DOWNLOAD", "Download publicado no cache", "cacheId=$cacheId bytes=${published.sizeBytes} status=${published.status} elapsedMs=${System.currentTimeMillis() - startedAt}")
             }
         } catch (cancelled: CancellationException) {
+            AppDiagnostics.record("WARN", "Download cancelado", "cacheId=$cacheId elapsedMs=${System.currentTimeMillis() - startedAt}")
             // Também cobre cancelamento enquanto aguarda uma das três vagas.
             withContext(NonCancellable) {
                 runCatching { manager.markInterrupted(cacheId) }
             }
             throw cancelled
         } catch (failure: Exception) {
+            AppDiagnostics.record("ERROR", "Falha no download", "cacheId=$cacheId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"} elapsedMs=${System.currentTimeMillis() - startedAt}\n${failure.stackTraceToString()}")
             withContext(NonCancellable) {
                 runCatching { manager.markInterrupted(cacheId) }
             }

@@ -160,9 +160,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
             loadingCacheQualities = true
             try {
                 availableCacheQualities = app.videoCacheSourceRegistry.availableQualities("youtube", video.videoId)
-                if (selectedCacheQuality !in availableCacheQualities) {
-                    selectedCacheQuality = if (VideoCacheQuality.DEFAULT in availableCacheQualities) VideoCacheQuality.DEFAULT else availableCacheQualities.minOrNull() ?: VideoCacheQuality.DEFAULT
-                }
+                // A qualidade escolhida é uma preferência. Não a substituímos
+                // automaticamente pela resolução encontrada: o provedor aplica o fallback.
             } catch (failure: Exception) {
                 cacheActionError = failure.message ?: "Não foi possível consultar as qualidades disponíveis."
             } finally {
@@ -256,14 +255,22 @@ fun YouTubeScreen(onBack: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(videoForCache?.title.orEmpty())
-                    Text("Escolha uma qualidade confirmada pela fonte.")
+                    Text("Escolha a qualidade desejada. Se ela não existir, será usada a menor resolução acima dela; se não houver, a maior abaixo.")
                     when {
                         loadingCacheQualities -> Text("Consultando qualidades disponíveis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         availableCacheQualities.isEmpty() -> Text("A fonte não informou qualidades autorizadas para este vídeo.", color = MaterialTheme.colorScheme.error)
-                        else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            availableCacheQualities.sorted().forEach { height ->
-                                if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
-                                else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                        else -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                VideoCacheQuality.supportedHeights.sorted().forEach { height ->
+                                    if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                                    else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                                }
+                            }
+                            val resolvedHeight = VideoCacheQuality.selectFallback(selectedCacheQuality, availableCacheQualities)
+                            if (resolvedHeight != null && resolvedHeight != selectedCacheQuality) {
+                                Text("Esta fonte não oferece ${selectedCacheQuality}p. Será usado ${resolvedHeight}p.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else if (resolvedHeight != null) {
+                                Text("A fonte oferece ${resolvedHeight}p.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -284,7 +291,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in availableCacheQualities && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
+                TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in VideoCacheQuality.supportedHeights && availableCacheQualities.isNotEmpty() && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
                     val video = videoForCache ?: return@TextButton
                     val quality = selectedCacheQuality
                     val permissionMissing = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -878,12 +885,40 @@ private fun VideoResultRow(video: YouTubeVideo, onPlay: () -> Unit, onListen: ()
             Text(video.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(video.channel.ifBlank { "Canal não informado" } + " • " + formatDuration(video.durationSeconds),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                Button(onClick = onPlay) { Text("Assistir") }
-                if (onPrepareCache != null) TextButton(onClick = onPrepareCache) { Text("Preparar offline") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onPlay,
+                    modifier = Modifier.weight(if (onPrepareCache != null) 0.9f else 1f)
+                ) { Text("Assistir", maxLines = 1) }
+                if (onPrepareCache != null) {
+                    TextButton(
+                        onClick = onPrepareCache,
+                        modifier = Modifier.weight(1.5f)
+                    ) { Text("Preparar offline", maxLines = 1) }
+                }
+            }
+            if (video.channelUrl != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onListen, modifier = Modifier.weight(1f)) {
+                        Text("Só áudio", maxLines = 1)
+                    }
+                    TextButton(onClick = onAddChannel, modifier = Modifier.weight(1f)) {
+                        Text("+ Canal", maxLines = 1)
+                    }
+                    TextButton(onClick = onOpenChannel, modifier = Modifier.weight(1.2f)) {
+                        Text("Ver canal", maxLines = 1)
+                    }
+                }
+            } else {
                 TextButton(onClick = onListen) { Text("Só áudio") }
-                if (video.channelUrl != null) TextButton(onClick = onAddChannel) { Text("+ Canal") }
-                if (video.channelUrl != null) TextButton(onClick = onOpenChannel) { Text("Ver canal") }
             }
         }
     }
