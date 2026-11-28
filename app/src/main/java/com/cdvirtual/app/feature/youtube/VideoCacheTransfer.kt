@@ -149,7 +149,7 @@ class VideoCacheTransfer(
         } else null
         downloadSingle(
             cacheId, request.mediaUrl, request.mimeType, request.headers,
-            request.expectedBytes, videoPartial, 0L, combinedTotal, onProgress
+            request.expectedBytes, videoPartial, audioPartial.length(), combinedTotal, onProgress
         )
         downloadSingle(
             cacheId, audioRequest.mediaUrl, audioRequest.mimeType, audioRequest.headers,
