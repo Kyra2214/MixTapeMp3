@@ -60,11 +60,17 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             AppDiagnostics.record("WARN", "Resolução de stream sem informações", "videoId=$sourceVideoId quality=${qualityHeight}p")
             return@withContext null
         }
-        val stream = candidates(info).firstOrNull { it.first == qualityHeight }?.second
+        val availableCandidates = candidates(info)
+        val resolvedHeight = VideoCacheQuality.selectFallback(qualityHeight, availableCandidates.map { it.first }.toSet())
             ?: run {
-                AppDiagnostics.record("WARN", "Qualidade solicitada indisponível", "videoId=$sourceVideoId requested=${qualityHeight}p available=${candidates(info).map { it.first }}")
+                AppDiagnostics.record("WARN", "Nenhuma qualidade compatível disponível", "videoId=$sourceVideoId requested=${qualityHeight}p")
                 return@withContext null
             }
+        val stream = availableCandidates.firstOrNull { it.first == resolvedHeight }?.second
+            ?: return@withContext null
+        if (resolvedHeight != qualityHeight) {
+            AppDiagnostics.record("VIDEO_EXTRACT", "Fallback de qualidade aplicado", "videoId=$sourceVideoId requested=${qualityHeight}p selected=${resolvedHeight}p available=${availableCandidates.map { it.first }}")
+        }
 
         val url = stream.url?.takeIf { it.isNotBlank() } ?: run {
             AppDiagnostics.record("ERROR", "Stream sem URL utilizável", "videoId=$sourceVideoId quality=${qualityHeight}p")
@@ -95,7 +101,7 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             uploader = info.uploaderName,
             thumbnailUrl = thumbnailOf(info),
             durationMs = info.duration.coerceAtLeast(0L) * 1000L,
-            qualityHeight = qualityHeight,
+            qualityHeight = resolvedHeight,
             transferRequest = VideoCacheTransferRequest(
                 mediaUrl = url,
                 mimeType = mime,
