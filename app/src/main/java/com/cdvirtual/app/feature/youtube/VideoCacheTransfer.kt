@@ -3,6 +3,8 @@ package com.cdvirtual.app.feature.youtube
 import com.cdvirtual.app.core.storage.VideoCacheTransferFileStore
 import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
@@ -15,6 +17,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resumeWithException
 
 /**
@@ -147,13 +150,45 @@ class VideoCacheTransfer(
         val combinedTotal = if (request.expectedBytes > 0L && audioRequest.expectedBytes > 0L) {
             request.expectedBytes + audioRequest.expectedBytes
         } else null
-        downloadSingle(
-            cacheId, request.mediaUrl, request.mimeType, request.headers,
-            request.expectedBytes, videoPartial, audioPartial.length(), combinedTotal, onProgress
+        AppDiagnostics.record(
+            "VIDEO_DOWNLOAD",
+            "Faixas de vídeo e áudio iniciadas em paralelo",
+            "cacheId=$cacheId videoResumeBytes=${videoPartial.length()} audioResumeBytes=${audioPartial.length()} combinedExpectedBytes=${combinedTotal ?: -1L}"
         )
-        downloadSingle(
-            cacheId, audioRequest.mediaUrl, audioRequest.mimeType, audioRequest.headers,
-            audioRequest.expectedBytes, audioPartial, videoPartial.length(), combinedTotal, onProgress
+        coroutineScope {
+            val videoDownloaded = AtomicLong(videoPartial.length())
+            val audioDownloaded = AtomicLong(audioPartial.length())
+            fun reportCombinedProgress() {
+                val combinedDownloaded = videoDownloaded.get() + audioDownloaded.get()
+                onProgress(VideoCacheTransferProgress(combinedDownloaded, combinedTotal))
+            }
+            val videoJob = async(Dispatchers.IO) {
+                downloadSingle(
+                    cacheId, request.mediaUrl, request.mimeType, request.headers,
+                    request.expectedBytes, videoPartial, 0L, null, {},
+                    onTrackProgress = { bytes ->
+                        videoDownloaded.set(bytes)
+                        reportCombinedProgress()
+                    }
+                )
+            }
+            val audioJob = async(Dispatchers.IO) {
+                downloadSingle(
+                    cacheId, audioRequest.mediaUrl, audioRequest.mimeType, audioRequest.headers,
+                    audioRequest.expectedBytes, audioPartial, 0L, null, {},
+                    onTrackProgress = { bytes ->
+                        audioDownloaded.set(bytes)
+                        reportCombinedProgress()
+                    }
+                )
+            }
+            videoJob.await()
+            audioJob.await()
+        }
+        AppDiagnostics.record(
+            "VIDEO_DOWNLOAD",
+            "Duas faixas recebidas",
+            "cacheId=$cacheId videoBytes=${videoPartial.length()} audioBytes=${audioPartial.length()}"
         )
 
         val muxed = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "mux")
@@ -172,7 +207,8 @@ class VideoCacheTransfer(
         partial: File,
         progressOffset: Long,
         combinedTotalBytes: Long?,
-        onProgress: (VideoCacheTransferProgress) -> Unit
+        onProgress: (VideoCacheTransferProgress) -> Unit,
+        onTrackProgress: ((Long) -> Unit)? = null
     ): File {
         if (expectedBytes > 0L && partial.length() == expectedBytes) return partial
         val requestedOffset = partial.length()
@@ -271,7 +307,11 @@ class VideoCacheTransfer(
                                     output.write(buffer, 0, count)
                                     downloaded += count
                                     receivedInResponse += count
-                                    onProgress(VideoCacheTransferProgress(progressOffset + downloaded, combinedTotalBytes ?: totalBytes?.let { progressOffset + it }))
+                                    if (onTrackProgress != null) {
+                                        onTrackProgress(downloaded)
+                                    } else {
+                                        onProgress(VideoCacheTransferProgress(progressOffset + downloaded, combinedTotalBytes ?: totalBytes?.let { progressOffset + it }))
+                                    }
                                     if (downloaded >= nextLogAt) {
                                         val percent = (combinedTotalBytes ?: totalBytes?.let { progressOffset + it })?.takeIf { it > 0L }?.let { (progressOffset + downloaded) * 100L / it }
                                         AppDiagnostics.record("VIDEO_PROGRESS", "Progresso do download", "cacheId=$cacheId downloadedBytes=${progressOffset + downloaded} totalBytes=${combinedTotalBytes ?: totalBytes?.let { progressOffset + it } ?: -1L} percent=${percent ?: -1L}")
