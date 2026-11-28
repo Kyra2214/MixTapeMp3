@@ -26,6 +26,17 @@ class VideoCacheQualityTest {
     }
 
     @Test
+    fun selectsSmallestActualResolutionAboveCustomRequest() {
+        assertEquals(480, VideoCacheQuality.selectFallback(260, setOf(480, 720, 1080)))
+    }
+
+    @Test
+    fun acceptsActualResolutionsOutsidePresetButtons() {
+        assertEquals(true, VideoCacheQuality.isValidHeight(720))
+        assertEquals(true, VideoCacheQuality.isValidHeight(1080))
+    }
+
+    @Test
     fun returnsNullWhenNoQualityIsAvailable() {
         assertNull(VideoCacheQuality.selectFallback(360, emptySet()))
     }
