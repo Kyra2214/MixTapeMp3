@@ -28,8 +28,23 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
                 AppDiagnostics.record("WARN", "Consulta de qualidades sem resultado", "videoId=$sourceVideoId durationMs=${System.currentTimeMillis() - startedAt}")
                 return@withContext emptySet()
             }
+            val groups = streamDiagnostics(info)
             val qualities = candidates(info).map { it.first }.toSet()
-            AppDiagnostics.record("VIDEO_EXTRACT", "Qualidades identificadas", "videoId=$sourceVideoId qualities=${qualities.sorted()} durationMs=${System.currentTimeMillis() - startedAt} streamsTotal=${info.videoStreams.size}")
+            AppDiagnostics.record(
+                "VIDEO_EXTRACT",
+                "Inventário de streams retornado pelo NewPipe",
+                "videoId=$sourceVideoId durationMs=${System.currentTimeMillis() - startedAt} " +
+                    "streamType=${readProperty(info, "getStreamType") ?: "unknown"} " +
+                    "durationSeconds=${info.duration} shortForm=${readProperty(info, "isShortFormContent") ?: readProperty(info, "getIsShortFormContent") ?: "unknown"} " +
+                    groups
+            )
+            AppDiagnostics.record(
+                "VIDEO_EXTRACT",
+                "Qualidades identificadas",
+                "videoId=$sourceVideoId qualities=${qualities.sorted()} progressiveCandidates=${candidates(info).size} " +
+                    "videoStreams=${info.videoStreams.size} videoOnlyStreams=${streamCollection(info, "getVideoOnlyStreams").size} " +
+                    "audioStreams=${streamCollection(info, "getAudioStreams").size} elapsedMs=${System.currentTimeMillis() - startedAt}"
+            )
             qualities
         }
 
@@ -89,13 +104,80 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
         )
     }
 
-    private fun infoOf(videoId: String): StreamInfo? = try {
-        YouTubeExtractor.initialize()
-        StreamInfo.getInfo(WATCH_URL + videoId)
-    } catch (failure: Exception) {
-        AppDiagnostics.record("ERROR", "Falha na extração NewPipe", "videoId=$videoId exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}")
-        null
+    private fun infoOf(videoId: String): StreamInfo? {
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_EXTRACT", "Requisição ao extrator iniciada", "videoId=$videoId extractor=NewPipeExtractor")
+        return try {
+            YouTubeExtractor.initialize()
+            val info = StreamInfo.getInfo(WATCH_URL + videoId)
+            AppDiagnostics.record(
+                "VIDEO_EXTRACT",
+                "Metadados básicos recebidos do extrator",
+                "videoId=$videoId elapsedMs=${System.currentTimeMillis() - startedAt} " +
+                    "titlePresent=${!info.name.isNullOrBlank()} uploaderPresent=${!info.uploaderName.isNullOrBlank()} " +
+                    "durationSeconds=${info.duration} videoStreams=${info.videoStreams.size} " +
+                    "videoOnlyStreams=${streamCollection(info, "getVideoOnlyStreams").size} " +
+                    "audioStreams=${streamCollection(info, "getAudioStreams").size}"
+            )
+            info
+        } catch (failure: Exception) {
+            AppDiagnostics.record(
+                "ERROR",
+                "Falha na extração NewPipe",
+                "videoId=$videoId elapsedMs=${System.currentTimeMillis() - startedAt} " +
+                    "exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"}\n${failure.stackTraceToString()}"
+            )
+            null
+        }
     }
+
+    /**
+     * NewPipe muda a exposição de algumas coleções entre versões. A reflexão aqui é
+     * apenas diagnóstica: não altera seleção de streams nem exige uma API opcional.
+     */
+    private fun streamDiagnostics(info: StreamInfo): String = listOf(
+        "videoStreams" to streamCollection(info, "getVideoStreams"),
+        "videoOnlyStreams" to streamCollection(info, "getVideoOnlyStreams"),
+        "audioStreams" to streamCollection(info, "getAudioStreams"),
+        "subtitles" to streamCollection(info, "getSubtitles")
+    ).joinToString(" ") { (name, streams) ->
+        "$name=${streams.size}[${streams.take(8).joinToString(";") { describeStream(it) }}]"
+    }
+
+    private fun streamCollection(target: Any, getter: String): List<Any> =
+        runCatching {
+            val value = target.javaClass.methods
+                .firstOrNull { it.name == getter && it.parameterCount == 0 }
+                ?.invoke(target)
+            when (value) {
+                is Iterable<*> -> value.filterNotNull()
+                is Array<*> -> value.filterNotNull()
+                else -> emptyList()
+            }
+        }.getOrDefault(emptyList())
+
+    private fun describeStream(stream: Any): String {
+        val format = readProperty(stream, "getFormat")
+        val mime = format?.let { readProperty(it, "getMimeType") } ?: "?"
+        val resolution = readProperty(stream, "getResolution") ?: "?"
+        val videoOnly = readProperty(stream, "isVideoOnly")
+            ?: readProperty(stream, "getIsVideoOnly")
+            ?: "?"
+        val delivery = readProperty(stream, "getDeliveryMethod") ?: "?"
+        val size = readProperty(stream, "getContentLength") ?: "?"
+        val bitrate = readProperty(stream, "getAverageBitrate") ?: "?"
+        val hasUrl = readProperty(stream, "getUrl")?.isNotBlank() == true
+        return "type=${stream.javaClass.simpleName},res=$resolution,mime=$mime,videoOnly=$videoOnly,delivery=$delivery,bytes=$size,bitrate=$bitrate,url=$hasUrl"
+    }
+
+    private fun readProperty(target: Any, getter: String): String? =
+        runCatching {
+            target.javaClass.methods
+                .firstOrNull { it.name == getter && it.parameterCount == 0 }
+                ?.invoke(target)
+                ?.toString()
+                ?.take(120)
+        }.getOrNull()
 
     /** Somente streams progressivos com altura dentro do contrato do cache. */
     private fun candidates(info: StreamInfo): List<Pair<Int, VideoStream>> =
