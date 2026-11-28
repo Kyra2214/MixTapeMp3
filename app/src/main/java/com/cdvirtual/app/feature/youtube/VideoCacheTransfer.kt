@@ -19,12 +19,28 @@ import kotlin.coroutines.resumeWithException
  * Requisição já resolvida por um provedor que tenha autorização para download
  * e armazenamento offline. Este componente não extrai URLs de plataformas.
  */
+data class VideoCacheAudioTrackRequest(
+    val mediaUrl: String,
+    val mimeType: String,
+    val headers: Map<String, String> = emptyMap(),
+    val expectedBytes: Long = 0L
+) {
+    init {
+        require(mediaUrl.startsWith("https://", ignoreCase = true)) { "A faixa de áudio exige URL HTTPS." }
+        require(mimeType.substringBefore(';').trim().lowercase(Locale.ROOT) == "audio/mp4") {
+            "A junção MP4 exige áudio AAC em contêiner MP4."
+        }
+        require(expectedBytes >= 0L) { "Tamanho esperado da faixa de áudio inválido." }
+    }
+}
+
 data class VideoCacheTransferRequest(
     val mediaUrl: String,
     val mimeType: String,
     val extension: String,
     val headers: Map<String, String> = emptyMap(),
-    val expectedBytes: Long = 0L
+    val expectedBytes: Long = 0L,
+    val audioTrack: VideoCacheAudioTrackRequest? = null
 ) {
     init {
         require(mediaUrl.startsWith("https://", ignoreCase = true)) {
@@ -101,10 +117,13 @@ class VideoCacheTransfer(
         .followSslRedirects(false)
         .build()
 ) {
-    fun requiredFreeBytes(cacheId: String, expectedBytes: Long): Long {
-        if (expectedBytes <= 0L) return 0L
-        val partial = fileStore.getOrCreatePartialFile(cacheId)
-        return (expectedBytes - partial.length()).coerceAtLeast(0L)
+    fun requiredFreeBytes(cacheId: String, request: VideoCacheTransferRequest): Long {
+        val videoPartial = fileStore.getOrCreatePartialFile(cacheId)
+        val videoMissing = (request.expectedBytes - videoPartial.length()).coerceAtLeast(0L)
+        val audioRequest = request.audioTrack ?: return videoMissing
+        val audioPartial = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "audio")
+        val audioMissing = (audioRequest.expectedBytes - audioPartial.length()).coerceAtLeast(0L)
+        return videoMissing + audioMissing
     }
 
     suspend fun download(
@@ -112,11 +131,50 @@ class VideoCacheTransfer(
         request: VideoCacheTransferRequest,
         onProgress: (VideoCacheTransferProgress) -> Unit = {}
     ): File {
+        val videoPartial = fileStore.getOrCreatePartialFile(cacheId)
+        val audioRequest = request.audioTrack
+            ?: return downloadSingle(
+                cacheId, request.mediaUrl, request.mimeType, request.headers,
+                request.expectedBytes, videoPartial, 0L, request.expectedBytes.takeIf { it > 0L }, onProgress
+            )
+
+        val audioPartial = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "audio")
+        val combinedTotal = if (request.expectedBytes > 0L && audioRequest.expectedBytes > 0L) {
+            request.expectedBytes + audioRequest.expectedBytes
+        } else null
+        downloadSingle(
+            cacheId, request.mediaUrl, request.mimeType, request.headers,
+            request.expectedBytes, videoPartial, 0L, combinedTotal, onProgress
+        )
+        downloadSingle(
+            cacheId, audioRequest.mediaUrl, audioRequest.mimeType, audioRequest.headers,
+            audioRequest.expectedBytes, audioPartial, videoPartial.length(), combinedTotal, onProgress
+        )
+
+        val muxed = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "mux")
+        AppDiagnostics.record("VIDEO_MUX", "Junção de áudio e vídeo iniciada", "cacheId=$cacheId videoBytes=${videoPartial.length()} audioBytes=${audioPartial.length()}")
+        withContext(Dispatchers.IO) { VideoCacheMuxer.mux(videoPartial, audioPartial, muxed) }
+        AppDiagnostics.record("VIDEO_MUX", "Junção de áudio e vídeo concluída", "cacheId=$cacheId outputBytes=${muxed.length()}")
+        return muxed
+    }
+
+    private suspend fun downloadSingle(
+        cacheId: String,
+        mediaUrl: String,
+        mimeType: String,
+        headers: Map<String, String>,
+        expectedBytes: Long,
+        partial: File,
+        progressOffset: Long,
+        combinedTotalBytes: Long?,
+        onProgress: (VideoCacheTransferProgress) -> Unit
+    ): File {
+        if (expectedBytes > 0L && partial.length() == expectedBytes) return partial
         val partial = fileStore.getOrCreatePartialFile(cacheId)
         val requestedOffset = partial.length()
-        AppDiagnostics.record("VIDEO_HTTP", "Requisição HTTP de vídeo", "cacheId=$cacheId resumeOffset=$requestedOffset expectedBytes=${request.expectedBytes} mime=${request.mimeType} extension=${request.extension}")
-        val builder = Request.Builder().url(request.mediaUrl)
-        request.headers.forEach { (name, value) -> builder.header(name, value) }
+        AppDiagnostics.record("VIDEO_HTTP", "Requisição HTTP de vídeo", "cacheId=$cacheId resumeOffset=$requestedOffset expectedBytes=${expectedBytes} mime=${mimeType} extension=${request.extension}")
+        val builder = Request.Builder().url(mediaUrl)
+        headers.forEach { (name, value) -> builder.header(name, value) }
         if (requestedOffset > 0L) builder.header("Range", "bytes=$requestedOffset-")
         val call = client.newCall(builder.get().build())
 
@@ -209,10 +267,10 @@ class VideoCacheTransfer(
                                     output.write(buffer, 0, count)
                                     downloaded += count
                                     receivedInResponse += count
-                                    onProgress(VideoCacheTransferProgress(downloaded, totalBytes))
+                                    onProgress(VideoCacheTransferProgress(progressOffset + downloaded, combinedTotalBytes ?: totalBytes?.let { progressOffset + it }))
                                     if (downloaded >= nextLogAt) {
                                         val percent = totalBytes?.takeIf { it > 0L }?.let { downloaded * 100L / it }
-                                        AppDiagnostics.record("VIDEO_PROGRESS", "Progresso do download", "cacheId=$cacheId downloadedBytes=$downloaded totalBytes=${totalBytes ?: -1L} percent=${percent ?: -1L}")
+                                        AppDiagnostics.record("VIDEO_PROGRESS", "Progresso do download", "cacheId=$cacheId downloadedBytes=${progressOffset + downloaded} totalBytes=${combinedTotalBytes ?: totalBytes?.let { progressOffset + it } ?: -1L} percent=${percent ?: -1L}")
                                         nextLogAt = if (totalBytes != null && totalBytes > 0L) nextLogAt + (totalBytes / 10L).coerceAtLeast(1L) else nextLogAt + 5L * 1024L * 1024L
                                     }
                                 }
