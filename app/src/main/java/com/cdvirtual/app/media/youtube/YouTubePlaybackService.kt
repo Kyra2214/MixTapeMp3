@@ -127,7 +127,11 @@ class YouTubePlaybackService : MediaSessionService() {
                         scope.launch {
                             runCatching {
                                 val app = application as CDVirtualApp
-                                app.videoCacheManager.updatePosition(cacheId, player.currentPosition.coerceAtLeast(0L))
+                                val position = player.currentPosition.coerceAtLeast(0L)
+                                app.videoCacheManager.updatePosition(cacheId, position)
+                                app.videoCacheRepository.find(cacheId)?.let { cached ->
+                                    app.database.youtubeHistoryDao().updateProgress(cached.sourceVideoId, position)
+                                }
                                 app.videoCacheManager.pausePlayback(cacheId)
                             }
                         }
@@ -152,10 +156,19 @@ class YouTubePlaybackService : MediaSessionService() {
                         scope.launch {
                             runCatching {
                                 val manager = (application as CDVirtualApp).videoCacheManager
+                                val cached = (application as CDVirtualApp).videoCacheRepository.find(cacheId)
                                 if (currentCacheSeekedToEnd) {
                                     manager.updatePosition(cacheId, 0L)
+                                    cached?.let {
+                                        (application as CDVirtualApp).database.youtubeHistoryDao()
+                                            .updateProgress(it.sourceVideoId, 0L)
+                                    }
                                     manager.pausePlayback(cacheId)
                                 } else {
+                                    cached?.let {
+                                        (application as CDVirtualApp).database.youtubeHistoryDao()
+                                            .updateProgress(it.sourceVideoId, 0L)
+                                    }
                                     manager.finishNaturally(cacheId)
                                 }
                             }.onFailure { failure ->
@@ -661,10 +674,11 @@ class YouTubePlaybackService : MediaSessionService() {
                 runCatching {
                     val app = application as CDVirtualApp
                     if (shouldPauseCachedItem) {
-                        app.videoCacheManager.updatePosition(
-                            cachedIdAtDestroy,
-                            if (currentCacheSeekedToEnd) 0L else position
-                        )
+                        val savedPosition = if (currentCacheSeekedToEnd) 0L else position
+                        app.videoCacheManager.updatePosition(cachedIdAtDestroy, savedPosition)
+                        app.videoCacheRepository.find(cachedIdAtDestroy)?.let { cached ->
+                            app.database.youtubeHistoryDao().updateProgress(cached.sourceVideoId, savedPosition)
+                        }
                         app.videoCacheManager.pausePlayback(cachedIdAtDestroy)
                     } else {
                         app.videoCacheManager.finishNaturally(cachedIdAtDestroy)
