@@ -21,7 +21,7 @@ import com.cdvirtual.app.feature.youtube.VideoCacheTransfer
 import com.cdvirtual.app.feature.youtube.VideoCacheDownloadCoordinator
 import com.cdvirtual.app.feature.youtube.VideoCacheSourceRegistry
 import com.cdvirtual.app.media.connectors.ImportRecovery
-import com.cdvirtual.app.media.service.ExportRecovery
+import com.cdvirtual.app.media.service.ExportRecovery\nimport com.cdvirtual.app.core.diagnostics.AppDiagnostics
 
 class CDVirtualApp : Application() {
     val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -58,8 +58,8 @@ class CDVirtualApp : Application() {
                             "parciais preservados=${report.partialFiles.size}"
                     )
                 }
-                .onFailure { android.util.Log.w("VideoCacheRecovery", "Não foi possível reconciliar o cache de vídeos", it) }
+                .onFailure { AppDiagnostics.record("ERROR", "Falha na recuperação do cache de vídeos", it.stackTraceToString()); android.util.Log.w("VideoCacheRecovery", "Não foi possível reconciliar o cache de vídeos", it) }
         }
-        analysisRunner.kick()
+        runCatching { analysisRunner.kick() }\n            .onFailure { AppDiagnostics.record("ERROR", "Falha ao iniciar análise da biblioteca", it.stackTraceToString()) }\n        AppDiagnostics.record("APP", "Inicialização do aplicativo concluída")
     }
 }
