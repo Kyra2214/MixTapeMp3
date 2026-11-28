@@ -390,6 +390,16 @@ class YouTubePlaybackService : MediaSessionService() {
                 }.getOrNull()
             }
             if (!isCurrentRequest(videoId, audioOnly, requestId)) return
+            val cachedPosition = runCatching {
+                (application as CDVirtualApp).videoCacheRepository
+                    .findBySource("youtube", videoId)
+                    ?.takeIf {
+                        it.status == com.cdvirtual.app.core.database.VideoCacheStatus.READY ||
+                            it.status == com.cdvirtual.app.core.database.VideoCacheStatus.PAUSED ||
+                            it.status == com.cdvirtual.app.core.database.VideoCacheStatus.PLAYING
+                    }?.lastPositionMs ?: 0L
+            }.getOrDefault(0L)
+            val resumePositionMs = maxOf(previous?.lastPositionMs ?: 0L, cachedPosition)
             historyDao?.let { dao ->
                 runCatching {
                     dao.save(
@@ -399,13 +409,13 @@ class YouTubePlaybackService : MediaSessionService() {
                             uploader = info.uploader,
                             thumbnailUrl = info.thumbnailUrl,
                             durationSeconds = info.durationSeconds,
-                            lastPositionMs = previous?.lastPositionMs ?: 0L,
+                            lastPositionMs = resumePositionMs,
                             watchedAt = System.currentTimeMillis(),
                             watchCount = (previous?.watchCount ?: 0) + 1
                         )
                     )
                 }.onFailure { failure ->
-                    android.util.Log.w(TAG, "Não foi possível registrar o vídeo no histórico", failure)
+                    android.util.Log.w(TAG, "Não foi possível registrar o vídeo", failure)
                 }
             }
             if (!isCurrentRequest(videoId, audioOnly, requestId)) return
@@ -428,8 +438,8 @@ class YouTubePlaybackService : MediaSessionService() {
                     .build()
             )
             player.prepare()
-            if ((previous?.lastPositionMs ?: 0L) > 0L) {
-                player.seekTo(previous!!.lastPositionMs)
+            if (resumePositionMs > 0L) {
+                player.seekTo(resumePositionMs)
             }
             player.play()
             AppDiagnostics.record("VIDEO_PLAYER", "Comando de reprodução enviado", "videoId=$videoId audioOnly=$audioOnly mime=${selectedMimeType ?: "unknown"} elapsedMs=${System.currentTimeMillis() - startedAt}")
@@ -464,6 +474,26 @@ class YouTubePlaybackService : MediaSessionService() {
                 app.videoCacheFileStore.resolveValidFile(item.filePath, item.sizeBytes)
             } ?: throw IllegalStateException("O arquivo temporário não está íntegro ou não existe.")
 
+            val historyDao = app.database.youtubeHistoryDao()
+            val previousHistory = runCatching { historyDao.find(item.sourceVideoId) }.getOrNull()
+            val resumePositionMs = maxOf(item.lastPositionMs, previousHistory?.lastPositionMs ?: 0L)
+            runCatching {
+                historyDao.save(
+                    YouTubeHistoryEntity(
+                        videoId = item.sourceVideoId,
+                        title = item.title,
+                        uploader = item.uploader,
+                        thumbnailUrl = item.thumbnailUrl,
+                        durationSeconds = item.durationMs / 1000L,
+                        lastPositionMs = resumePositionMs,
+                        watchedAt = System.currentTimeMillis(),
+                        watchCount = previousHistory?.watchCount ?: 1
+                    )
+                )
+            }.onFailure { failure ->
+                android.util.Log.w(TAG, "Não foi possível sincronizar o histórico com o cache", failure)
+            }
+
             ++playbackRequestId
             loadingVideoId = null
             sponsorSegments = emptyList()
@@ -488,11 +518,11 @@ class YouTubePlaybackService : MediaSessionService() {
                     .setMimeType(mimeType)
                     .setMediaMetadata(metadata)
                     .build(),
-                item.lastPositionMs.coerceAtLeast(0L)
+                resumePositionMs.coerceAtLeast(0L)
             )
             player.prepare()
             player.play()
-            AppDiagnostics.record("VIDEO_PLAYER", "Reprodução do cache iniciada", "cacheId=$cacheId bytes=${file.length()} mime=$mimeType startPositionMs=${item.lastPositionMs}")
+            AppDiagnostics.record("VIDEO_PLAYER", "Reprodução do cache iniciada", "cacheId=$cacheId bytes=${file.length()} mime=$mimeType startPositionMs=$resumePositionMs")
             startCachePlaybackMonitor(cacheId)
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -516,8 +546,13 @@ class YouTubePlaybackService : MediaSessionService() {
                 if (player.currentMediaItem?.mediaId != mediaId) break
                 if (player.isPlaying) {
                     runCatching {
-                        (application as CDVirtualApp).videoCacheManager
-                            .updatePosition(cacheId, player.currentPosition.coerceAtLeast(0L))
+                        val app = application as CDVirtualApp
+                        val position = player.currentPosition.coerceAtLeast(0L)
+                        app.videoCacheManager.updatePosition(cacheId, position)
+                        val item = app.videoCacheRepository.find(cacheId)
+                        if (item != null) {
+                            app.database.youtubeHistoryDao().updateProgress(item.sourceVideoId, position)
+                        }
                     }
                 }
             }
