@@ -102,7 +102,7 @@ fun LogsScreen(onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             LazyColumn(Modifier.fillMaxSize()) {
-                items(report.lines(), key = { index -> index.toString() }) { line ->
+                items(report.lines()) { line ->
                     Text(
                         line,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
