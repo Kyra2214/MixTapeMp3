@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.cdvirtual.app.navigation.AppNavHost
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import com.cdvirtual.app.ui.theme.CDVirtualTheme
 
 class MainActivity : ComponentActivity() {
