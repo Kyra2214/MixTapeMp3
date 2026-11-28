@@ -75,7 +75,7 @@ class VideoCacheDownloadCoordinator(
         try {
             var missingBytes = 0L
             val hasCapacity = spaceMutex.withLock {
-                val required = transfer.requiredFreeBytes(item.cacheId, source.transferRequest.expectedBytes)
+                val required = transfer.requiredFreeBytes(item.cacheId, source.transferRequest)
                 val available = manager.capacity().availableBytes
                 val reservedByOthers = reservedSpaceBytes.values.sumOf { it.get() }
                 val availableAfterReservations = (available - reservedByOthers).coerceAtLeast(0L)
@@ -92,9 +92,11 @@ class VideoCacheDownloadCoordinator(
 
             try {
                 download(item.cacheId, source.transferRequest) { progress ->
-                    if (source.transferRequest.expectedBytes > 0L) {
+                    val expectedTotal = source.transferRequest.expectedBytes +
+                        (source.transferRequest.audioTrack?.expectedBytes ?: 0L)
+                    if (expectedTotal > 0L) {
                         reservedSpaceBytes[item.cacheId]?.set(
-                            (source.transferRequest.expectedBytes - progress.downloadedBytes).coerceAtLeast(0L)
+                            (expectedTotal - progress.downloadedBytes).coerceAtLeast(0L)
                         )
                     }
                     onProgress(progress)
@@ -140,7 +142,7 @@ class VideoCacheDownloadCoordinator(
                     cacheId = cacheId,
                     partialFile = partial,
                     extension = request.extension,
-                    expectedBytes = request.expectedBytes
+                    expectedBytes = if (request.audioTrack == null) request.expectedBytes else 0L
                 )
                 AppDiagnostics.record("VIDEO_DOWNLOAD", "Download publicado no cache", "cacheId=$cacheId bytes=${published.sizeBytes} status=${published.status} elapsedMs=${System.currentTimeMillis() - startedAt}")
             }
