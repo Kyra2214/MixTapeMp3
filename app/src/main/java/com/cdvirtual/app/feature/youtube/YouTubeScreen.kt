@@ -160,9 +160,8 @@ fun YouTubeScreen(onBack: () -> Unit) {
             loadingCacheQualities = true
             try {
                 availableCacheQualities = app.videoCacheSourceRegistry.availableQualities("youtube", video.videoId)
-                if (selectedCacheQuality !in availableCacheQualities) {
-                    selectedCacheQuality = if (VideoCacheQuality.DEFAULT in availableCacheQualities) VideoCacheQuality.DEFAULT else availableCacheQualities.minOrNull() ?: VideoCacheQuality.DEFAULT
-                }
+                // A qualidade escolhida é uma preferência. Não a substituímos
+                // automaticamente pela resolução encontrada: o provedor aplica o fallback.
             } catch (failure: Exception) {
                 cacheActionError = failure.message ?: "Não foi possível consultar as qualidades disponíveis."
             } finally {
@@ -256,14 +255,22 @@ fun YouTubeScreen(onBack: () -> Unit) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(videoForCache?.title.orEmpty())
-                    Text("Escolha uma qualidade confirmada pela fonte.")
+                    Text("Escolha a qualidade desejada. Se ela não existir, será usada a menor resolução acima dela; se não houver, a maior abaixo.")
                     when {
                         loadingCacheQualities -> Text("Consultando qualidades disponíveis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         availableCacheQualities.isEmpty() -> Text("A fonte não informou qualidades autorizadas para este vídeo.", color = MaterialTheme.colorScheme.error)
-                        else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            availableCacheQualities.sorted().forEach { height ->
-                                if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
-                                else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                        else -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                VideoCacheQuality.supportedHeights.sorted().forEach { height ->
+                                    if (selectedCacheQuality == height) Button(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                                    else OutlinedButton(onClick = { selectedCacheQuality = height }) { Text("${height}p") }
+                                }
+                            }
+                            val resolvedHeight = VideoCacheQuality.selectFallback(selectedCacheQuality, availableCacheQualities)
+                            if (resolvedHeight != null && resolvedHeight != selectedCacheQuality) {
+                                Text("Esta fonte não oferece ${selectedCacheQuality}p. Será usado ${resolvedHeight}p.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else if (resolvedHeight != null) {
+                                Text("A fonte oferece ${resolvedHeight}p.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -284,7 +291,7 @@ fun YouTubeScreen(onBack: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in availableCacheQualities && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
+                TextButton(enabled = !cachePreparing && !loadingCacheQualities && selectedCacheQuality in VideoCacheQuality.supportedHeights && availableCacheQualities.isNotEmpty() && app.videoCacheSourceRegistry.hasProvider("youtube"), onClick = {
                     val video = videoForCache ?: return@TextButton
                     val quality = selectedCacheQuality
                     val permissionMissing = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
