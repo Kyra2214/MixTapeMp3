@@ -1,5 +1,6 @@
 package com.cdvirtual.app.media.youtube
 
+import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.InfoItem
@@ -45,32 +46,47 @@ class YouTubeSearchRepository {
         val normalized = query.trim()
         require(normalized.isNotEmpty()) { "Digite o que deseja pesquisar." }
 
-        YouTubeExtractor.initialize()
-        val service = NewPipe.getService("YouTube")
-        val handler = service.searchQHFactory.fromQuery(normalized)
-        val info = SearchInfo.getInfo(service, handler)
-        YouTubeSearchPage(
-            videos = info.relatedItems.toVideos(),
-            nextPage = info.nextPage.takeIf { info.hasNextPage() }
-        )
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_SEARCH", "Pesquisa iniciada", "queryLength=${normalized.length}")
+        try {
+            YouTubeExtractor.initialize()
+            val service = NewPipe.getService("YouTube")
+            val handler = service.searchQHFactory.fromQuery(normalized)
+            val info = SearchInfo.getInfo(service, handler)
+            val videos = info.relatedItems.toVideos()
+            AppDiagnostics.record("VIDEO_SEARCH", "Pesquisa concluída", "results=${videos.size} hasNext=${info.hasNextPage()} elapsedMs=${System.currentTimeMillis() - startedAt}")
+            YouTubeSearchPage(videos = videos, nextPage = info.nextPage.takeIf { info.hasNextPage() })
+        } catch (failure: Exception) {
+            AppDiagnostics.record("ERROR", "Falha na pesquisa de vídeos", "exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"} elapsedMs=${System.currentTimeMillis() - startedAt}\n${failure.stackTraceToString()}")
+            throw failure
+        }
     }
 
     suspend fun loadMore(query: String, page: Page): YouTubeSearchPage = withContext(Dispatchers.IO) {
         val normalized = query.trim()
         require(normalized.isNotEmpty()) { "A pesquisa atual não é válida." }
 
-        YouTubeExtractor.initialize()
-        val service = NewPipe.getService("YouTube")
-        val handler = service.searchQHFactory.fromQuery(normalized)
-        val result = SearchInfo.getMoreItems(service, handler, page)
-        YouTubeSearchPage(
-            videos = result.items.toVideos(),
-            nextPage = result.nextPage.takeIf { result.hasNextPage() }
-        )
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_SEARCH", "Carregamento de mais resultados iniciado", "queryLength=${normalized.length}")
+        try {
+            YouTubeExtractor.initialize()
+            val service = NewPipe.getService("YouTube")
+            val handler = service.searchQHFactory.fromQuery(normalized)
+            val result = SearchInfo.getMoreItems(service, handler, page)
+            val videos = result.items.toVideos()
+            AppDiagnostics.record("VIDEO_SEARCH", "Mais resultados carregados", "results=${videos.size} hasNext=${result.hasNextPage()} elapsedMs=${System.currentTimeMillis() - startedAt}")
+            YouTubeSearchPage(videos = videos, nextPage = result.nextPage.takeIf { result.hasNextPage() })
+        } catch (failure: Exception) {
+            AppDiagnostics.record("ERROR", "Falha ao paginar pesquisa de vídeos", "exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"} elapsedMs=${System.currentTimeMillis() - startedAt}\n${failure.stackTraceToString()}")
+            throw failure
+        }
     }
 
     suspend fun loadChannel(channelUrl: String): YouTubeChannelPage = withContext(Dispatchers.IO) {
         require(channelUrl.isNotBlank()) { "O endereço do canal não é válido." }
+        val startedAt = System.currentTimeMillis()
+        AppDiagnostics.record("VIDEO_SEARCH", "Abertura de canal iniciada")
+        try {
         YouTubeExtractor.initialize()
         val service = NewPipe.getService("YouTube")
         val info = ChannelInfo.getInfo(service, channelUrl)
@@ -84,7 +100,11 @@ class YouTubeSearchRepository {
             videos = tab.relatedItems.toVideos(),
             nextPage = tab.nextPage.takeIf { tab.hasNextPage() },
             tabHandler = videosTab
-        )
+        ).also { AppDiagnostics.record("VIDEO_SEARCH", "Canal carregado", "videos=${it.videos.size} hasNext=${it.nextPage != null} elapsedMs=${System.currentTimeMillis() - startedAt}") }
+        } catch (failure: Exception) {
+            AppDiagnostics.record("ERROR", "Falha ao carregar canal", "exception=${failure.javaClass.name} message=${failure.message ?: "sem mensagem"} elapsedMs=${System.currentTimeMillis() - startedAt}\n${failure.stackTraceToString()}")
+            throw failure
+        }
     }
 
     suspend fun loadMoreChannel(
