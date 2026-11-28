@@ -12,5 +12,6 @@ enum class Destination(val route: String, val label: String) {
     Equalizer("equalizer", "Equalizador"),
     Player("player", "Player"),
     Export("export", "Exportar"),
-    Settings("settings", "Configurações")
+    Settings("settings", "Configurações"),
+    Logs("logs", "Logs de diagnóstico")
 }
