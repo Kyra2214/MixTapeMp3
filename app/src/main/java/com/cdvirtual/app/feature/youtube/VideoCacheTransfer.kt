@@ -125,7 +125,10 @@ class VideoCacheTransfer(
         val audioRequest = request.audioTrack ?: return videoMissing
         val audioPartial = fileStore.getOrCreateAuxiliaryPartialFile(cacheId, "audio")
         val audioMissing = (audioRequest.expectedBytes - audioPartial.length()).coerceAtLeast(0L)
-        return videoMissing + audioMissing
+        val muxOutputBytes = if (request.expectedBytes > 0L && audioRequest.expectedBytes > 0L) {
+            request.expectedBytes + audioRequest.expectedBytes
+        } else 0L
+        return videoMissing + audioMissing + muxOutputBytes
     }
 
     suspend fun download(
