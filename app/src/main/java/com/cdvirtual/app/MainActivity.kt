@@ -17,12 +17,38 @@ import com.cdvirtual.app.ui.theme.CDVirtualTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppDiagnostics.record("LIFECYCLE", "MainActivity.onCreate", "savedState=${savedInstanceState != null}")
         // Mantém as teclas físicas associadas ao volume de mídia enquanto o app está aberto.
         volumeControlStream = AudioManager.STREAM_MUSIC
         setContent {
             // T-602: a partir da API 35 o app desenha sob as barras do sistema (edge-to-edge obrigatório); o padding evita conteúdo coberto.
             CDVirtualTheme { Surface { Box(Modifier.fillMaxSize().safeDrawingPadding()) { AppNavHost() } } }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        AppDiagnostics.record("LIFECYCLE", "MainActivity.onStart")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppDiagnostics.record("LIFECYCLE", "MainActivity.onResume")
+    }
+
+    override fun onPause() {
+        AppDiagnostics.record("LIFECYCLE", "MainActivity.onPause")
+        super.onPause()
+    }
+
+    override fun onStop() {
+        AppDiagnostics.record("LIFECYCLE", "MainActivity.onStop")
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        AppDiagnostics.record("LIFECYCLE", "MainActivity.onDestroy", "changingConfigurations=$isChangingConfigurations")
+        super.onDestroy()
     }
 
     /**
