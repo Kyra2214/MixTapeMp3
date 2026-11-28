@@ -63,7 +63,8 @@ fun HomeScreen(onNavigate: (Destination) -> Unit) {
         HomeAction(Destination.Equalizer, "≋", "Ajuste o som", Color(0xFFFF8B9A)),
         HomeAction(Destination.Player, "▶", "Seus mixes offline", Color(0xFF72D6A2)),
         HomeAction(Destination.Export, "↗", "Gere e compartilhe", Color(0xFFE2C477)),
-        HomeAction(Destination.Settings, "⚙", "Pasta, volume e opções", Color(0xFFB0BEC5))
+        HomeAction(Destination.Settings, "⚙", "Pasta, volume e opções", Color(0xFFB0BEC5)),
+        HomeAction(Destination.Logs, "≡", "Investigue erros e falhas", Color(0xFFFFC36B))
     )
 
     Column(
