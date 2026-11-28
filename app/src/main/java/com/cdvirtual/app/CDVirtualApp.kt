@@ -23,7 +23,6 @@ import com.cdvirtual.app.feature.youtube.VideoCacheSourceRegistry
 import com.cdvirtual.app.media.connectors.ImportRecovery
 import com.cdvirtual.app.media.service.ExportRecovery
 import com.cdvirtual.app.core.diagnostics.AppDiagnostics
-import com.cdvirtual.app.core.diagnostics.AppDiagnostics
 
 class CDVirtualApp : Application() {
     val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
