@@ -35,7 +35,7 @@ data class VideoCacheResolvedSource(
         require(sourceId.isNotBlank() && sourceVideoId.isNotBlank())
         require(title.isNotBlank())
         require(durationMs >= 0L)
-        require(qualityHeight in VideoCacheQuality.supportedHeights)
+        require(VideoCacheQuality.isValidHeight(qualityHeight))
     }
 }
 
@@ -62,7 +62,7 @@ class VideoCacheSourceRegistry(
     suspend fun availableQualities(sourceId: String, sourceVideoId: String): Set<Int> {
         require(sourceVideoId.isNotBlank())
         return providers[sourceId]?.availableQualities(sourceVideoId)
-            ?.filter { it in VideoCacheQuality.supportedHeights }
+            ?.filter { VideoCacheQuality.isValidHeight(it) }
             ?.toSet()
             .orEmpty()
     }
@@ -72,7 +72,7 @@ class VideoCacheSourceRegistry(
         sourceVideoId: String,
         qualityHeight: Int
     ): VideoCacheResolvedSource? {
-        require(qualityHeight in VideoCacheQuality.supportedHeights)
+        require(VideoCacheQuality.isValidHeight(qualityHeight))
         return providers[sourceId]?.resolve(sourceVideoId, qualityHeight)
             ?.also { resolved ->
                 require(resolved.sourceId == sourceId) {
@@ -81,8 +81,8 @@ class VideoCacheSourceRegistry(
                 require(resolved.sourceVideoId == sourceVideoId) {
                     "O provedor retornou um identificador de vídeo diferente."
                 }
-                require(resolved.qualityHeight == qualityHeight) {
-                    "O provedor retornou uma qualidade diferente da solicitada."
+                require(VideoCacheQuality.isValidHeight(resolved.qualityHeight)) {
+                    "O provedor retornou uma resolução real inválida."
                 }
             }
     }
