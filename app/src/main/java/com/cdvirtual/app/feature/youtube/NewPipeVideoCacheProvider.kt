@@ -11,12 +11,9 @@ import org.schabi.newpipe.extractor.stream.VideoStream
 import java.util.Locale
 
 /**
- * Provedor de cache temporário baseado no NewPipeExtractor, o mesmo extrator já usado
- * na importação de áudio por link. Só aceita streams progressivos (áudio + vídeo):
- * stream video-only do DASH toca sem som.
- *
- * As qualidades oferecidas são as que o vídeo realmente possui dentro de
- * 240p/360p/480p, e a altura devolvida é sempre a real do arquivo.
+ * Provedor de cache temporário baseado no NewPipeExtractor.
+ * Aceita streams progressivos e combina vídeo-only + áudio MP4/AAC do DASH.
+ * A altura devolvida é sempre a resolução real escolhida pelo fallback.
  */
 class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
     override val sourceId: String = SOURCE_ID
@@ -216,7 +213,7 @@ class NewPipeVideoCacheProvider : VideoCacheSourceProvider {
             if (!VideoCacheQuality.isValidHeight(height)) return@mapNotNull null
             val audio = if (stream.isVideoOnly) audios.firstOrNull() ?: return@mapNotNull null else null
             val codec = codecOf(stream)?.lowercase(Locale.ROOT).orEmpty()
-            if (codec.isNotBlank() && !codec.startsWithAny("avc", "h264", "hev", "h265", "mp4v")) return@mapNotNull null
+            if (codec.isNotBlank() && !codec.startsWithAny("avc", "h264", "hev", "hvc", "h265", "mp4v")) return@mapNotNull null
             VideoCandidate(height, stream, audio)
         }.distinctBy { it.height }.sortedBy { it.height }
     }
